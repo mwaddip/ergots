@@ -34,7 +34,9 @@ Two things are missing:
    and the next leaf's key. For an absent key it returns the keys of the leaves on
    either side. It is needed on the step-by-step verifier and on `BatchAVLProver`,
    both recorded (proof-contributing) and unrecorded. With it, a reader can walk a
-   range and see that nothing was left out.
+   range and, for a digest with honest provenance, see that nothing was left out
+   (corrected in the whole-branch review: a present key's nextLeafKey is not
+   checked, as in both references).
 
 ## Constraints
 
@@ -84,7 +86,10 @@ tree. All found zero mismatches and zero observer violations.
    `leaf.key < key < leaf.nextLeafKey`, on both sides.**
    - **Verifier:** this is enforced, not just observed. `keyMatchesLeaf`
      (`tree-traversal.ts:115-123`) fails the operation with
-     `'leaf-key-out-of-order'` unless the key lies in `[leaf.key, leaf.nextLeafKey)`.
+     `'leaf-key-out-of-order'` unless `leaf.key < key < leaf.nextLeafKey` for an
+     absent key, or `key == leaf.key` for a present key (corrected in the
+     whole-branch review: a present key's nextLeafKey is not checked, as in both
+     references).
    - **Prover:** the descent (`batch-prover.ts:188-219`) goes right on "key ≥ node
      key" and lands on the largest leaf key ≤ the lookup key. An internal node's
      key is the minimum of its right subtree. Holds on trees built by this API's
@@ -458,8 +463,12 @@ the published 0.4.0 tarball:
 **Verifier.** Success means two things:
 - The leaf lies in the tree the current digest commits to, authenticated through
   the label chain to the root.
-- The key lies in `[leaf.key, leaf.nextLeafKey)`, strictly inside when absent.
-  `keyMatchesLeaf` checks this on every lookup.
+- One local check passed: `keyMatchesLeaf`, on every lookup. For an absent key,
+  `leaf.key < key < leaf.nextLeafKey`. For a present key, only `key == leaf.key`:
+  like both references, the verifier does not check `nextLeafKey` on a match, so a
+  present key's `nextKey > key` rests on the digest's provenance, as adjacency does
+  (corrected in the whole-branch review: a present key's nextLeafKey is not
+  checked, as in both references).
 
 **"No key lies between the reported neighbors"** is the tree's sorted-linked-list
 invariant: each leaf's `nextLeafKey` is its successor's key. The digest commits to

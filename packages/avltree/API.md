@@ -168,7 +168,7 @@ class BatchAVLVerifier {
 }
 ```
 
-The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::BatchAVLVerifier` (`new`, `perform_one_operation`, plus the `AuthenticatedTreeOps` trait's `digest`). A proof that fails to decode or anchor does not make construction throw, following scrypto 3.0.0: its constructor sets `topNode` from `reconstructedTree`, which is `None` on failure. Shape errors (the config, the starting digest's length) still throw `AvlVerifyError`, as in the batch functions and in Rust's `new`; scrypto folds those into the same `Try`.
+The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::BatchAVLVerifier` (`new`, `perform_one_operation`, plus the `AuthenticatedTreeOps` trait's `digest`). A proof that fails to decode or anchor does not make construction throw, following scrypto 3.0.0: its constructor sets `topNode` from `reconstructedTree`, which is `None` on failure. Shape errors (the config, the starting digest's length) still throw `AvlVerifyError`, as in the batch functions; scrypto folds those into the same `Try`. Rust's `new` rejects only two of them, `key_length == 0` and a wrong digest length, with the same `Err` it returns for a decode failure (`reconstruct_tree`'s `ensure!`s, `batch_avl_verifier.rs:81-82` @568e7c3); the value-length and max-operations checks are ergots-side.
 
 - **Construction.**
   - Copies the four `config` fields, validates the copy (`validateConfig`), validates `startingDigest`, then copies `proof` with `new Uint8Array(proof)`. Never `.slice()`: `Buffer#slice` is a view.
@@ -246,12 +246,12 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
   - Recorded: exactly `performOneOperation`'s. On the prover, the −inf and +inf `'operation-key-out-of-bounds'` gates, then `'operation-key-length-mismatch'`. On the verifier, the key-length throw, and fail-and-poison for a sentinel.
   - Unrecorded: the prover's three gates.
 - **The guarantee.**
-  - On the verifier, success means two things. The leaf is in the tree the current digest commits to. And the key lies in `[leaf.key, leaf.nextLeafKey)`, strictly inside when absent (`keyMatchesLeaf`, `tree-traversal.ts:115-123`).
+  - On the verifier, success means the leaf is in the tree the current digest commits to, and one local check passed (`keyMatchesLeaf`, `tree-traversal.ts:115-123`). For an absent key, `leaf.key < key < leaf.nextLeafKey`. For a present key, only `key == leaf.key`: like both references, the verifier does not check `nextLeafKey` on a match, so a present key's `nextKey > key` rests on the digest's provenance, as adjacency does.
   - "No key lies between the reported neighbors" is the tree's sorted-linked-list invariant: each leaf's `nextLeafKey` is its successor's key. The digest commits to that list, and every valid operation preserves it, starting from the empty tree. The verifier cannot re-check the global shape.
-  - The guarantee therefore holds for digests with honest provenance, such as consensus-agreed state roots.
+  - Both therefore hold for digests with honest provenance, such as consensus-agreed state roots. On a digest of unknown provenance, a range walk must guard its own progress.
 - **Range walk.**
   1. Look up the range's lower bound, clamped to `0x00…01`: the all-zero key throws on the prover and poisons the verifier.
-  2. Look up each reported `nextKey` while it lies inside the range.
+  2. Reject any reported `nextKey` that is not strictly greater than the key just looked up; it can occur only on a digest without honest provenance. Look up each `nextKey` while it lies inside the range.
   3. Stop at `nextKey === null`, or at the first key past the range.
 
   Every step is a `Lookup` in the proof, so the producer and the verifier must issue the same keys in the same order.
@@ -260,20 +260,25 @@ It is TS-only: neither `ergo_avltree_rust` @568e7c3 nor scrypto 3.0.0 has one. B
 
 ```ts
 // Every key with tag 0x07, walked on a BatchAVLVerifier. A prover's performLookupWithNeighbors walks the same way, but it reports no fail reason.
+// compareBytes: your lexicographic byte comparator (the package does not export one).
 const lower = new Uint8Array(65); lower[0] = 0x07        // keyLength 65; 0x07 00…00 (≥ 0x00…01)
 const entries: [Uint8Array, Uint8Array][] = []
 let r = v.performLookupWithNeighbors(lower)
 if (!r.success) reject(v.getLastFailReason())
 if (r.found) entries.push([lower, r.value])
+let prev: Uint8Array = lower
 let next = r.nextKey
-while (next !== null && next[0] === 0x07) {
+while (next !== null) {
+  if (compareBytes(next, prev) <= 0) reject('no progress: nextKey is not above the key looked up') // only without honest provenance
+  if (next[0] !== 0x07) break                              // the first key past the range
   const step = v.performLookupWithNeighbors(next)
   if (!step.success) reject(v.getLastFailReason())
-  if (!step.found) reject('a key reported as next is absent') // cannot happen on one tree
+  if (!step.found) reject('a key reported as next is absent') // cannot happen for a digest with honest provenance
   entries.push([next, step.value])
+  prev = next
   next = step.nextKey
 }
-// next === null: end of tree; otherwise next[0] > 0x07 — nothing was left out.
+// next === null: end of tree; otherwise next is the first key past the range. For a digest with honest provenance, nothing was left out.
 ```
 
 ---
@@ -435,7 +440,7 @@ type AvlVerifyFailReason =               // exported since v0.5.0
   | 'proof-malformed'                    // invalid token byte, stack underflow, balance byte invalid, leaf value length > 4 MiB or > remaining proof (scrypto PR #117)
   | 'digest-mismatch'                    // reconstructed root.label !== startingDigest[0..32]
   | 'directions-exhausted'               // direction/replay bit read ran past proof.length
-  | 'leaf-key-out-of-order'              // key not in [leaf.key, leaf.nextLeafKey)
+  | 'leaf-key-out-of-order'              // key below leaf.key, or unequal to it and not below leaf.nextLeafKey (a key equal to leaf.key is not checked against nextLeafKey)
   | 'max-nodes-exceeded'                 // node count crossed the KMZ17 DoS bound
   | 'operation-precondition-failed'      // updateFn rejected (Insert on existing, Update on absent, etc.)
   | 'key-out-of-bounds'                  // op key not STRICTLY inside the ±inf sentinels (0x00×kl / 0xFF×kl) — 6g
@@ -498,7 +503,7 @@ class BatchAVLProver {
 
 In-memory AVL+ tree prover. Ports `ergo_avltree_rust/src/batch_avl_prover.rs`.
 
-**Constructor:** `new BatchAVLProver(keyLength, valueLengthOpt)` creates an empty tree seeded with -inf / +inf sentinel leaves. `keyLength` must be > 0. `valueLengthOpt` is `null` for variable-length values or a positive integer for fixed-length.
+**Constructor:** `new BatchAVLProver(keyLength, valueLengthOpt)` creates an empty tree holding one −inf sentinel leaf, whose `nextLeafKey` is the +inf key. `keyLength` must be > 0. `valueLengthOpt` is `null` for variable-length values or a positive integer for fixed-length.
 
 **`performOneOperation(op)`** — applies a single operation to the tree, recording traversal directions for proof generation. Returns:
 - `{ success: true, value }` — operation succeeded. `value` is the old value at the key (`Uint8Array`) or `null` if the key was absent.
@@ -716,6 +721,8 @@ Constructs a `LeafNode`. Defensively copies all three byte arguments so caller-s
 
 Constructs an `InternalNode`. `key` is optional (see `AvlNode` above) and, when given, defensively copied (0.5.0); `left`/`right` are stored by reference, not defensively copied.
 
+**Upgrade note (P1).** Before 0.5.0, a caller that reused a key buffer after an `Insert` silently rewrote an internal node's key. Internal keys are not hashed, so digests cannot show it. Trees persisted through `serializeNode` from such a prover keep the wrong keys, and 0.5.0 does not repair them.
+
 ### `newLabel(label)`
 
 Constructs a `LabelNode`. Defensively copies `label`. **Throws `RangeError`** if `label.length !== 32` — a `LabelNode`'s digest must always be exactly 32 bytes.
@@ -809,7 +816,7 @@ rebases the prover's proof cycle onto the loaded root.
 
 ## Conventions
 
-- **All byte sequences are `Uint8Array`.** The package never creates a `Buffer`; a Node `Buffer` passed in is accepted (it is a `Uint8Array`), and every caller buffer the package keeps is copied with `new Uint8Array(...)` — never `.slice()`, which is a view on a `Buffer` — so reusing it after a call is safe.
+- **All byte sequences are `Uint8Array`.** The package never creates a `Buffer`; a Node `Buffer` passed in is accepted (it is a `Uint8Array`). The constructors and operations copy the caller buffers they keep with `new Uint8Array(...)` — never `.slice()`, which is a view on a `Buffer` — so reusing such a buffer after a call is safe. `restoreRoot` is the exception: it keeps the caller's node objects, and their buffers, by reference.
 - **`keyLength`, `valueLengthOpt`, heights, and counts are `number`.** JS `Number` is safe up to 2^53; all values here fit comfortably.
 - **`bigint` for `UpdateLongBy.delta`.** Represents a signed 64-bit integer (i64 equivalent).
 - **No async surface.** Every function is synchronous. Blake2b-256 runs in tight inner loops; an async boundary would only add overhead.
