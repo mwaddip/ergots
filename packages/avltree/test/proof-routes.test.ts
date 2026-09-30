@@ -19,6 +19,7 @@ describe('a proof built step by step equals one built in one go', () => {
         // A stepped warm-up cycle that contains lookups, then a boundary: the
         // compared batch starts where a consumer's next cycle does.
         const warm = successfulBatch(r, model, 40, vlo)
+        expect(warm.ops.some((o) => o.tag === 'Lookup'), `seed ${seed}: the warm-up must contain a Lookup`).toBe(true)
         warm.ops.forEach((op, i) => {
           expect(prover.performOneOperation(op).success, `seed ${seed} warm-up op ${i} ${op.tag}`).toBe(true)
         })

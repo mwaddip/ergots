@@ -2,7 +2,7 @@ import { describe, expect, it } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
 import { VerifierCore } from '../src/batch-verifier.js'
 import { AvlVerifyError } from '../src/errors.js'
-import { newLeaf, type LeafNode } from '../src/node.js'
+import { label, newLeaf, type LeafNode } from '../src/node.js'
 import type { Operation } from '../src/operation.js'
 import { BatchAVLVerifier, verifyAvlBatch } from '../src/verify.js'
 import { SPINE_CONFIG, buildSpineDigest, buildSpineProof } from './helpers/deep-spine.js'
@@ -188,6 +188,38 @@ describe('the neighbors are authenticated', () => {
     expect(seen).toEqual([])
     expect(hooks.keyMatchesLeaf(keyOf(25), leaf).ok).toBe(true) // 25 lies inside, and is absent
     expect(seen).toEqual([false])
+  })
+
+  it("a present key's nextKey is not checked (as in both references): it rests on the digest's provenance", () => {
+    // Pins reference-faithful behavior. On a match, keyMatchesLeaf returns ok
+    // without comparing leaf.nextLeafKey, exactly as Rust's key_matches_leaf
+    // (batch_avl_verifier.rs:258-259 @568e7c3) and scrypto 3.0.0's
+    // keyMatchesLeaf do. So a one-leaf digest whose leaf has nextLeafKey <= key
+    // anchors, and a found neighbor lookup reports a nextKey that is not above
+    // the key. Only a digest without honest provenance commits to such a leaf.
+    // Adding a local nextLeafKey check here would make this verifier reject
+    // lookups that both references accept: a verdict divergence from both.
+    const k = keyOf(0x70)
+    const value = new Uint8Array([0xab])
+    const cases = [
+      ['equal to the key', new Uint8Array(k)],
+      ['below the key', keyOf(0x60)],
+    ] as const
+    for (const [name, nextLeafKey] of cases) {
+      const where = `nextLeafKey ${name}`
+      const digest = new Uint8Array(33) // a one-leaf tree: height byte 0
+      digest.set(label(newLeaf(k, value, nextLeafKey)), 0)
+      // Packed proof: LEAF token, key, nextLeafKey, u32 BE value length, value,
+      // END_OF_TREE. A lone leaf has no internal node, so no direction bits.
+      const proof = new Uint8Array([0x02, ...k, ...nextLeafKey, 0, 0, 0, value.length, ...value, 0x04])
+      const v = new BatchAVLVerifier(digest, proof, CONFIG)
+      expect(v.digest(), where).not.toBeNull()
+      expect(v.performLookupWithNeighbors(k), where).toEqual({ success: true, found: true, value, nextKey: nextLeafKey })
+      // The same verdict as a plain Lookup on a fresh verifier over the same proof.
+      const plain = new BatchAVLVerifier(digest, proof, CONFIG)
+      expect(plain.performOneOperation({ tag: 'Lookup', key: k }), where).toEqual({ success: true, value })
+      expect(v.digest(), where).toEqual(plain.digest())
+    }
   })
 })
 
