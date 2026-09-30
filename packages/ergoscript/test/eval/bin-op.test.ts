@@ -4,6 +4,7 @@ import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { BinOp, Expr } from '../../src/mir/types'
+import { captureEvalError } from '../_helpers'
 
 const intConst = (v: number): Expr =>
   ({ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: v } })
@@ -11,8 +12,8 @@ const boolConst = (b: boolean): Expr =>
   ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: b } })
 
 describe('BinOp central dispatch — routes to per-family sub-arms', () => {
-  // All four BinOp families are now fully implemented (phase 2c Tasks 4-8):
-  //   Bit (Task 4), Logical (Task 5), Relation (Tasks 6+7), Arith (Task 8).
+  // Three BinOp families evaluate (phase 2c Tasks 5-8): Logical (Task 5), Relation (Tasks 6+7), Arith (Task 8).
+  // The fourth, Bit (Task 4), rejects since 2026-09-30: the JVM has no eval for a raw BitOp.
 
   // Arith is implemented (Task 8): assert routing AND correct computed value.
   // Plus(1, 2) = 3 (Int); cost = Plus_non-bigint(15) + left_Const(5) + right_Const(5) = 25.
@@ -31,9 +32,11 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
     expect(ctx.jitCost).toBe(25)
   })
 
-  // Bit is implemented: assert routing AND correct computed value.
-  // 0xff & 0x0f = 0x0f = 15 (Int).
-  it('Bit routes to evalBitOp and computes correctly', () => {
+  // Bit routes to evalBitOp, which rejects: the JVM 6.0.6 gives a raw BitOp no eval (values.scala:101-102; a local
+  // sigma-state 6.0.6 probe rejects a spend that evaluates one). Nothing is charged and no operand is evaluated.
+  // (It computed 0xff & 0x0f = 15 at a cost of 11 until 2026-09-30, following sigma-rust: an over-accept. Every
+  // raw BitOp and its probed verdicts: jvm-no-eval-nodes.test.ts.)
+  it('Bit routes to evalBitOp, which rejects with unsupported-eval-node', () => {
     const expr: BinOp = {
       tag: 'BinOp',
       op: { kind: 'Bit', op: 'BitAnd' },
@@ -41,10 +44,9 @@ describe('BinOp central dispatch — routes to per-family sub-arms', () => {
       right: intConst(0x0f),
     }
     const ctx = makeContext()
-    const value = evalExpr(expr, Env.empty(), ctx)
-    expect(value).toEqual({ kind: 'Int', value: 0x0f })
-    // Cost = BIT_OP_COST(1) + left_Const(5) + right_Const(5) = 11
-    expect(ctx.jitCost).toBe(11)
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('unsupported-eval-node')
+    expect(ctx.jitCost).toBe(0)
   })
 
   // Logical is implemented: assert routing AND correct computed value.

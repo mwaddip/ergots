@@ -619,6 +619,13 @@ export type EvalErrorCode =
    * `prop.isProven` to this node; the AOT graph-IR rewrite removes the node
    * before evaluation. Sigma-rust mirrors with an unconditional
    * `Err(EvalError::Misc("SigmaPropIsProven has no interpreter eval ..."))`.
+   * The JVM 6.0.6 gives the node no eval either (transformers.scala:321-329,
+   * `costKind = Value.notSupportedError`; the default `Value.eval` throws,
+   * values.scala:101-102): a local sigma-state 6.0.6 probe rejects a spend that
+   * evaluates one, at tree v0 and v3, and accepts one in a branch that is never
+   * evaluated, so this reject is the JVM's. It is the same class of node as
+   * the ones `'unsupported-eval-node'` covers, and keeps its own code
+   * (docs/specs/2026-09-30-jvm-node-construction-design.md §9).
    *
    * Source: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
    */
@@ -970,7 +977,9 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // F4 epilogue — TreeLookup + CreateAvlTree unconditional eval reject
   // (1 new code, and the same change REMOVED the orphaned
-  // 'create-avl-tree-shape-mismatch' above: net 80 → 80)
+  // 'create-avl-tree-shape-mismatch' above: net 80 → 80). The JVM's node
+  // construction branch (2026-09-30) gave the same reject to the six raw
+  // BinOp.Bit ops and BitInversion, with no change to the count.
   // -------------------------------------------------------------------------
   /**
    * The `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) MIR
@@ -988,17 +997,42 @@ export type EvalErrorCode =
    * ports; sigma-rust (eni) convergently over-accepts both (routed to
    * sigma-rust via SANTA).
    *
+   * Also every raw `BinOp` of kind `Bit` (BitOr 0xf2, BitAnd 0xf3, BitXor
+   * 0xf5, BitShiftRight 0xf6, BitShiftLeft 0xf7, BitShiftRightZeroed 0xf8)
+   * and `BitInversion` (0xf1) — since 2026-09-30
+   * (docs/specs/2026-09-30-jvm-node-construction-design.md §9). The
+   * JVM's `BitOp` (trees.scala:911-917; its six companions,
+   * trees.scala:923-942, carry a `FixedCost(JitCost(1))` and no eval) and
+   * `BitInversion` (trees.scala:899-903, `costKind =
+   * Value.notSupportedError` at :906) override no `eval` either, so the
+   * default throws (values.scala:101-102). A local sigma-state 6.0.6
+   * probe (spend mode) rejects a spend that evaluates any of the seven,
+   * at tree v0 and v3, and accepts one in a branch that is never
+   * evaluated. Each arm throws this code before it charges anything or
+   * evaluates an operand, whatever the operand kinds or the tree
+   * version. ergots evaluated BitOr, BitAnd, BitXor and BitInversion
+   * before (a sigma-rust port: an over-accept) and threw
+   * 'not-implemented-yet' for the three shifts. The v6 method forms
+   * (`X.bitwiseOr` 9, `bitwiseAnd` 10, `bitwiseXor` 11, `shiftLeft` 12,
+   * `shiftRight` 13, `bitwiseInverse` 8) are method calls with their own
+   * handlers, which the JVM evaluates: unchanged. `SigmaPropIsProven`
+   * (no JVM eval either) is the same class of node, and keeps its own
+   * code, 'sigma-prop-is-proven-no-eval'.
+   *
    * Source: JVM-blessed vectors AvlTree.unsupported_eval_nodes.json
    * (tree_lookup @v2) + AvlTree.unsupported_eval_nodes_v6.json
    * (tree_lookup + create_avl_tree @v3), blessed_by jvm:sigma-state-6.0.3;
-   * trees.scala:79-91 + 1322-1338.
+   * trees.scala:79-91 + 1322-1338; for the bit nodes, the probe above
+   * (test/eval/jvm-no-eval-nodes.test.ts).
    *
    * ⚠ Grading coupling (load-bearing — do NOT rename to a not-impl code):
    * SANTA's dasher maps ONLY 'method-not-implemented' to its
    * not-implemented category (santa ts-runner/src/runner.ts:152); every
    * other EvalError grades as errored. These vectors EXPECT errored — a
    * distinct code is what makes the reject visible as a reject. The 4
-   * unit/mutation suites pin the exact code as a local tripwire.
+   * unit/mutation suites (TreeLookup, CreateAvlTree) and
+   * test/eval/jvm-no-eval-nodes.test.ts pin the exact code as a local
+   * tripwire.
    */
   | 'unsupported-eval-node'
 
