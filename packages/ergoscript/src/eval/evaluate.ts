@@ -19,7 +19,6 @@ import {
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
-import { validateV6Types } from './validate-v6-types'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -157,21 +156,15 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
   // when each node is built (wire/check-build.ts); a relation rebuilt around a substituted script is
   // not re-checked, as Kiama's dup bypasses the builder. The v3 MethodCall arity assert is made at
   // parse too, as the JVM's serializer makes it (wire/mir/method-call.ts, MethodCallSerializer.scala:52-55),
-  // a decoded script's included; the evaluator makes neither.
-  const treeVersion = ctx.treeVersion ?? 0
+  // a decoded script's included; the evaluator makes neither. So is the version of every type: each is
+  // read at the version in force at its read (wire/parse-stype.ts), a decoded script's at the spent
+  // tree's, and a v6 type below v3 fails there, as in the JVM.
   if (treeHasDeserialize(tree)) {
     const constSubstituted = tree.header.constantSegregation
       ? substituteConstants(tree.body, tree.constants, tree.constantTypes)
       : tree.body
     const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
-    // JVM-align: reject v3+-only type constructs (SUnsignedBigInt/SFunc) in a
-    // pre-V3 tree (constantTypes[] + the post-substitution body) before any
-    // eval/cost, matching the JVM's deserialize-time rejection. See
-    // eval/validate-v6-types.ts. Walks rewrittenBody so attacker-controlled
-    // Deserialize* sub-trees are covered.
-    validateV6Types(tree, rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
-  validateV6Types(tree, tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }

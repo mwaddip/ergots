@@ -16,9 +16,10 @@ import { HarnessError } from './errors.js';
 
 const DEFAULT_MAX_BLOCK_COST = 1_000_000;
 
+/** A top-level box, its registers read at tree version 3, as the ergo node reads a transaction since 6.0. */
 function parseBox(bytes: Uint8Array): ErgoBox {
   const reader = new ByteReader(bytes);
-  const sv = parseSValue({ tag: 'SBox' }, 0, reader);
+  const sv = parseSValue({ tag: 'SBox' }, 3, reader);
   if (sv.kind !== 'Box') throw new Error(`parseSValue(SBox) returned kind=${sv.kind}`);
   return sv.value;
 }

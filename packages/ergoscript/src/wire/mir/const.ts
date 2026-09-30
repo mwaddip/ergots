@@ -34,14 +34,15 @@ import { serializeSValue } from '../serialize-svalue'
  * Expr dispatcher (and is the first byte of the SType). Mirrors
  * sigma-rust's `Constant::parse_with_tag`.
  *
- * `treeVersion` gates SOption + SHeader: see `parseSValue` for details.
- * Required (not defaulted): every call site must thread the enclosing tree's
- * version explicitly. There is no defaulted public boundary anymore (removed
+ * `treeVersion` is the enclosing tree's: the JVM reads the type (`ConstantSerializer.scala:19`) and the
+ * data under it, so it decides the type's rules 1017 and 1018 and the data's version gates (see
+ * `parseSType` and `parseSValue`). Required (not defaulted): every call site must thread the enclosing
+ * tree's version explicitly. There is no defaulted public boundary anymore (removed
  * F5 batch 1, 2026-06-08 — the default-to-0 form was a threading-class
  * landmine that silently parsed nested constants at v0).
  */
 export function parseConstFromByte(firstByte: number, treeVersion: number, r: ByteReader): Const {
-  const tpe = parseSTypeWithFirstByte(firstByte, r)
+  const tpe = parseSTypeWithFirstByte(firstByte, r, treeVersion)
   const value = parseSValue(tpe, treeVersion, r)
   return { tag: 'Const', tpe, value }
 }

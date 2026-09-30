@@ -81,20 +81,22 @@
  * Each `(varId, valueBytes)` entry's `valueBytes` is the shim's
  * `Constant::sigma_serialize` output = `SType || SValue` (no length
  * prefix). We mirror sigma-rust's
- * `Constant::sigma_parse`: read SType, then read SValue with that type
- * + the box-derived treeVersion.
+ * `Constant::sigma_parse`: read SType at tree version 3, then read SValue
+ * with that type + the box-derived treeVersion.
  *
  * # `treeVersion` per input
  *
  * Each input is evaluated under its spent box's own tree version
- * (`ergoTreeBytes[0] & 0x07`), which `makeContext` receives. The harness
- * also decodes the input's ContextExtension Constants under that version.
- * The JVM reads them at transaction parse instead, under the enclosing
- * context, and rejects any v6-typed value there through rule 1019
- * (`ContextExtension.scala:62`); the version gates only SHeader and SOption
- * data, so for the chain-accepted transactions the harness walks the choice
- * cannot matter. The spent box's registers are parsed at version 0, which is
- * verdict-neutral too (see `parseSpentBox`).
+ * (`ergoTreeBytes[0] & 0x07`), which `makeContext` receives. The JVM reads
+ * the input's ContextExtension Constants at transaction parse instead,
+ * under the ergo node's (3, 3) since 6.0, and rejects any v6-typed value
+ * there through rule 1019 (`ContextExtension.scala:62`). The harness reads
+ * each Constant's type at 3, as the node does: the version decides the type
+ * read (below 3 an SFunc type code is no type, so an empty
+ * `Coll[Int => Int]` would fail). The data keeps the box's version, which
+ * gates only SHeader and SOption data, that rule 1019 keeps out of an
+ * extension. The spent box's registers are parsed at 3 too (see
+ * `parseSpentBox`).
  *
  * # `jitCostLimit`
  *
@@ -327,7 +329,7 @@ function parseContextExtensionEntry(
     treeVersion: number,
 ): { tpe: SType; value: SValue } {
     const reader = new ByteReader(valueBytes);
-    const tpe = parseSType(reader);
+    const tpe = parseSType(reader, 3);
     const value = parseSValue(tpe, treeVersion, reader);
     if (!reader.isExhausted) {
         throw new Error(
@@ -385,20 +387,20 @@ function parseSpentBox(
     txIndex: number,
     inputIndex: number,
 ): { box: ErgoBox; ergoTreeBytes: Uint8Array; treeVersion: number } {
-    // The box is parsed at treeVersion 0, which only its register data
-    // (SHeader, SOption) sees. That is verdict-neutral: the JVM reads a
-    // box's registers under the enclosing context, not the box tree's own
-    // version (VersionContext.withVersions scopes only the tree's parse,
+    // The box is parsed at treeVersion 3, the ergo node's since 6.0: the JVM
+    // reads a box's registers under the enclosing context, not the box tree's
+    // own version (VersionContext.withVersions scopes only the tree's parse,
     // ErgoTreeSerializer.scala:154; the registers are read after it,
-    // ErgoBoxCandidate.scala:226-234), and at top level any v6-typed
-    // register rejects, through its data gate or through rule 1019
-    // (CheckV6Type, ErgoBoxCandidate.scala:232, in both rule sets), at every
-    // version. The box's own tree version, read off the parsed
+    // ErgoBoxCandidate.scala:226-234), and a node reads a transaction under
+    // (3, 3). The version decides the registers' type reads (below 3 an SFunc
+    // type code is no type), and their data's SHeader and SOption gates, which
+    // rule 1019 (CheckV6Type, ErgoBoxCandidate.scala:232) makes moot at top
+    // level. The box's own tree version, read off the parsed
     // `ergoTreeBytes[0] & 0x07`, is what the spend evaluates under.
     let parsed: SValue;
     const reader = new ByteReader(spentBoxBytes);
     try {
-        parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+        parsed = parseSValue({ tag: 'SBox' }, 3, reader);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         throw new HarnessError(
@@ -443,9 +445,9 @@ function parseSpentBox(
  * future caller that needs the same boxes. Throws `HarnessError` with
  * a precise location on first failure.
  *
- * Every box is parsed at treeVersion 0, which is verdict-neutral for a
- * top-level box (see `parseSpentBox`); each input also returns its tree's
- * own version, which its spend evaluates under.
+ * Every box is parsed at treeVersion 3, the ergo node's for a top-level box
+ * (see `parseSpentBox`); each input also returns its tree's own version,
+ * which its spend evaluates under.
  */
 function parseTxBoxes(tx: TxBundle, txIndex: number): {
     inputBoxes: ErgoBox[];
@@ -474,7 +476,7 @@ function parseTxBoxes(tx: TxBundle, txIndex: number): {
         const reader = new ByteReader(tx.outputs[i]!);
         let parsed: SValue;
         try {
-            parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+            parsed = parseSValue({ tag: 'SBox' }, 3, reader);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
@@ -500,7 +502,7 @@ function parseTxBoxes(tx: TxBundle, txIndex: number): {
         const reader = new ByteReader(tx.dataInputBoxes[i]!);
         let parsed: SValue;
         try {
-            parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+            parsed = parseSValue({ tag: 'SBox' }, 3, reader);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(

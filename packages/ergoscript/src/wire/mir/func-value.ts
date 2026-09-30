@@ -78,7 +78,7 @@ export function parseFuncValue(
   for (let i = 0; i < count; i++) {
     // JVM FuncValueSerializer.scala:36: getUInt().toInt — a u32, wrapped to an Int.
     const id = readVlqU32(r, 'FuncValue arg id') | 0
-    const tpe = parseSType(r)
+    const tpe = parseSType(r, treeVersion)
     args.push({ id, tpe })
   }
   // Side effect (matches sigma-rust func_value.rs:110-112): register each

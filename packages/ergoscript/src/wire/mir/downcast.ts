@@ -48,7 +48,7 @@ export function parseDowncast(
   treeVersion: number
 ): Downcast {
   const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  const tpe = parseSType(r)
+  const tpe = parseSType(r, treeVersion)
   return { tag: 'Downcast', input, tpe }
 }
 

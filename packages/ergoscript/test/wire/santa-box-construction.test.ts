@@ -13,6 +13,7 @@ import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { boxTreeOf } from '../../src/wire/box-tree'
 import { ExprParseError } from '../../src/wire/errors'
+import { STypeParseError } from '../../src/wire/parse-stype'
 import { ExprTpeError } from '../../src/mir/expr-tpe'
 import { isUnparsedTree } from '../../src/mir/types'
 
@@ -88,24 +89,15 @@ const ERRORS: Record<string, Reject> = {
   'box-v3-type-9-method-gt-boolean-reject#53': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
 }
 
-// The accepted entries whose tree the JVM degrades, with the ergots code of the rule it degrades on: the
-// method lookup (SMethod.fromIds, SMethod.scala:344-349) below v3. #48: no numeric method is found by id
-// (rule 1016); #52: typeId 9 has no methods container (rule 1010).
-const UNPARSED: Record<string, string> = {
-  'box-v0-method-lookup-1016-then-gt-degrade-accept#48': 'method-unknown',
-  'box-v0-no-methods-1010-then-gt-degrade-accept#52': 'method-type-no-methods',
-}
-
-// The entries a later task of this branch closes, each asserted to still diverge until it lands, with
-// what ergots does instead.
-const PENDING: Record<string, { task: string; ergots: Reject }> = {
-  // The JVM degrades the v0 tree on rule 1017 at the UnsignedBigInt constant's type byte, before GT is
-  // built (TypeSerializer.scala:257-267). ergots reads type code 9 at every version until Task 10, so it
-  // builds GT and rejects on the Boolean.
-  'box-v0-type-read-1017-then-gt-degrade-accept#50': {
-    task: 'Task 10',
-    ergots: { cls: ExprParseError, code: 'relation-operand-not-numeric' },
-  },
+// The accepted entries whose tree the JVM degrades, with the ergots error of the rule it degrades on, a
+// soft failure below v3 before GT is built. #48: the method lookup (SMethod.fromIds,
+// SMethod.scala:344-349) finds no numeric method by id (rule 1016); #52: typeId 9 has no methods container
+// (rule 1010); #50: type code 9 is no primitive type below v3, at the UnsignedBigInt constant's type byte
+// (rule 1017, TypeSerializer.scala:16-25, 257-267).
+const UNPARSED: Record<string, Reject> = {
+  'box-v0-method-lookup-1016-then-gt-degrade-accept#48': { cls: ExprParseError, code: 'method-unknown' },
+  'box-v0-type-read-1017-then-gt-degrade-accept#50': { cls: STypeParseError, code: 'type-code-primitive-unknown' },
+  'box-v0-no-methods-1010-then-gt-degrade-accept#52': { cls: ExprParseError, code: 'method-type-no-methods' },
 }
 
 // The entries ergots still diverges on, each with its residual, and what ergots does instead.
@@ -146,14 +138,6 @@ for (const [file, count] of FILES) {
     const entries: Entry[] = JSON.parse(readFileSync(join(__dirname, '../fixtures/conformance/wire', file), 'utf8')).entries
     it(`holds ${count} entries`, () => expect(entries.length).toBe(count))
     for (const e of entries) {
-      const pending = PENDING[e.name]
-      if (pending !== undefined) {
-        it(`${e.name}: still diverges until ${pending.task}`, () => {
-          expect(e.error).toBeUndefined()
-          expectReject(e, pending.ergots)
-        })
-        continue
-      }
       const known = KNOWN_RESIDUAL[e.name]
       if (known !== undefined) {
         it(`${e.name}: still diverges (${known.residual})`, () => {
@@ -174,13 +158,13 @@ for (const [file, count] of FILES) {
           expectReject(e, want!)
         } else {
           expect(roundTrip(e)).toBe(e.expected_bytes_hex ?? e.bytes_hex)
-          const code = UNPARSED[e.name]
-          if (code !== undefined) {
+          const degrade = UNPARSED[e.name]
+          if (degrade !== undefined) {
             const box = parseSValue({ tag: 'SBox' }, e.version.ergoTree, new ByteReader(hex(e.bytes_hex)))
             const tree = boxTreeOf((box as { value: { ergoTreeBytes: Uint8Array } }).value.ergoTreeBytes)
             if (!isUnparsedTree(tree)) throw new Error(`${e.name}: expected an unparsed tree`)
-            expect(tree.error).toBeInstanceOf(ExprParseError)
-            expect((tree.error as ExprParseError).code).toBe(code)
+            expect(tree.error).toBeInstanceOf(degrade.cls)
+            expect((tree.error as { code?: string }).code).toBe(degrade.code)
           }
         }
       })

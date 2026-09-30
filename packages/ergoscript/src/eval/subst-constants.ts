@@ -104,9 +104,11 @@ export function evalSubstConstants(
       ctx.treeVersion ?? 0,
     )
   } catch (cause) {
+    // The wire error, a template type read's rule 1017 or 1018 included, is the cause.
     throw new EvalError(
       `SubstConstants: ${(cause as Error).message}`,
       'subst-constants-error',
+      { cause },
     )
   }
 

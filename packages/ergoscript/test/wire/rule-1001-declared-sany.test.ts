@@ -63,9 +63,9 @@ describe('rule 1001 fails a root typed as a declared SAny', () => {
 
 describe('the declared SAny is one object, from parseSType through exprTpe', () => {
   it('parseSType returns SANY_JVM for type code 97, also nested', () => {
-    expect(parseSType(new ByteReader(hex('61')))).toBe(SANY_JVM)
+    expect(parseSType(new ByteReader(hex('61')), 3)).toBe(SANY_JVM)
     // Option[SAny]: 0x24 (Option, recursive) then 0x61.
-    const opt = parseSType(new ByteReader(hex('2461')))
+    const opt = parseSType(new ByteReader(hex('2461')), 3)
     expect(opt.tag === 'SOption' && opt.elem).toBe(SANY_JVM)
     expect(SANY_JVM).toEqual({ tag: 'SAny' })
   })

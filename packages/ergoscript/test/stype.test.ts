@@ -104,8 +104,8 @@ describe('SType helpers', () => {
  *   TUPLE_PAIR1 = 60, TUPLE_PAIR2 = 72, TUPLE_PAIR_SYMMETRIC = 84,
  *   TUPLE = 96 (Tuple with explicit length)
  *
- * Embeddable primitive codes (1..9; 9 = SUnsignedBigInt is v6-only, accepted
- * permissively at parse — version gate lives in validateV6Types):
+ * Embeddable primitive codes (1..9; 9 = SUnsignedBigInt from tree version 3
+ * only, rule 1017 below it — see test/wire/jvm-type-reads.test.ts):
  *   SBoolean=1, SByte=2, SShort=3, SInt=4, SLong=5, SBigInt=6,
  *   SGroupElement=7, SSigmaProp=8, SUnsignedBigInt=9.
  *
@@ -326,10 +326,12 @@ describe('SType wire format', () => {
     }
   ]
 
+  // At tree version 3, whose table holds every type below (SFunc and SUnsignedBigInt among them). The
+  // version rules themselves, all 256 first bytes at v0 and v3, are test/wire/jvm-type-reads.test.ts's.
   for (const { name, t, bytes } of cases) {
     it(`parses ${name}`, () => {
       const r = new ByteReader(new Uint8Array(bytes))
-      const parsed = parseSType(r)
+      const parsed = parseSType(r, 3)
       expect(parsed).toEqual(t)
       expect(r.remaining).toBe(0)
     })
@@ -340,27 +342,25 @@ describe('SType wire format', () => {
     })
   }
 
-  it('rejects unknown type code 0', () => {
+  it('rejects type code 0 (the JVM InvalidTypePrefix, hard)', () => {
     const r = new ByteReader(new Uint8Array([0]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(() => parseSType(r, 3)).toThrow(expect.objectContaining({ code: 'type-prefix-invalid' }))
   })
 
-  it('parses SUnsignedBigInt primitive type code (9)', () => {
-    // P2a: code 9 is now accepted permissively (version gate deferred to validateV6Types).
+  it('parses SUnsignedBigInt primitive type code (9) at tree version 3', () => {
     const r = new ByteReader(new Uint8Array([9]))
-    expect(parseSType(r)).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(parseSType(r, 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
 
-  it('parses SColl[SUnsignedBigInt] short-form (12 + 9 = 21)', () => {
-    // P2a: compact Coll form with embedded SUnsignedBigInt is accepted permissively.
+  it('parses SColl[SUnsignedBigInt] short-form (12 + 9 = 21) at tree version 3', () => {
     const r = new ByteReader(new Uint8Array([21]))
-    expect(parseSType(r)).toEqual({ tag: 'SColl', elem: { tag: 'SUnsignedBigInt' } })
+    expect(parseSType(r, 3)).toEqual({ tag: 'SColl', elem: { tag: 'SUnsignedBigInt' } })
   })
 
-  it('rejects unknown high type code (110)', () => {
-    // 110 is between SGlobal (106) and SFUNC (112), not in our table.
+  it('fails unknown high type code (110) with rule 1018', () => {
+    // 110 is between SGlobal (106) and SFUNC (112), not in the JVM's table at any version.
     const r = new ByteReader(new Uint8Array([110]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(() => parseSType(r, 3)).toThrow(expect.objectContaining({ code: 'type-code-unknown' }))
   })
 
   it('parses STypeVar with empty name (nameLen 0) — JVM getUByte is unbounded', () => {
@@ -369,19 +369,19 @@ describe('SType wire format', () => {
     // reject mirrored sigma-rust's BoundedVec and over-rejected 0 AND 255 (a JVM fork
     // in both directions). Version-signedness audit, 2026-06-15.
     const r = new ByteReader(new Uint8Array([103, 0]))
-    expect(parseSType(r)).toEqual({ tag: 'STypeVar', name: '' })
+    expect(parseSType(r, 3)).toEqual({ tag: 'STypeVar', name: '' })
   })
 
   it('parses STypeVar with a 255-byte name (the u8 ceiling the JVM accepts)', () => {
     const name = 'A'.repeat(255)
     const bytes = new Uint8Array([103, 255, ...new TextEncoder().encode(name)])
-    expect(parseSType(new ByteReader(bytes))).toEqual({ tag: 'STypeVar', name })
+    expect(parseSType(new ByteReader(bytes), 3)).toEqual({ tag: 'STypeVar', name })
   })
 
   it('rejects SFunc tpe_params containing non-STypeVar', () => {
     // SFunc (Int) => Boolean, tpe_params_len(1), then SInt(4) as a tpe_param — illegal
     const r = new ByteReader(new Uint8Array([112, 1, 4, 1, 1, 4]))
-    expect(() => parseSType(r)).toThrow(STypeParseError)
+    expect(() => parseSType(r, 3)).toThrow(STypeParseError)
   })
 
   it('parser lossy-decodes a STypeVar name with invalid UTF-8 (JVM new String, never throws)', () => {
@@ -391,7 +391,7 @@ describe('SType wire format', () => {
     // The full per-byte JVM-faithful table (incl. the ed-a0-80 surrogate 1-vs-3 fork) lives
     // in test/wire/utf8-lossy.test.ts + the SANTA STypeVar.name_utf8_roundtrip vector.
     const bytes = new Uint8Array([103, 1, 0xff])
-    expect(parseSType(new ByteReader(bytes))).toEqual({ tag: 'STypeVar', name: '�' })
+    expect(parseSType(new ByteReader(bytes), 3)).toEqual({ tag: 'STypeVar', name: '�' })
   })
 
   it('serializes STypeVar with empty name (round-trips as [103, 0])', () => {

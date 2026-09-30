@@ -104,7 +104,7 @@ export function parseMethodCall(
   checkJvmMethod('MethodCall', typeId, methodId, treeVersion)
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
-    explicitTypeArgs[name] = parseSType(r)
+    explicitTypeArgs[name] = parseSType(r, treeVersion)
   }
   return { tag: 'MethodCall', obj, typeId, methodId, args, explicitTypeArgs }
 }

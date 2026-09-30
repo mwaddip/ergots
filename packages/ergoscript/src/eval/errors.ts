@@ -29,8 +29,10 @@
  *       key outside [0,127] — the JVM keys the extension by signed Byte, so
  *       toSigmaContext crashes on a negative key (wire >= 0x80); net 84 → 85)
  *     + B-core soft-fork preservation (+'unparsed-ergotree', 2026-06-17: an
- *       UnparsedErgoTree handed to evaluate; net 85 → 86) — current total: 86,
- *       as the union below counts
+ *       UnparsedErgoTree handed to evaluate; net 85 → 86)
+ *     + the JVM's node construction (2026-09-30: −'method-call-empty-args', moved to
+ *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84) —
+ *       current total: 84, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -108,6 +110,8 @@
  *    − 1 code moved to the wire layer on 2026-09-30 ('method-call-empty-args', now an
  *        ExprParseError raised at parse; docs/specs/2026-09-30-jvm-node-construction-design.md).
  *        The union held 86 before this step, two more than this chain records, and holds 85 after.
+ *    − 1 code removed on 2026-09-30 ('v6-type-in-pre-v3-tree': its pre-eval pass is gone, since
+ *        every type is read at the JVM's version at parse; the same spec, §4a) → 84.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -810,15 +814,10 @@ export type EvalErrorCode =
   // v6 P2 — SUnsignedBigInt + V3 type gating (4 new codes; 69 → 73)
   // Housekeeping (2026-06-03): these P2a/P2b/P2d-2 codes were used in the arms
   // but omitted from this union — `EvalError` takes `code: string`, so they
-  // compiled regardless; added here for taxonomy completeness.
+  // compiled regardless; added here for taxonomy completeness. The gate's own
+  // code, 'v6-type-in-pre-v3-tree', left on 2026-09-30: the type reads at parse
+  // gate the version (wire/parse-stype.ts).
   // -------------------------------------------------------------------------
-  /**
-   * `validateV6Types` pre-eval pass: an `SUnsignedBigInt` / `SFunc` type
-   * construct appears in a `treeVersion < 3` tree (checked over `constantTypes[]`
-   * + the post-substitution body's wire-serialized type annotations). Zero-cost
-   * reject. Source: `eval/validate-v6-types.ts` (v6 P2a).
-   */
-  | 'v6-type-in-pre-v3-tree'
   /**
    * A `UnsignedBigInt` SValue reached an operation with no JVM path. After P2c
    * this survives only in the UBI cast matrix (`eval/_cast-ubi.ts`): UBI↔BigInt

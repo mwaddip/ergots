@@ -101,7 +101,7 @@ export function parseValDef(
     // STypeVar at type code 103) and MUST be an STypeVar.
     const args: STypeVar[] = []
     for (let i = 0; i < n; i++) {
-      const t = parseSType(r)
+      const t = parseSType(r, treeVersion)
       if (t.tag !== 'STypeVar') {
         throw new ExprParseError(
           `FunDef(id=${id}): type arg ${i} parsed to '${t.tag}', expected STypeVar`,

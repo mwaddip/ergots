@@ -329,7 +329,7 @@ export function exprParserFor(opcode: number): ExprParser {
     case OP.OP_BOOL_TO_SIGMA_PROP:
       return parseBoolToSigmaProp
     case OP.OP_DESERIALIZE_CONTEXT:
-      return parseDeserializeContext
+      return (r, _ct, _cv, _vd, tv) => parseDeserializeContext(r, tv)
     case OP.OP_DESERIALIZE_REGISTER:
       return parseDeserializeRegister
     case OP.OP_VAL_DEF:
@@ -347,7 +347,7 @@ export function exprParserFor(opcode: number): ExprParser {
     case OP.OP_GLOBAL:
       return parseGlobal
     case OP.OP_GET_VAR:
-      return parseGetVar
+      return (r, _ct, _cv, _vd, tv) => parseGetVar(r, tv)
     case OP.OP_OPTION_GET:
       return parseOptionGet
     case OP.OP_OPTION_GET_OR_ELSE:

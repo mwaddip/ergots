@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **86 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **84 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -139,9 +139,11 @@ Base58 (Bitcoin alphabet) codec. Exposed primarily for testing and tooling; addr
 ```ts
 function parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue;
 function serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void;
-function parseSType(r: ByteReader): SType;
+function parseSType(r: ByteReader, treeVersion: number): SType;
 function serializeSType(tpe: SType, w: ByteWriter): void;
 ```
+
+**Breaking (2026-09-30): `parseSType` takes a required `treeVersion`,** the tree version in force at the read, as the JVM's `TypeSerializer` reads a type under it (`docs/specs/2026-09-30-jvm-node-construction-design.md` §4a): a tree's header version for its own constants and body, the enclosing tree's for a nested box's registers, and 3 at the top level (the ergo node reads a transaction's registers and context extension at (3, 3) since 6.0). Below 3, type code 9 (UnsignedBigInt, as a primitive id anywhere in a type) fails the JVM's rule 1017 and code 112 (SFunc) rule 1018; primitive ids 10 and 11, and codes 107–111 and 113–255, fail at every version. These are `STypeParseError` `'type-code-primitive-unknown'` (1017) and `'type-code-unknown'` (1018), soft: a size-flagged tree degrades on them. Code 0 is `'type-prefix-invalid'` (the JVM's `InvalidTypePrefix`), hard. `'invalid-type-code'`, which covered all of these, is retired. `parseSValue`'s `treeVersion` is, in the same way, the version the data and a Box value's registers are read at, types included. Two data rules came with it: SFunc data throws the soft `SValueParseError('data-type-not-serializable')` (rule 1009), and a `Coll` whose element type the JVM's `stypeToRType` refuses (an `STypeVar`, or an SFunc of other than one argument or with type parameters, anywhere in it; a tuple element of other than two items is not checked) throws the hard `'coll-elem-type-no-rtype'` before any item, an empty `Coll` included.
 
 Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces as scorex `ReaderError('position-limit-exceeded')` from `parseSValue`; inside a tree (a Box constant) that is rule 1014, which degrades a sized tree and is wrapped as `'soft-fork-without-size-bit'` by an unsized one. An `SBox`'s tree is parsed under the box rules and its registers in the JVM's order (see `parseErgoTreeBytes` / `parseAdditionalRegisters` below), so their errors surface too, unwrapped: `ErgoTreeParseError`, `ExprParseError`, `ExprTpeError` and scorex `ReaderError` among them. A register whose data is malformed rejects with its data's error (for example `ReaderError('truncated')`), before rule 1019 (`'register-v6-type'`) runs on the complete value. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
 
@@ -156,7 +158,7 @@ type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueByt
 Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. Both advance the shared `ByteReader` in place.
 
 - **`parseErgoTreeBytes`** parses one ergoTree on the reader it arrives on, under the box rules: the parse of `parseTree(…, { checkType: true })`, as the JVM's box parser parses a box's tree, so rule 1001 applies here where the bare `parseTree` is lenient. It returns the tree's span as received, a detached copy, declared size included: a box's R1 and `propositionBytes`. It leaves the cursor where the JVM continues reading the box: the parse end for a tree that parses, whatever its declared size says, and the end of the declared span for a tree that degrades. It seeds the box-tree cache with the tree it parsed, so `boxTreeOf` and `reencodeTreeBytes` on the returned bytes reuse this parse. It throws what the tree parse throws, including `ExprTpeError`; an unsized tree whose root is not SigmaProp rejects with `ErgoTreeParseError('soft-fork-without-size-bit')`.
-- **`parseAdditionalRegisters`** reads the additional-registers section in the JVM's order: a raw `u8` count, then for each register R4.. its value read whole (a `Const` or `Tuple` Expr; the Tuple-Expr form keeps its bytes in `opaqueBytes`), then rule 1019 `CheckV6Type` on the complete value (`'register-v6-type'`). A seventh register rejects (`'sbox-registers-out-of-range'`) only when the loop reaches it, after R4–R9 were read, and a register Tuple's arity is read as a signed byte, so 128 or more rejects before any item (`'sbox-register-tuple-arity'`).
+- **`parseAdditionalRegisters`** reads the additional-registers section in the JVM's order: a raw `u8` count, then for each register R4.. its value read whole (a `Const` or `Tuple` Expr; the Tuple-Expr form keeps its bytes in `opaqueBytes`), then rule 1019 `CheckV6Type` on the complete value (`'register-v6-type'`). A seventh register rejects (`'sbox-registers-out-of-range'`) only when the loop reaches it, after R4–R9 were read, and a register Tuple's arity is read as a signed byte, so 128 or more rejects before any item (`'sbox-register-tuple-arity'`). `treeVersion` is the version the values are read at, types and data (see `parseSType`): the enclosing tree's for a Box constant's registers, 3 for a transaction's boxes.
 
 Full shape and failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
 
@@ -279,7 +281,7 @@ type SType =
   | { tag: 'STypeVar';  name: string };
 ```
 
-Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs`. `SUnsignedBigInt` (v6 P2a, type code 9) is a first-class variant: the wire parser accepts it permissively (no version check), but the pre-eval `validateV6Types` pass rejects any tree containing it when `ctx.treeVersion < 3`, matching the JVM's gate at type deserialization.
+Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs`. `SUnsignedBigInt` (v6 P2a, type code 9) and `SFunc` (type code 112) are first-class variants, which the wire parser reads only at tree version 3 or later, as the JVM's type deserialization does (see `parseSType` above).
 
 ### `SValue`
 
@@ -409,7 +411,8 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 86 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Postcondition (failure):** Throws `EvalError` with one of the 84 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped.
+- **Behaviour change (2026-09-30):** `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired. The JVM gates those types where it reads them, at parse, and so does `parseTree` now (see `parseSType`), so a parsed tree below v3 cannot carry one: a size-flagged tree degrades (its spend fails `'unparsed-ergotree'`) and an unsized one rejects. Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written.
 - **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer) for most of them. JVM 6.0.6 does parse `OpTrue`, `OpFalse` and the ModQ family (and `TaggedVariable` `0x71`); ergots rejecting them is a known residual (`facts/ergoscript-wire.md`, `'opcode-reserved'` entry). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 3 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
@@ -464,13 +467,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 86 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 84 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 84 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -481,7 +484,6 @@ All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'arith-divide-by-zero'` | `BinOp.Arith` divide or modulo by zero |
 | `'method-not-implemented'` | `MethodCall`/`PropertyCall` hit an unregistered `(typeId, methodId)` |
 | `'tree-version-too-low'` | A V3-gated method or type encountered in a `treeVersion < 3` tree |
-| `'v6-type-in-pre-v3-tree'` | `SUnsignedBigInt` or serialized `SFunc` annotation in a pre-V3 tree |
 | `'avl-tree-proof-failed'` | AvlTree proof verification failed where the JVM throws: `get`/`getMany` (≥1 key) on any failure, `insert` at treeVersion<3 with ≥1 op. `contains`→false, `update`/`remove`/`insertOrUpdate`→None instead (F4 JVM-canonical surface) |
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |

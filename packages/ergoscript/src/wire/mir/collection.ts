@@ -76,7 +76,7 @@ export function parseCollection(
 ): Collection {
   // JVM ConcreteCollectionSerializer.scala:28: getUShort, which throws before getType (:29).
   const count = readUShortCount(r, 'Collection items count', 'collection-size-out-of-range')
-  const elemTpe = parseSType(r)
+  const elemTpe = parseSType(r, treeVersion)
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
     const item = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)

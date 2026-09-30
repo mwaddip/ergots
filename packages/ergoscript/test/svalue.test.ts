@@ -431,7 +431,6 @@ describe('SValue deferred-kind errors', () => {
     { tag: 'SContext' },
     { tag: 'SGlobal' },
     { tag: 'SAny' },
-    { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SInt' }, tpeParams: [] },
     { tag: 'STypeVar', name: 'T' },
   ]
   for (const t of deferred) {
@@ -446,6 +445,20 @@ describe('SValue deferred-kind errors', () => {
       }
     })
   }
+  // SFunc data has no data form either, but its type code (112) is above LastDataType (111), so the JVM's
+  // rule 1009 CheckSerializableTypeCode throws, a ValidationException (CoreDataSerializer.scala:144-146):
+  // the soft 'data-type-not-serializable' (a local sigma-state 6.0.6 probe: the audit's W:75, an SFunc
+  // constant in a sized v3 tree, unparsed on rule 1009).
+  it('parseSValue SFunc throws data-type-not-serializable (rule 1009)', () => {
+    const r = new ByteReader(new Uint8Array([0x00]))
+    try {
+      parseSValue({ tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SInt' }, tpeParams: [] }, 3, r)
+      expect.fail('expected throw for SFunc')
+    } catch (e) {
+      expect(e).toBeInstanceOf(SValueParseError)
+      expect((e as SValueParseError).code).toBe('data-type-not-serializable')
+    }
+  })
 
   // Iter-17: SString parse + serialize (VLQ length + UTF-8 bytes). Roundtrip
   // covers ASCII, empty, multi-byte UTF-8, and longer strings. Mainnet first

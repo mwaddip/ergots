@@ -47,7 +47,7 @@ export function parseUpcast(
   treeVersion: number
 ): Upcast {
   const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  const tpe = parseSType(r)
+  const tpe = parseSType(r, treeVersion)
   return { tag: 'Upcast', input, tpe }
 }
 

@@ -30,7 +30,7 @@ import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
 import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../mir/types'
 import { exprTpe } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
-import { parseSType } from './parse-stype'
+import { parseSType, STypeParseError } from './parse-stype'
 import { serializeSType } from './serialize-stype'
 import { parseSValue, SValueParseError } from './parse-svalue'
 import { serializeSValue } from './serialize-svalue'
@@ -117,22 +117,22 @@ export class ErgoTreeSerializeError extends Error {
  *   - `method-type-no-methods` / `method-unknown` ← `CheckTypeWithMethods` (rule 1010) and
  *     `CheckAndGetMethodV6` (rule 1016), the method lookup `SMethod.fromIds` (SMethod.scala:344-349)
  *     that a MethodCall or PropertyCall makes at parse (wire/jvm-method-table.ts)
+ *   - `STypeParseError` `type-code-primitive-unknown` / `type-code-unknown` ← `CheckPrimitiveTypeCodeV6`
+ *     (rule 1017) and `CheckTypeCodeV6` (rule 1018), a type read at the version in force there
+ *     (TypeSerializer.scala:16-25, 225-233; wire/parse-stype.ts)
+ *   - `data-type-not-serializable`           ← `CheckSerializableTypeCode` (rule 1009) for SFunc data,
+ *     code 112 being above `LastDataType` (111; CoreDataSerializer.scala:144-146)
  *
  * `sheader-tree-version-too-low` is NOT here → it REJECTS. SHeader (typeCode 104) is neither
  * `== OptionTypeCode` nor `> LastDataType` (111), so rule 1009 does NOT throw for it; the JVM
  * falls through to a DIRECT `SerializerException` (`CoreDataSerializer.scala:146`) that ESCAPES
  * the `UnparsedErgoTree` fallback → reject. SOption is special-cased in rule 1009; SHeader is not
  * (verified vs JVM source — an early "by analogy to SOption" inclusion, caught in adversarial review).
- * Everything else REJECTS too: malformed VLQ, truncation, value overflow, type-code 0 / invalid
- * prefix, a count above its JVM bound, and this parse's own wrappers
- * (`'soft-fork-without-size-bit'`, `'nested-tree-truncated'`), so no enclosing tree degrades on them.
- *
- * TRACKED RESIDUAL (B-full, adversarial-only): the JVM ALSO degrades unknown *type* codes
- * (`CheckTypeCode`/`CheckPrimitiveTypeCode`). ergots conflates some of these with reject cases
- * (e.g. `'invalid-type-code'` spans type-code-0 [reject, JVM `InvalidTypePrefix`] AND
- * unknown-code [degrade, JVM `CheckTypeCode`]), so closing it needs a per-site audit + code
- * split. See `docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md` §"B-full
- * residual". The method gates, its other half, are raised since 2026-09-30 (above).
+ * Everything else REJECTS too: malformed VLQ, truncation, value overflow, type code 0
+ * (`'type-prefix-invalid'`, the JVM's `InvalidTypePrefix`), a `Coll`'s element type with no RType
+ * (`'coll-elem-type-no-rtype'`, a `RuntimeException`), a count above its JVM bound, and this parse's
+ * own wrappers (`'soft-fork-without-size-bit'`, `'nested-tree-truncated'`), so no enclosing tree
+ * degrades on them.
  */
 const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
   'opcode-reserved', 'unknown-opcode', 'soption-tree-version-too-low',
@@ -143,11 +143,23 @@ const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
   // rule 1016 CheckAndGetMethodV6 (org/ergoplatform/validation/ValidationRules.scala:105-136): the
   // container has no method of the call's methodId at the tree's version (methods.scala:128-136)
   'method-unknown',
+  // rule 1017 CheckPrimitiveTypeCodeV6 (core/.../sigma/validation/ValidationRules.scala:80-98): a
+  // primitive id outside the embeddable table of the version at the read (TypeSerializer.scala:16-25)
+  'type-code-primitive-unknown',
+  // rule 1018 CheckTypeCodeV6 (core/.../sigma/validation/ValidationRules.scala:100-118): a type code the
+  // version at the read does not know (TypeSerializer.scala:225-233)
+  'type-code-unknown',
+  // rule 1009 CheckSerializableTypeCode (core/.../sigma/validation/ValidationRules.scala:120-147) for
+  // SFunc data, which has no data form (CoreDataSerializer.scala:144-146)
+  'data-type-not-serializable',
 ])
 /** Tree-level JVM ValidationExceptions: rule 1001 (root type), rule 1012 (reachable only from a nested tree). */
 const SOFT_FORKABLE_TREE_CODES: ReadonlySet<string> = new Set(['root-not-sigma-prop', 'header-version-requires-size'])
 function isSoftForkableParseError(err: unknown): boolean {
-  if ((err instanceof ExprParseError || err instanceof SValueParseError) && SOFT_FORKABLE_PARSE_CODES.has(err.code)) return true
+  if (
+    (err instanceof ExprParseError || err instanceof SValueParseError || err instanceof STypeParseError) &&
+    SOFT_FORKABLE_PARSE_CODES.has(err.code)
+  ) return true
   if (err instanceof ErgoTreeParseError && SOFT_FORKABLE_TREE_CODES.has(err.code)) return true
   // Rule 1014 CheckPositionLimit (core/.../sigma/validation/ValidationRules.scala:186-189) is a ValidationException.
   return err instanceof ReaderError && err.code === 'position-limit-exceeded'
@@ -243,7 +255,8 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
           throw new ErgoTreeParseError(`constant count ${n} exceeds ${SAFE_NEW_ARRAY_MAX}`, 'too-many-constants')
         }
         for (let i = 0; i < n; i++) {
-          const tpe = parseSType(r)
+          // ConstantSerializer.scala:19 under the tree's version (withVersions, :154).
+          const tpe = parseSType(r, header.version)
           constantTypes.push(tpe)
           constants.push(parseSValue(tpe, header.version, r))
         }
@@ -489,7 +502,8 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
  * @param newValuesElem element type of the `Coll[_]` the values came from; each
  *        substituted constant's stored type must structurally equal it
  *        (JVM `require(c.tpe == newConst.tpe)`, `ErgoTreeSerializer.scala:356`)
- * @param treeVersion   the evaluation's ErgoTree version (size-prefix gate only)
+ * @param treeVersion   the evaluation's ErgoTree version: the version the template's constants are read
+ *        under, types and data (rules 1017 and 1018 included), and the size-prefix gate
  * @returns the substituted bytes and the template's constant count (the
  *          template-sized SubstConstants cost is charged by the caller)
  */
@@ -511,9 +525,9 @@ export function substituteConstantsBytes(
   const r = new ByteReader(scriptBytes)
   const rawHeader = r.readU8()
   // The template header's version byte drives ONLY structure flags (hasSize,
-  // constantSegregation) plus the rule-1012 size-bit gate below; data-layer
-  // version gates use `treeVersion` (the eval-ambient outer version). See
-  // comment at parseSValue calls below.
+  // constantSegregation) plus the rule-1012 size-bit gate below; the constants'
+  // type reads and data use `treeVersion` (the eval-ambient outer version). See
+  // the comment at the constants' reads below.
   const templateVersion = rawHeader & VERSION_MASK
   const hasSize = (rawHeader & HAS_SIZE_FLAG) !== 0
   const seg = (rawHeader & CONSTANT_SEGREGATION_FLAG) !== 0
@@ -552,13 +566,15 @@ export function substituteConstantsBytes(
         )
       }
       for (let i = 0; i < count; i++) {
-        const tpe = parseSType(r)
-        constantTypes.push(tpe)
         // Constants in the template parse/serialize under the EVAL-AMBIENT tree
         // version (the JVM's substituteConstants chain installs no VersionContext
         // of its own — ErgoTreeSerializer.scala:320-379; the outer tree's version
-        // is ambient, trees.scala:673-676). The template's own header version byte
-        // governs only its structure flags, NOT the DATA-layer version gates.
+        // is ambient, trees.scala:673-676), types and data alike: a type the spent
+        // tree's version does not know fails rule 1017 or 1018 at eval, which
+        // rejects the spend. The template's own header version byte governs only
+        // its structure flags.
+        const tpe = parseSType(r, treeVersion)
+        constantTypes.push(tpe)
         constants.push(parseSValue(tpe, treeVersion, r))
       }
     }

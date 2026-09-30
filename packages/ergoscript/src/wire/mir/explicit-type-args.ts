@@ -30,8 +30,13 @@
  *   - SGlobal (typeId=106):  some               (methodId=9)  -- v6 P4 (MethodCall opcode, 1 arg)
  *   - SGlobal (typeId=106):  none               (methodId=10) -- v6 P4 (PropertyCall opcode, 0 args)
  *
- * For any (typeId, methodId) not in the registry we assume zero explicit type
- * args (the conservative default — matches sigma-rust for well-typed corpora).
+ * Any other (typeId, methodId) has zero explicit type args. That is exact, not
+ * a default: the parse arms consult this registry only after the JVM's method
+ * lookup has found the pair at the tree's version (wire/jvm-method-table.ts),
+ * and a search of sigma-state 6.0.6's method declarations for a trailing
+ * `Seq(tT)` argument finds these six only (methods.scala:1339, 1756, 1907,
+ * 1926, 1987, 1995; it would miss one passed through a variable, of which the
+ * B-full audit found none).
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/types/sbox.rs (GET_REG_METHOD_DESC) -- DIVERGENT source for SBox entry; see ⚠️ above
@@ -67,7 +72,8 @@ const EXPLICIT_TYPE_ARG_NAMES: Record<number, Record<number, readonly string[]>>
 /**
  * Returns the ordered list of STypeVar names whose SType bytes follow the
  * method body on the wire for `(typeId, methodId)`. Empty for any pair not in
- * the registry (the conservative default — see module header).
+ * the registry, which is exact for a pair the JVM's lookup has found (see the
+ * module header).
  */
 export function explicitTypeArgNames(typeId: number, methodId: number): readonly string[] {
   return EXPLICIT_TYPE_ARG_NAMES[typeId]?.[methodId] ?? []

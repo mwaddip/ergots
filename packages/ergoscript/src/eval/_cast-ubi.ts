@@ -20,9 +20,10 @@
  *                  -> reject (use toSigned).
  *
  * No V3 gate inside the branch: a cast with `tpe = SUnsignedBigInt` (type code
- * 9) is rejected pre-eval by validateV6Types in `< V3` trees, and a UBI source
- * value only exists in V3+ trees (the JVM's `if isV3OrLater` guard on the ubi
- * downcast cases is therefore already satisfied whenever this code runs).
+ * 9) fails its type read at parse in a `< V3` tree (rule 1017,
+ * wire/parse-stype.ts), and a UBI source value only exists in V3+ trees (the
+ * JVM's `if isV3OrLater` guard on the ubi downcast cases is therefore already
+ * satisfied whenever a parsed tree reaches this code).
  */
 import type { SType, SValue } from '../mir/types'
 import { EvalError } from './eval-context'

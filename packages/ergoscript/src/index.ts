@@ -76,7 +76,10 @@ export { violatesCheckV6Type } from './wire/parse-svalue'
 export { sValueStructuralEq } from './eval/bin-op/relation'
 // SType wire codec — exposed for the harness's `ContextExtension`
 // Constant decoding (each blob is `SType || SValue` per sigma-rust
-// `Constant::sigma_serialize`).
+// `Constant::sigma_serialize`). `parseSType(r, treeVersion)`: the version is
+// required, the one in force at the read (3 for a transaction's registers and
+// context extension, as the ergo node reads them since 6.0); below 3 the JVM's
+// v6 types fail rule 1017 or 1018, which `STypeParseError` carries as a code.
 export { parseSType, STypeParseError } from './wire/parse-stype'
 export { serializeSType, STypeSerializeError } from './wire/serialize-stype'
 

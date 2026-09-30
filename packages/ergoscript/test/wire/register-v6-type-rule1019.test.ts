@@ -32,6 +32,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
+import { STypeParseError } from '../../src/wire/parse-stype'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { isUnparsedTree } from '../../src/mir/types'
 import { ByteReader } from '@ergots/scorex'
@@ -172,7 +173,17 @@ describe('rule-1019 CheckV6Type — box register type contains v6-only type', ()
     expectRegisterReject([T_OPTION_INT, 0x01, 0x0a], 2, 'soption-tree-version-too-low')
   })
 
-  it('rejects an SUnsignedBigInt register at tree-version 0 (unconditional)', () => {
-    expectRegisterReject([T_UBI, 0x01, 0x05], 0)
+  // Below v3 an UnsignedBigInt register fails first at its type: type code 9 is no primitive type there
+  // (rule 1017, TypeSerializer.scala:16-25, 257-267), read before the data and rule 1019. A local sigma-state
+  // 6.0.6 probe, box mode, this box at (3, 0): ValidationException, rule 1017; at (3, 3): rule 1019.
+  it('rejects an SUnsignedBigInt register at tree-version 0 on its type (rule 1017)', () => {
+    let thrown: unknown
+    try {
+      parseSValue({ tag: 'SBox' }, 0, new ByteReader(sboxWithRegister([T_UBI, 0x01, 0x05])))
+    } catch (e) {
+      thrown = e
+    }
+    expect(thrown).toBeInstanceOf(STypeParseError)
+    expect((thrown as STypeParseError).code).toBe('type-code-primitive-unknown')
   })
 })

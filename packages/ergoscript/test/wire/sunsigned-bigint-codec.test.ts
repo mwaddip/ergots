@@ -43,9 +43,10 @@ describe('SUnsignedBigInt value codec (unsigned magnitude BE)', () => {
 })
 
 describe('SUnsignedBigInt type code (9)', () => {
-  it('parses embeddable type code 9 as SUnsignedBigInt', () => {
+  // From tree version 3; below it type 9 fails rule 1017 (test/wire/jvm-type-reads.test.ts).
+  it('parses embeddable type code 9 as SUnsignedBigInt at tree version 3', () => {
     const r = new ByteReader(new Uint8Array([9]))
-    expect(parseSType(r)).toEqual({ tag: 'SUnsignedBigInt' })
+    expect(parseSType(r, 3)).toEqual({ tag: 'SUnsignedBigInt' })
   })
   it('serializes SUnsignedBigInt to code 9', () => {
     const w = new ByteWriter()
@@ -58,6 +59,6 @@ describe('SUnsignedBigInt type code (9)', () => {
     serializeSType(t, w)
     const bytes = w.toBytes()
     expect(bytes).toEqual(new Uint8Array([21]))
-    expect(parseSType(new ByteReader(bytes))).toEqual(t)
+    expect(parseSType(new ByteReader(bytes), 3)).toEqual(t)
   })
 })

@@ -83,16 +83,24 @@ for (const file of vectorFiles) {
   })
 }
 
-// The composite-function HOF tree must reject below v3 (the SFunc-in-SPair type
-// code is V3-gated; ergots reproduces this in validateV6Types). We derive the
-// v2 case from the blessed v3 entry rather than ship a separate fixture.
+// The composite-function HOF tree must reject below v3: its SFunc type code (112) is no type there,
+// rule 1018 at the type read (TypeSerializer.scala:211, 225-233), so the sized tree degrades, which the
+// blesser grades errored. We derive the v2 case from the blessed v3 entry, the same tree under a v2 header
+// (0x1b → 0x1a), rather than ship a separate fixture (a local sigma-state 6.0.6 probe, tree mode:
+// unparsed, rule 1018).
 describe('v6 HOF gate — composite-function tree rejects below v3', () => {
   it('higher order lambdas tree at ergoTree v2 → errored', () => {
     const doc = JSON.parse(
       fs.readFileSync(path.join(vectorDir, 'spec/higher_order_lambdas.json'), 'utf8'),
     ) as SantaVector
     const e = doc.entries[0]!
-    const v2: SantaEntry = { ...e, name: `${e.name}@v2`, version: { activated: 2, ergoTree: 2 } }
+    expect(e.tree_bytes_hex.slice(0, 2)).toBe('1b')
+    const v2: SantaEntry = {
+      ...e,
+      name: `${e.name}@v2`,
+      tree_bytes_hex: `1a${e.tree_bytes_hex.slice(2)}`,
+      version: { activated: 2, ergoTree: 2 },
+    }
     expect(evalSantaEntry(v2).error).toBe('errored')
   })
 })

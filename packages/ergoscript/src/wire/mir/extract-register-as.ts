@@ -72,7 +72,7 @@ export function parseExtractRegisterAs(
       'extract-register-as-id-out-of-range'
     )
   }
-  const elemTpe = parseSType(r)
+  const elemTpe = parseSType(r, treeVersion)
   return { tag: 'ExtractRegisterAs', input, registerId, elemTpe }
 }
 

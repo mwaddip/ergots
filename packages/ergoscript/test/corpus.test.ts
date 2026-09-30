@@ -116,9 +116,9 @@ describe('Corpus round-trip — synthetic SType', () => {
     it(`SType: ${entry.name}`, () => {
       const bytes = hexToBytes(entry.bytes_hex)
 
-      // Parse: bytes → SType
+      // Parse: bytes → SType, at tree version 3, whose type table holds every type the corpus has
       const reader = new ByteReader(bytes)
-      const parsed = parseSType(reader)
+      const parsed = parseSType(reader, 3)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
       expect(parsed).toEqual(entry.tpe)
 
