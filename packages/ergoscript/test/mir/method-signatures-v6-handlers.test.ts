@@ -108,7 +108,7 @@ describe('method-signatures: v6 handlers (audit V6-SIGNATURE-01)', () => {
   })
 
   it('faithfulness side-effect: Eq(checkPow, Int) at V3 rejects (was masked by SAny)', () => {
-    // Before the 104:16 signature, exprTpe(checkPow) = SAny, so validateBinOpTypes
+    // Before the 104:16 signature, exprTpe(checkPow, v) = SAny, so validateBinOpTypes
     // SKIPPED the SameType check (reference_sany_type_checks_skip_not_fail) and the
     // mismatched Eq over-accepted. With the signature, exprTpe = SBoolean, so
     // Eq(SBoolean, SInt) is rejected pre-eval ('bin-op-kind-mismatch'), matching

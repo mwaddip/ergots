@@ -265,7 +265,7 @@ describe('SColl.flatMap — direct edge cases (R3 + reachability gaps)', () => {
     // Synthesize a closure whose body, despite static type claim SColl(SLong),
     // returns a non-Coll SValue at runtime. We do this by lying about the
     // body's static tpe (passing a Const whose runtime kind doesn't match its
-    // declared tpe). exprTpe(closure.body) returns SColl(SLong) (concrete);
+    // declared tpe). exprTpe(closure.body, v) returns SColl(SLong) (concrete);
     // the runtime itemRes.kind !== 'Coll' triggers the per-iter type-check throw.
     const ctx = makeContext({})
     const items: SValue[] = [{ kind: 'Long', value: 1n }]

@@ -5,7 +5,7 @@
  *
  * Fixed cost 20 (Pattern A, charged first). `Some(t)` → `Some(lambda(t))`;
  * `None` → `None`. Lambda invocation mirrors SColl.flatMap's env-extend.
- * Result Option elem type = exprTpe(lambda body). V0 (no version gate).
+ * Result Option elem type = exprTpe(lambda body, v). V0 (no version gate).
  *
  * Source: ergotree-interpreter/src/eval/soption.rs:13-60 (map_eval).
  *

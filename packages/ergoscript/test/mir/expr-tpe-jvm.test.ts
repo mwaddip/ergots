@@ -79,14 +79,20 @@ describe('arithmetic before v3: the builder upcasts to the wider operand (SigmaB
     expect(exprTpe(Plus(long(1), big), 0)).toEqual({ tag: 'SBigInt' })
   })
   it('versions 1 and 2 widen as 0 does; versions 4 to 7 read the left operand as 3 does', () => {
-    // The probe, decode mode: 9a04020504 (Plus(Int 1, Long 2)) types SLong at tree versions 0, 1 and
-    // 2, and SInt at 3. It cannot run versions 4 to 7: sigma-state 6.0.6 requires the tree version not
-    // to exceed the activated version, 3 (VersionContext.scala:20-21; the probe's decode fails that
-    // require). For them the rule is the source's: no upcast from isV3OrLaterErgoTreeVersion,
-    // `ergoTreeVersion >= 3` (VersionContext.scala:29; DeserializationSigmaBuilder.applyUpcast,
-    // SigmaBuilder.scala:757-763).
+    // A local sigma-state 6.0.6 probe. Decode mode (the script's .tpe): 9a04020504 (Plus(Int 1, Long 2))
+    // types SLong at tree versions 0, 1 and 2, and SInt at 3. Box mode, whose activated version is set
+    // equal to the tree's (a tree may not exceed it, VersionContext.scala:20-21): at versions 4, 5, 6
+    // and 7 the sized tree sigmaProp(Coll[T](Plus(Int 1, Long 2)).size == 1), headers 0c to 0f, is
+    // accepted with T = Int and rejected with T = Long (AssertionError, the item assert), so the type
+    // is SInt: no upcast from isV3OrLaterErgoTreeVersion, `ergoTreeVersion >= 3`
+    // (VersionContext.scala:29; DeserializationSigmaBuilder.applyUpcast, SigmaBuilder.scala:757-763).
     const e = Plus(int(1), long(2))
     expect(hex(exprBytes(e))).toBe('9a04020504')
+    for (const v of [4, 5, 6, 7]) {
+      const h = (0x08 | v).toString(16).padStart(2, '0')
+      expect(hex(treeBytes(inColl(T.Int, e), 0x08 | v))).toBe(`${h}0dd193b18301049a040205040402`)
+      expect(hex(treeBytes(inColl(T.Long, e), 0x08 | v))).toBe(`${h}0dd193b18301059a040205040402`)
+    }
     for (const v of [1, 2]) expect(exprTpe(e, v)).toEqual(SLONG)
     for (const v of [4, 5, 6, 7]) expect(exprTpe(e, v)).toEqual(SINT)
   })

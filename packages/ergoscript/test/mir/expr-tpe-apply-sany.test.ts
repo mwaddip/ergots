@@ -1,5 +1,5 @@
 /**
- * exprTpe(Apply) — SAny func relaxation (v6 P6 Task 5).
+ * exprTpe(Apply, v) — SAny func relaxation (v6 P6 Task 5).
  *
  * An Apply whose func expression types to SAny (because the func itself is an
  * unresolved PropertyCall/MethodCall, which the A3 fallback returns SAny for)
@@ -41,7 +41,7 @@ const applyOfSAny: Expr = {
   args: [{ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } }],
 }
 
-describe('exprTpe(Apply) — SAny func relaxation', () => {
+describe('exprTpe(Apply, v) — SAny func relaxation', () => {
   it('sanity: the func expr itself types to SAny', () => {
     expect(exprTpe(funcExpr, 0)).toEqual({ tag: 'SAny' })
   })

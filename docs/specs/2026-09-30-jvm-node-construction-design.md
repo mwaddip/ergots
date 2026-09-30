@@ -230,7 +230,7 @@ A few conventions for the table:
 - Relation's packed Boolean pair (`0x85`) arrives as two Boolean constants and is checked the same way.
 
 In the parse arms, at the JVM's position:
-- **`parseCollection`:** after each item, `jvmTypeEquals(exprTpe(item), elemTpe)` must not be false, else `collection-item-type-mismatch` (AssertionError). This closes residual 9.
+- **`parseCollection`:** after each item, `jvmTypeEquals(exprTpe(item, v), elemTpe)` must not be false, else `collection-item-type-mismatch` (AssertionError). This closes residual 9.
 - **`parseBlockValue`:** after each item, it must be a `ValDef`, else `block-value-item-not-val-def` (CCE).
 - **`parseMethodCall`:** from v3, after the arguments and before the explicit type arguments, `args.length > 0`, else `method-call-empty-args` (AssertionError; the code moves from `EvalError`).
 - **`parseCollByIndex`:** before v3, right after the index and before the default flag, the index's type must be numeric with `numericTypeIndex ≤ 2`, else `by-index-index-not-int` (AssertionError).

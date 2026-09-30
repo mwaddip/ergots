@@ -84,7 +84,7 @@ describe('LastBlockUtxoRootHash op-form — type-gate interplay', () => {
   }
 
   it('EQ(0xa6, AvlTree-const) evaluates (boolean) with the field set', () => {
-    // exprTpe(LastBlockUtxoRootHash) = SAvlTree = exprTpe(Const{SAvlTree}) →
+    // exprTpe(LastBlockUtxoRootHash, v) = SAvlTree = exprTpe(Const{SAvlTree}, v) →
     // validateBinOpTypes passes; eval runs and returns Boolean.
     const ctx = makeContext({ lastBlockUtxoRootHash: sampleField })
     const value = evaluateWith(treeV0(eq(opNode, avlConst(sampleField))), ctx)

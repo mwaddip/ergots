@@ -7,7 +7,7 @@ import type { Expr } from '../../src/mir/types'
 
 const int0: Expr = { tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }
 
-describe('exprTpe(Apply) — the JVM Apply.tpe', () => {
+describe('exprTpe(Apply, v) — the JVM Apply.tpe', () => {
   it('a collection function gives its element type', () => {
     const func: Expr = { tag: 'Const', tpe: { tag: 'SColl', elem: { tag: 'SSigmaProp' } },
       value: { kind: 'Coll', elem: { tag: 'SSigmaProp' }, items: [] } } as Expr
