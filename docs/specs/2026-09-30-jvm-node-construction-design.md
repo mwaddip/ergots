@@ -292,7 +292,7 @@ The untyped default, the spend root wrap, and the JVM's eval-time type disciplin
 
 ### 8. The pre-v3 `ByIndex` index at eval (`eval/coll-by-index.ts`)
 
-Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSerializer.scala:29-33`, `upcastTo(SInt)`), and the inserted `Upcast` is evaluated and charged. ergots throws `'coll-by-index-index-not-int'` on such an index at eval (`eval/coll-by-index.ts:62-67`), where the JVM evaluates (review m5). Before v3, a Byte or Short index value is widened to Int and the `Upcast` node's cost is charged, as `eval/bin-op/arith.ts` already does for pre-v3 arithmetic. The cost is `NumericCastCostKind`'s 10 for an SInt target (`CostKind.scala:60-66`), charged while the index is evaluated, before the pre-v3 default and before ByIndex's own 30. The JVM keys the Upcast on the index's type at parse, and ergots on the value's kind at eval: they differ only when a substituted default of another width reaches the index (residual 3).
+Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSerializer.scala:29-33`, `upcastTo(SInt)`), and the inserted `Upcast` is evaluated and charged. ergots throws `'coll-by-index-index-not-int'` on such an index at eval (`eval/coll-by-index.ts:62-67`), where the JVM evaluates (review m5). Before v3, a Byte or Short index value is widened to Int and the `Upcast` node's cost is charged, as `eval/bin-op/arith.ts` already does for pre-v3 arithmetic. The cost is `NumericCastCostKind`'s 10 for an SInt target (`CostKind.scala:60-66`). The JVM charges it while the index is evaluated; ergots charges it when it widens the index. ergots charges ByIndex's own 30 before the children (Pattern A in `facts/ergoscript-eval.md`'s cost table), where the JVM charges it after the input and the index (`transformers.scala:257-278`). The totals are equal, and at a cost-limit trip both reject. The JVM keys the Upcast on the index's type at parse, and ergots on the value's kind at eval: they differ only when a substituted default of another width reaches the index (residual 3).
 
 ## Behavior matrix (JVM = ergots after this change)
 
@@ -367,7 +367,13 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 
 **Gates.**
 - **Parse:** a fresh mainnet ids walk from h=1 (`tools/mainnet-validate`, `--mode ids`, a new `--checkpoint-path`). It also stands in for the walk the shipped head still owes (HANDOFF decision 1).
-- **Eval:** the ids walk does not evaluate. The eval-side changes here are the substitution (only trees with a Deserialize node), the pre-v3 arithmetic types, which reach eval-visible types such as a `map`'s output element, and §8. They need an evaluating walk over the pre-v3 era and every tree with a Deserialize node. The next spec's eval-time checks will need a whole-chain evaluating walk (review R2-M3).
+- **Eval:** the ids walk does not evaluate. The eval-side changes here are:
+  - the substitution (only trees with a Deserialize node);
+  - the pre-v3 arithmetic types, which reach eval-visible types such as a `map`'s output element;
+  - §8;
+  - §5 item 5's type reads, which run at every `checkType` site of every evaluated tree. An `exprTpe` arm that throws where the JVM's type read does not (a wrong arm, or a variant with no arm) now rejects an honest spend anywhere (Task 1 review).
+
+  They need an evaluating walk over the whole chain, as the next spec's checks will (review R2-M3). `exprTpe` must also be total over the `Expr` union (the plan's Task 2 tests it).
 - The caps and the choice of walks are the user's call.
 
 ## Residuals (documented, not closed)
