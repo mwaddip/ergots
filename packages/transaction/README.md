@@ -5,7 +5,7 @@ Pure-TypeScript Ergo transaction wire codec and validator. Parses and serializes
 ## Scope
 
 - **Wire codec:** parse, serialize, derive the signing message, compute the transaction id.
-- **Validation:** `validateStateless` (well-formedness) and `validateStateful` (box provisioning, value and token conservation, output rules, per-input script evaluation and signature verification, storage rent, and the JVM block-cost model). See [`API.md`](./API.md).
+- **Validation:** `validateStateless` (well-formedness) and `validateStateful` (box provisioning, value and token conservation, output rules, per-input script evaluation and signature verification, storage rent, and the JVM block-cost model). The script evaluation is `@ergots/ergoscript`'s, whose Deserialize substitution and eval-time type reads follow the JVM's since 2026-09-30, so an `ExprTpeError` can propagate from a spend too. See [`API.md`](./API.md).
 
 ## Install
 
@@ -39,7 +39,7 @@ The wire codec is four functions and one error class, below. The validators, `va
 
 ### `parseTransaction(bytes: Uint8Array): ErgoLikeTransaction`
 
-Parse a complete transaction from wire bytes. Rejects trailing bytes (`TxParseError('trailing-bytes')`), an envelope check of ergots' own: sigma-rust's `sigma_parse_bytes` and the JVM's `parseBytes` both ignore them. Each output's tree is parsed as the JVM parses a box's tree (its declared size used only if it degrades; rule 1001 applies), and each output tree must re-encode, as the JVM's eager transaction id requires (`TxParseError('output-tree-not-reencodable')`). An output's `ergoTreeBytes` keeps the tree's bytes as received.
+Parse a complete transaction from wire bytes. Rejects trailing bytes (`TxParseError('trailing-bytes')`), an envelope check of ergots' own: sigma-rust's `sigma_parse_bytes` and the JVM's `parseBytes` both ignore them. Each output's tree is parsed as the JVM parses a box's tree (its declared size used only if it degrades; rule 1001 applies), and each output tree must re-encode, as the JVM's eager transaction id requires (`TxParseError('output-tree-not-reencodable')`). An output's `ergoTreeBytes` keeps the tree's bytes as received. Since 2026-09-30 every node of an output tree passes the JVM's construction checks as it is parsed (an `ExprParseError` construction code or an `ExprTpeError`, propagated unwrapped, is a hard reject), a method or a type the JVM does not know at the tree's version degrades a size-flagged tree, and the registers and context-extension values are read at tree version 3, as the ergo node reads a block's transactions (see `@ergots/ergoscript`'s API.md and [`facts/transaction.md`](../../facts/transaction.md)).
 
 ### `serializeTransaction(tx: ErgoLikeTransaction): Uint8Array`
 

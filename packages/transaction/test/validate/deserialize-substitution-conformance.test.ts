@@ -121,8 +121,8 @@ const REJECTS: Record<string, Pin> = {
     jvm: /expected deserialized value to have type Coll\[SLong\$\]; got Coll\[SInt\$\]/,
     ergots: DECODED_MISMATCH('DeserializeRegister'),
   },
-  // An unsized v0 tree starts with type code 0: the decode throws InvalidTypePrefix, which is no cast, so nothing
-  // swallows it although the branch is dead.
+  // An unsized v0 tree starts with type code 0: the decode throws InvalidTypePrefix (TypeSerializer.scala:135), which
+  // is no cast, so nothing swallows it although the branch is dead.
   'r1-unsized-tree-decode-fails-reject#19': {
     jvm: /InvalidTypePrefix/,
     ergots: { cls: EvalError, code: 'deserialize-parse-failed', cause: { cls: STypeParseError, code: 'type-prefix-invalid' } },

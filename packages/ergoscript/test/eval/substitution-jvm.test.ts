@@ -404,7 +404,7 @@ describe('the re-review table: rejected', () => {
     rejected(spend(S16, { var1: script(Apply(int(0), [int(0)])) }), 'deserialize-tpe-mismatch'))
 })
 
-describe("SELF's mandatory registers are always present (ErgoBox.get, ErgoBox.scala:75-82)", () => {
+describe("SELF's mandatory registers are always present (ErgoBox.get: R0-R2 from ErgoBoxCandidate.get, ErgoBoxCandidate.scala:69-83; R3 from its override, ErgoBox.scala:75-82)", () => {
   // R0 (a Long), R2 (the tokens) and R3 (a tuple) are present and not Coll[Byte]: `eba.value.toArray` is a class cast,
   // swallowed, so the node stays and its default is never taken; live, it throws. R1 is covered by E1 and SANTA #16-#19.
   for (const reg of [0, 2, 3]) {

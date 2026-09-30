@@ -271,10 +271,12 @@ export type EvalErrorCode =
   /** ByIndex: index is OOB and no `default` branch was provided. */
   | 'coll-by-index-out-of-range'
   /**
-   * ByIndex: the index expression evaluated to a value the arm does not take. Before tree v3 the arm keys on the
-   * index's static type, as the JVM's parse does: a statically Byte or Short index takes a Byte, Short or Int value and
-   * is charged the Upcast the parse inserts, and a statically Int one takes an Int value only (eval/coll-by-index.ts).
-   * From v3 the parse checks nothing, and any value but an Int fails here as it does in the JVM (a ClassCastException).
+   * ByIndex: the index expression evaluated to a value the arm does not take. Before tree v3 the arm follows the
+   * decision the parse recorded on the node from the index's static type, as the JVM's parse decides it, and a
+   * substitution rebuild keeps (`recordIndexUpcast`): a statically Byte or Short index takes a Byte, Short or Int value
+   * and is charged the Upcast the parse inserts, and a statically Int one takes an Int value only
+   * (eval/coll-by-index.ts). From v3 the parse checks nothing, and any value but an Int fails here as it does in the JVM
+   * (a ClassCastException).
    */
   | 'coll-by-index-index-not-int'
   /** Slice: `from` or `until` expression evaluated to a non-Int SValue. */

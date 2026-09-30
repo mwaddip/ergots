@@ -175,9 +175,10 @@ function substituteDeserializeContext(e: DeserializeContext, ctx: EvalContext, v
 }
 
 /**
- * `DeserializeRegister` (ErgoLikeInterpreter.scala:17-37). SELF's register is read with `ErgoBox.get`
- * (ErgoBox.scala:75-82), which gives R0 to R3 always: R1 is SELF's tree bytes as received, so a
- * `DeserializeRegister(R1)` decodes SELF's own tree (`getRegisterEntry`).
+ * `DeserializeRegister` (ErgoLikeInterpreter.scala:17-37). SELF's register is read with `ErgoBox.get`, which gives
+ * R0 to R3 always: R0 to R2 from `ErgoBoxCandidate.get` (ErgoBoxCandidate.scala:69-83), and R3 from `ErgoBox.get`'s
+ * override (ErgoBox.scala:75-82). R1 is SELF's tree bytes as received, so a `DeserializeRegister(R1)` decodes SELF's
+ * own tree (`getRegisterEntry`).
  * - A present register matches `case eba: EvaluatedValue[SByteArray]@unchecked` whatever its type, and
  *   `eba.value.toArray` throws a `ClassCastException` unless it is a `Coll[Byte]`: swallowed, so the node stays, and
  *   `.orElse(d.default)` is not reached.

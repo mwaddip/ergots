@@ -802,7 +802,12 @@ export function validateTx(
                 // Distinguish "library coverage gap" from "tree did
                 // something wrong" — operators triaging a not-yet-impl
                 // throw want to see it called out vs. burying it as a
-                // generic EvalError.
+                // generic EvalError. 'unsupported-eval-node' is not a
+                // gap: it is a node the JVM gives no eval (TreeLookup,
+                // CreateAvlTree and, since 2026-09-30, every raw BitOp,
+                // the three shifts included, and BitInversion), which
+                // the JVM rejects too, so it lands in
+                // 'evaluate-eval-error'.
                 const isNotImpl =
                     err.code === 'not-implemented-yet' ||
                     err.code.endsWith('-method-not-implemented');
