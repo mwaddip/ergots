@@ -34,6 +34,12 @@
  * become the keys of our `Record<string, SType>`. For any (typeId, methodId)
  * not in the registry we assume zero explicit type args.
  *
+ * The pair is looked up first, as the JVM's `SMethod.fromIds` looks it up
+ * (MethodCallSerializer.scala:56, `checkJvmMethod` in `../jvm-method-table`):
+ * a pair the JVM does not know at the tree's version fails with its soft rule
+ * 1010 or 1016, before any type argument is read. So the registry is read only
+ * for a pair the JVM knows, whose explicit type arguments it lists.
+ *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/method_call.rs
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/method_call.rs
@@ -50,18 +56,22 @@ import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
 import { explicitTypeArgNames } from './explicit-type-args'
 import { readArrayCount } from './_jvm-counts'
+import { checkJvmMethod } from '../jvm-method-table'
 
 /**
  * Parse a `MethodCall` payload (the OP_METHOD_CALL opcode byte was consumed
  * by the dispatcher).
  *
  * Mirrors sigma-rust's `<MethodCall as SigmaSerializable>::sigma_parse`
- * (`serialization/method_call.rs:33-60`). Order:
+ * (`serialization/method_call.rs:33-60`) and the JVM's
+ * `MethodCallSerializer.parse` (`:47-75`). Order:
  *   1. typeId    (1 byte)
  *   2. methodId  (1 byte)
  *   3. obj       (Expr)
  *   4. args      (Vec<Expr>: VLQ count + items)
- *   5. explicit type args (zero or more STypes, count from the registry)
+ *   5. from tree v3, at least one argument (the JVM's assert)
+ *   6. the method lookup (the JVM's `SMethod.fromIds`)
+ *   7. explicit type args (zero or more STypes, count from the registry)
  */
 export function parseMethodCall(
   r: ByteReader,
@@ -88,6 +98,10 @@ export function parseMethodCall(
       'method-call-empty-args'
     )
   }
+  // MethodCallSerializer.scala:56: SMethod.fromIds (SMethod.scala:344-349), after the arguments and the
+  // assert, and before the explicit type arguments (:58-65): rule 1010, then 1016, both soft. An argument's
+  // own soft failure, read before, comes first.
+  checkJvmMethod('MethodCall', typeId, methodId, treeVersion)
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
     explicitTypeArgs[name] = parseSType(r)

@@ -166,10 +166,10 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
     case 'MethodCall':
     case 'PropertyCall': {
       // The serializer's reads (MethodCallSerializer.scala:77-97, PropertyCallSerializer.scala:30-52)
-      // come after SMethod.fromIds accepts the pair. For a pair ergots does not catalogue, the JVM
-      // either reads them (a method it knows) or throws a soft ValidationException first (rule 1016,
-      // methods.scala:128-136), which a sized tree degrades on; reading them here could turn that
-      // degrade into a reject, so nothing is read (residual 1).
+      // come after SMethod.fromIds accepts the pair. A pair the JVM does not know at the tree's version
+      // never reaches this site: the parse arm's lookup throws its soft failure first (rule 1010 or
+      // 1016, wire/jvm-method-table.ts). For a pair the JVM knows and ergots does not catalogue,
+      // nothing is read (residual 1).
       if (site !== 'parse') return
       if (methodSignature(e.typeId, e.methodId) === undefined) {
         recordCallType(e, { tag: 'SAny' })

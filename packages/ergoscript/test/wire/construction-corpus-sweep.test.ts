@@ -187,14 +187,16 @@ function keyOf(c: Candidate): string {
 }
 
 /**
- * The statuses the construction checks change: each a finding, with the JVM's verdict for the tree.
- * `before` is the baseline's status and `after` the status now. Two groups, both trees the JVM
+ * The statuses the construction checks and the method lookup change: each a finding, with the JVM's
+ * verdict for the tree. `before` is the baseline's status and `after` the status now. For the
+ * construction checks, two groups, both trees the JVM
  * rejects at parse: SANTA's errored construction vectors (the Box files of santa 3f75e14, and
  * #20-#21 of the same entries at 7e2f5f4), which ergots accepted, and ten error-case eval fixtures,
  * which ergots parsed leniently and rejected only under the box rules, through the root's type. The
  * parse hook changed 22; the mid-parse checks in the arms (the collection item assert, the pre-v3
- * ByIndex index, the ExtractRegisterAs register id) changed 5 more. No tree the JVM accepts changes
- * status, mainnet's included.
+ * ByIndex index, the ExtractRegisterAs register id) changed 5 more. The method lookup, a soft failure,
+ * changed 8 more: six eval fixtures the JVM rejects at parse, and two errored SANTA vectors whose sized
+ * trees the JVM degrades. No tree the JVM accepts changes status, mainnet's included.
  */
 const CHANGED: Record<string, { source: string; before: Status; after: Status; why: string }> = {
   'box@3:cf0bd96a5cf08141a07fdc0a5966085c': {
@@ -361,6 +363,59 @@ const CHANGED: Record<string, { source: string; before: Status; after: Status; w
     before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop' },
     after: { lenient: 'ExprParseError:extract-register-as-id-out-of-range', box: 'ExprParseError:extract-register-as-id-out-of-range' },
     why: 'extract_reg_id_too_large: the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: NoSuchElementException, id 10)',
+  },
+  // The method lookup (SMethod.fromIds, SMethod.scala:344-349), in parseMethodCall and parsePropertyCall:
+  // a v3 method in a tree of version 0-2 fails rule 1016, a soft failure. An unsized tree rejects on it,
+  // and a sized one degrades. The six eval fixtures carry fixture-gen's v0 header and ask for v3 in their
+  // eval context; the JVM looks the method up at the tree's own version. The two SANTA entries are the
+  // errored v2 twins of their files' v3 accepts.
+  'tree:c8b0f7f9aa04ee4cfc167ad6e121238d': {
+    source: 'packages/ergoscript/test/fixtures/eval/savltree-insert-or-update.json#/entries/0/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SAvlTree]'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'insert_or_update_happy_v3 (and the byte-identical insert_or_update_v2_dispatcher_reject): AvlTree.insertOrUpdate (100:16) in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException, "Cannot handle ValidationException, ErgoTree serialized without size bit.", over rule 1016)',
+  },
+  'tree:5c875ae636769ee91d80285007169784': {
+    source: 'packages/ergoscript/test/fixtures/eval/savltree-insert-or-update.json#/entries/1/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SAvlTree]'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'insert_or_update_insert_allowed_false: 100:16 in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException over rule 1016)',
+  },
+  'tree:e544293a2fb169f4e0e801d1e0c8b21b': {
+    source: 'packages/ergoscript/test/fixtures/eval/savltree-insert-or-update.json#/entries/2/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SAvlTree]'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'insert_or_update_update_allowed_false: 100:16 in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException over rule 1016)',
+  },
+  'tree:7773d45a379d9315aa15fc8f826a4bec': {
+    source: 'packages/ergoscript/test/fixtures/eval/savltree-insert-or-update.json#/entries/3/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SAvlTree]'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'insert_or_update_per_op_fail_graceful: 100:16 in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException over rule 1016)',
+  },
+  'tree:05a784e9a847eec10617feb4d7b730b1': {
+    source: 'packages/ergoscript/test/fixtures/eval/savltree-insert-or-update.json#/entries/4/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SAvlTree]'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'insert_or_update_malformed_proof: 100:16 in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException over rule 1016)',
+  },
+  'tree:5cb5d2e664be9688ecdd0c76189e880b': {
+    source: 'packages/ergoscript/test/fixtures/eval/sheader-checkpow.json#/exprBytes',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop', calls: ['SBoolean', 'SAny(own)'] },
+    after: { lenient: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:method-unknown' },
+    why: 'Header.checkPow (104:16) in an unsized v0 tree; the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: SerializerException over rule 1016)',
+  },
+  'tree:cc0e57126bcfc65563f6fce117c84025': {
+    source: 'packages/ergoscript/test/fixtures/conformance/v6/authored/Global.none_pre_v3_dead_branch.json#/entries/1/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'degraded ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SUnsignedBigInt]'] },
+    after: { lenient: 'degraded ExprParseError:method-unknown', box: 'degraded ExprParseError:method-unknown' },
+    why: 'SANTA none-ubi-dead-branch-v2-errored#0 (errored): Global.none (106:10) in a sized v2 tree; the JVM degrades it on rule 1016, lenient and under the box rules (a local sigma-state 6.0.6 probe: unparsed, rule 1016)',
+  },
+  'tree:e3fd20449591966931d75449a306c0a4': {
+    source: 'packages/ergoscript/test/fixtures/conformance/v6/authored/Box.getReg_adversarial.json#/entries/2/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'degraded ErgoTreeParseError:root-not-sigma-prop', calls: ['Option[SLong]'] },
+    after: { lenient: 'degraded ExprParseError:method-unknown', box: 'degraded ExprParseError:method-unknown' },
+    why: 'SANTA getReg-v6-method-in-v2-tree-reject#2 (errored): Box.getReg (99:19) in a sized v2 tree; the JVM degrades it on rule 1016, lenient and under the box rules, and rejects its spend (a local sigma-state 6.0.6 probe: unparsed, rule 1016; the spend an InterpreterException over rule 1016)',
   },
 }
 

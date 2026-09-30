@@ -14,8 +14,26 @@ import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { parseSValue } from '../../src/wire/parse-svalue'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { isUnparsedTree, type ParsedErgoTree } from '../../src/mir/types'
-import { ByteReader } from '@ergots/scorex'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import type { Header } from '@ergots/scorex'
+
+/**
+ * A v0 tree's body under a header of `version`, with the size flag that a version above 0 needs (rule
+ * 1012). fixture-gen wrote the fixtures of some v3 methods (`SAvlTree.insertOrUpdate`, `SHeader.checkPow`)
+ * with a v0 header and put the version in the eval context instead. The JVM looks a method up at the tree's
+ * own version (`SMethod.fromIds`; facts/ergoscript-wire.md, "Method lookups"), so in the v0 tree the lookup
+ * fails and the tree is rejected at parse: the scenario those fixtures test is the same body in a v3 tree.
+ */
+export function atTreeVersion(v0Tree: Uint8Array, version: number): Uint8Array {
+  if (v0Tree[0] !== 0x00) {
+    throw new Error(`atTreeVersion: expected a v0 header without flags, got 0x${(v0Tree[0] ?? 0).toString(16)}`)
+  }
+  const w = new ByteWriter()
+  w.writeU8(version | 0x08)
+  w.writeVlqU(v0Tree.length - 1)
+  w.writeBytes(v0Tree.subarray(1))
+  return w.toBytes()
+}
 
 /**
  * Parse an ErgoTree that is expected to be a normal (parsed) tree, narrowing

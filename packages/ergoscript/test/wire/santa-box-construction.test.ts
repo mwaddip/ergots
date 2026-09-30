@@ -1,9 +1,9 @@
 // SANTA JVM-blessed Box vectors for the JVM's node construction at parse (sigma-state 6.0.6), santa
-// 7e2f5f4 (Box.tree_parse_acceptance #0-#24 unchanged from 3f75e14, #25-#47 appended;
-// Box.tree_bool_pair_form unchanged), replayed as Dasher does: parseSValue(SBox) then
-// serializeSValue(SBox); the expected bytes are expected_bytes_hex ?? bytes_hex. Each errored entry's
-// reject is pinned below by class and code; the entries ergots still diverges on are pinned as
-// divergences, so the test flips when one closes.
+// 7f88e28 (Box.tree_parse_acceptance #0-#24 unchanged from 3f75e14, #25-#47 appended at 7e2f5f4 and
+// unchanged, #48-#53 appended; Box.tree_bool_pair_form unchanged), replayed as Dasher does:
+// parseSValue(SBox) then serializeSValue(SBox); the expected bytes are expected_bytes_hex ?? bytes_hex.
+// Each errored entry's reject is pinned below by class and code; the entries ergots still diverges on
+// are pinned as divergences, so the test flips when one closes.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -11,8 +11,10 @@ import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { parseSValue } from '../../src/wire/parse-svalue'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ErgoTreeParseError } from '../../src/wire/ergo-tree'
+import { boxTreeOf } from '../../src/wire/box-tree'
 import { ExprParseError } from '../../src/wire/errors'
 import { ExprTpeError } from '../../src/mir/expr-tpe'
+import { isUnparsedTree } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
 const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
@@ -27,7 +29,7 @@ interface Entry {
 type ErrorClass = new (...args: never[]) => Error
 interface Reject { cls: ErrorClass; code: string; cause?: string }
 
-const FILES: [string, number][] = [['Box.tree_parse_acceptance.json', 48], ['Box.tree_bool_pair_form.json', 14]]
+const FILES: [string, number][] = [['Box.tree_parse_acceptance.json', 54], ['Box.tree_bool_pair_form.json', 14]]
 
 // Each errored entry's reject: the construction check that fails, as each entry's description gives it.
 const BIT_OP: Reject = { cls: ExprParseError, code: 'bit-op-operand-not-numeric' }
@@ -78,6 +80,32 @@ const ERRORS: Record<string, Reject> = {
   'box-deserialize-register-id-10-reject#41': { cls: ExprParseError, code: 'deserialize-register-id-out-of-range' },
   // From v3, assert(args.nonEmpty) (MethodCallSerializer.scala:53-55).
   'box-v3-methodcall-no-args-reject#43': { cls: ExprParseError, code: 'method-call-empty-args' },
+  // The v3 twins of #48, #50 and #52: the method (4:6, 9:1) or the type (UnsignedBigInt) is known from
+  // v3, so GT is built, and check2(OnlyNumeric) fails on the Coll[Byte] or the Boolean
+  // (SigmaBuilder.scala:696-704): ConstraintFailed.
+  'box-v3-tobytes-gt-int-reject#49': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  'box-v3-ubi-gt-boolean-reject#51': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  'box-v3-type-9-method-gt-boolean-reject#53': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+}
+
+// The accepted entries whose tree the JVM degrades, with the ergots code of the rule it degrades on: the
+// method lookup (SMethod.fromIds, SMethod.scala:344-349) below v3. #48: no numeric method is found by id
+// (rule 1016); #52: typeId 9 has no methods container (rule 1010).
+const UNPARSED: Record<string, string> = {
+  'box-v0-method-lookup-1016-then-gt-degrade-accept#48': 'method-unknown',
+  'box-v0-no-methods-1010-then-gt-degrade-accept#52': 'method-type-no-methods',
+}
+
+// The entries a later task of this branch closes, each asserted to still diverge until it lands, with
+// what ergots does instead.
+const PENDING: Record<string, { task: string; ergots: Reject }> = {
+  // The JVM degrades the v0 tree on rule 1017 at the UnsignedBigInt constant's type byte, before GT is
+  // built (TypeSerializer.scala:257-267). ergots reads type code 9 at every version until Task 10, so it
+  // builds GT and rejects on the Boolean.
+  'box-v0-type-read-1017-then-gt-degrade-accept#50': {
+    task: 'Task 10',
+    ergots: { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  },
 }
 
 // The entries ergots still diverges on, each with its residual, and what ergots does instead.
@@ -114,10 +142,18 @@ function expectReject(e: Entry, want: Reject): void {
 }
 
 for (const [file, count] of FILES) {
-  describe(`SANTA ${file} (jvm:sigma-state-6.0.6, santa 7e2f5f4)`, () => {
+  describe(`SANTA ${file} (jvm:sigma-state-6.0.6, santa 7f88e28)`, () => {
     const entries: Entry[] = JSON.parse(readFileSync(join(__dirname, '../fixtures/conformance/wire', file), 'utf8')).entries
     it(`holds ${count} entries`, () => expect(entries.length).toBe(count))
     for (const e of entries) {
+      const pending = PENDING[e.name]
+      if (pending !== undefined) {
+        it(`${e.name}: still diverges until ${pending.task}`, () => {
+          expect(e.error).toBeUndefined()
+          expectReject(e, pending.ergots)
+        })
+        continue
+      }
       const known = KNOWN_RESIDUAL[e.name]
       if (known !== undefined) {
         it(`${e.name}: still diverges (${known.residual})`, () => {
@@ -138,6 +174,14 @@ for (const [file, count] of FILES) {
           expectReject(e, want!)
         } else {
           expect(roundTrip(e)).toBe(e.expected_bytes_hex ?? e.bytes_hex)
+          const code = UNPARSED[e.name]
+          if (code !== undefined) {
+            const box = parseSValue({ tag: 'SBox' }, e.version.ergoTree, new ByteReader(hex(e.bytes_hex)))
+            const tree = boxTreeOf((box as { value: { ergoTreeBytes: Uint8Array } }).value.ergoTreeBytes)
+            if (!isUnparsedTree(tree)) throw new Error(`${e.name}: expected an unparsed tree`)
+            expect(tree.error).toBeInstanceOf(ExprParseError)
+            expect((tree.error as ExprParseError).code).toBe(code)
+          }
         }
       })
     }

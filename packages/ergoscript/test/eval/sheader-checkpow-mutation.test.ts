@@ -21,27 +21,33 @@
  *   src/wire/mir/method-call.ts (the parse rejects the 0xdc empty-args form
  *   from V3, as the JVM's does).
  *
- *   Byte map:
- *     [0]     0x00 = ErgoTree header (V0, no size, no constant-segregation)
- *     [1]     0xdb = PropertyCall opcode (219) — checkPow envelope
- *     [2]     0x68 = typeId 104 (SHeader)
- *     [3]     0x10 = methodId 16 (checkPow)
- *     [4]     0xb2 = ByIndex opcode (178) — the receiver headers(0)
- *     [5]     0xdb = PropertyCall opcode (219) — inner Context.headers
- *     [6]     0x65 = typeId 101 (SContext)
- *     [7]     0x02 = methodId 2 (.headers)
- *     [8]     0xfe = Context node opcode (the .headers receiver)
- *     [9]     0x04 = ByIndex.index Const SInt typecode
- *     [10]    0x00 = ByIndex.index value (ZigZag-VLQ 0 → headers[0])
- *     [11]    0x00 = ByIndex.default (None marker)
+ *   checkPow is a v3 method: in the fixture's V0 tree the JVM's method lookup
+ *   fails at parse (rule 1016), so the mutations run on the same body in a v3
+ *   tree (`atTreeVersion`), 13 bytes.
+ *
+ *   Byte map (the v3 tree):
+ *     [0]     0x0b = ErgoTree header (V3, size flag, no constant-segregation)
+ *     [1]     0x0b = the declared size (11)
+ *     [2]     0xdb = PropertyCall opcode (219) — checkPow envelope
+ *     [3]     0x68 = typeId 104 (SHeader)
+ *     [4]     0x10 = methodId 16 (checkPow)
+ *     [5]     0xb2 = ByIndex opcode (178) — the receiver headers(0)
+ *     [6]     0xdb = PropertyCall opcode (219) — inner Context.headers
+ *     [7]     0x65 = typeId 101 (SContext)
+ *     [8]     0x02 = methodId 2 (.headers)
+ *     [9]     0xfe = Context node opcode (the .headers receiver)
+ *     [10]    0x04 = ByIndex.index Const SInt typecode
+ *     [11]    0x00 = ByIndex.index value (ZigZag-VLQ 0 → headers[0])
+ *     [12]    0x00 = ByIndex.default (None marker)
  *
  * Known tolerated offsets (benign for the byte-flip reason documented below):
- *   offset=0 (the ErgoTree header byte) survives XOR 0x01 and XOR 0x80: those
- *   flip header bits that, for this V0 / no-size / no-constant-segregation tree,
- *   neither change how the body parses nor how it evaluates — checkPow still
- *   returns Boolean(true). 2 survivors out of 36 mutations = 94.4% kill rate
- *   (>= the 90% threshold). All 11 body/envelope bytes ([1]-[11]) are
- *   load-bearing for at least one XOR pattern.
+ *   offset=0 (the ErgoTree header byte) survives XOR 0x80, the reserved bit,
+ *   which changes neither how the body parses nor how it evaluates (XOR 0x01
+ *   gives a V2 header, whose method lookup fails at parse: a kill). offset=1
+ *   (the declared size) survives XOR 0x01: a size is read only when the tree
+ *   degrades. checkPow still returns Boolean(true). 2 survivors out of 39
+ *   mutations = 94.9% kill rate (>= the 90% threshold). All 11 body bytes
+ *   ([2]-[12]) are load-bearing for at least one XOR pattern.
  *
  * Implementation: single `it()` with internal loop — safe under vitest's default
  * sequential-within-describe order AND under any parallel-test config.
@@ -56,7 +62,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
-import { hexToBytes } from '../_helpers'
+import { atTreeVersion, hexToBytes } from '../_helpers'
 import {
   runMutationLoop,
   evalSafely,
@@ -86,7 +92,7 @@ const fixture: CheckPowFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
 
 describe('SHeader.checkPow mutation testing (phase 2h-c.2)', () => {
   it(`≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate across all byte offsets`, () => {
-    const originalBytes = hexToBytes(fixture.exprBytes)
+    const originalBytes = atTreeVersion(hexToBytes(fixture.exprBytes), 3)
     const headerBytes = hexToBytes(fixture.headerHexBytes)
     const header = parseHeader(new ByteReader(headerBytes))
 

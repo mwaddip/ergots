@@ -1,5 +1,5 @@
 import { describe, it, expect } from 'vitest'
-import { serializeTree } from '../../src/wire/ergo-tree'
+import { ErgoTreeParseError, parseTree as parseTreeLenient, serializeTree } from '../../src/wire/ergo-tree'
 import { parseParsedTree as parseTree } from '../_helpers'
 
 /**
@@ -90,9 +90,12 @@ describe('MethodCall variant', () => {
     // v6 P7a: the JVM's script-callable getReg is methodId 19 (getRegMethodV6,
     // methods.scala:1338-1347) and carries ONE explicit type arg. The old id-7
     // form (getRegV5) declares NO explicit type args — see the test below.
+    // getReg exists only from tree v3: in an older tree the method lookup fails
+    // first (see the test after this one).
     //
     // bytes:
-    //   0x00       header
+    //   0x0b       header (v3, size flag)
+    //   0x08       tree size
     //   0xdc       OP_METHOD_CALL
     //   0x63       typeId = 99 (SBOX)
     //   0x13       methodId = 19 (Box.getReg, v6)
@@ -100,7 +103,8 @@ describe('MethodCall variant', () => {
     //   0x01       args_count = 1 (VLQ-u32)
     //   0x04 0x08  arg_0 = Const(SInt, ZigZag(4)=8)
     //   0x04       explicit_type_arg T = SInt (TypeCode 4)
-    const bytes = new Uint8Array([0x00, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04])
+    // The JVM parses the tree (a local sigma-state 6.0.6 probe, tree mode without checkType, v3).
+    const bytes = new Uint8Array([0x0b, 0x08, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04])
 
     const tree = parseTree(bytes)
     expect(tree.body.tag).toBe('MethodCall')
@@ -111,6 +115,22 @@ describe('MethodCall variant', () => {
 
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual(Array.from(bytes))
+  })
+
+  it('the same call in a v0 tree fails the method lookup before its type argument (rule 1016)', () => {
+    // SMethod.fromIds (MethodCallSerializer.scala:56) finds no method 19 in Box's v0-v2 table: a
+    // ValidationException, which a tree without the size flag cannot degrade on. The JVM rejects the tree
+    // (a local sigma-state 6.0.6 probe: SerializerException, "Cannot handle ValidationException, ErgoTree
+    // serialized without size bit.", over rule 1016).
+    let err: unknown
+    try {
+      parseTreeLenient(new Uint8Array([0x00, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04]))
+    } catch (x) {
+      err = x
+    }
+    expect(err).toBeInstanceOf(ErgoTreeParseError)
+    expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+    expect(((err as Error).cause as { code?: string }).code).toBe('method-unknown')
   })
 
   it('parses MethodCall(99, 7) with ZERO explicit type args (JVM getRegV5 shape) and round-trips', () => {
@@ -133,7 +153,7 @@ describe('MethodCall variant', () => {
   it('serializing a hand-built MethodCall(99,19) MISSING its explicit type arg throws method-call-missing-type-arg', () => {
     // The registry says 99:19 carries one explicit T — a hand-built MIR node
     // without it must fail LOUDLY at serialize, not emit underspecified bytes.
-    const tree = parseTree(new Uint8Array([0x00, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04]))
+    const tree = parseTree(new Uint8Array([0x0b, 0x08, 0xdc, 0x63, 0x13, 0xa7, 0x01, 0x04, 0x08, 0x04]))
     if (tree.body.tag !== 'MethodCall') throw new Error('unreachable')
     const mutated = { ...tree, body: { ...tree.body, explicitTypeArgs: {} } }
     expect(() => serializeTree(mutated)).toThrowError(

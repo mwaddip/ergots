@@ -363,9 +363,21 @@ describe("ergots' own SAny passes the numeric checks (residual 1)", () => {
 })
 
 describe("a call's reads, gated on ergots' method catalog (MethodCallSerializer.scala:77-97)", () => {
-  it('T3-uncat-pair-FilterBI-sized: an uncatalogued pair reads nothing, so ergots parses (residual 1; the JVM: unparsed, rule 1016)', () => {
+  it('T3-uncat-pair-FilterBI-sized: a pair the JVM does not know fails its lookup before any read, so the tree degrades (the JVM: unparsed, rule 1016)', () => {
+    // Collection method 200 (12:200): SMethod.fromIds fails (rule 1016) before the object's type is read.
     const b = probed('T3-uncat-pair-FilterBI-sized', sp(EQ(PC(12, 200, Filter(BI)), int(0))), 0x08,
       '0818d193db0cc8b5b2860204000400040000d901010401010400')
+    const o = parseBox(b)
+    expect(o.status).toBe('degraded')
+    if (o.status !== 'degraded') return
+    expect(o.error).toBeInstanceOf(ExprParseError)
+    expect((o.error as ExprParseError).code).toBe('method-unknown')
+  })
+  it("T9-uncat-known-pair-FilterBI-sized: a pair the JVM knows and ergots does not catalogue reads nothing, so ergots parses (residual 1; the JVM: ClassCastException)", () => {
+    // Option.get (36:3): fromIds finds it, and specializeFor reads the object's type
+    // (PropertyCallSerializer.scala:47), a Filter over the JVM's SAny, whose type read casts.
+    const b = probed('T9-uncat-known-pair-FilterBI-sized', sp(EQ(PC(36, 3, Filter(BI)), int(0))), 0x08,
+      '0818d193db2403b5b2860204000400040000d901010401010400')
     const t = expectParsed(parseBox(b))
     // The call is recorded as ergots' own SAny.
     const call = (t.body as { input: { left: Expr } }).input.left

@@ -114,6 +114,9 @@ export class ErgoTreeSerializeError extends Error {
  *     tree reads its own header outside its try, so only a nested tree's header reaches this set
  *   - scorex `position-limit-exceeded`       ← `CheckPositionLimit` (rule 1014,
  *     `core/.../sigma/validation/ValidationRules.scala:186-189`), thrown by the JVM reader itself
+ *   - `method-type-no-methods` / `method-unknown` ← `CheckTypeWithMethods` (rule 1010) and
+ *     `CheckAndGetMethodV6` (rule 1016), the method lookup `SMethod.fromIds` (SMethod.scala:344-349)
+ *     that a MethodCall or PropertyCall makes at parse (wire/jvm-method-table.ts)
  *
  * `sheader-tree-version-too-low` is NOT here → it REJECTS. SHeader (typeCode 104) is neither
  * `== OptionTypeCode` nor `> LastDataType` (111), so rule 1009 does NOT throw for it; the JVM
@@ -125,16 +128,21 @@ export class ErgoTreeSerializeError extends Error {
  * (`'soft-fork-without-size-bit'`, `'nested-tree-truncated'`), so no enclosing tree degrades on them.
  *
  * TRACKED RESIDUAL (B-full, adversarial-only): the JVM ALSO degrades unknown *type* codes
- * (`CheckTypeCode`/`CheckPrimitiveTypeCode`) and method gates (`CheckTypeWithMethods`/
- * `CheckAndGetMethod`). ergots conflates
- * some of these with reject cases (e.g. `'invalid-type-code'` spans type-code-0 [reject,
- * JVM `InvalidTypePrefix`] AND unknown-code [degrade, JVM `CheckTypeCode`]), so closing it
- * needs a per-site audit + code split. See
- * `docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md` §"B-full residual".
+ * (`CheckTypeCode`/`CheckPrimitiveTypeCode`). ergots conflates some of these with reject cases
+ * (e.g. `'invalid-type-code'` spans type-code-0 [reject, JVM `InvalidTypePrefix`] AND
+ * unknown-code [degrade, JVM `CheckTypeCode`]), so closing it needs a per-site audit + code
+ * split. See `docs/specs/2026-06-17-ergotree-unparsed-soft-fork-preservation.md` §"B-full
+ * residual". The method gates, its other half, are raised since 2026-09-30 (above).
  */
 const SOFT_FORKABLE_PARSE_CODES: ReadonlySet<string> = new Set([
   'opcode-reserved', 'unknown-opcode', 'soption-tree-version-too-low',
   'register-v6-type', // rule 1019 CheckV6Type (a nested Box's register), ErgoBoxCandidate.scala:232
+  // rule 1010 CheckTypeWithMethods (core/.../sigma/validation/ValidationRules.scala:149-163): a call's
+  // typeId has no methods container at the tree's version (SMethod.scala:345)
+  'method-type-no-methods',
+  // rule 1016 CheckAndGetMethodV6 (org/ergoplatform/validation/ValidationRules.scala:105-136): the
+  // container has no method of the call's methodId at the tree's version (methods.scala:128-136)
+  'method-unknown',
 ])
 /** Tree-level JVM ValidationExceptions: rule 1001 (root type), rule 1012 (reachable only from a nested tree). */
 const SOFT_FORKABLE_TREE_CODES: ReadonlySet<string> = new Set(['root-not-sigma-prop', 'header-version-requires-size'])
