@@ -2,7 +2,8 @@ import { describe, it, expect } from 'vitest'
 import { serializeTree } from '../../src/wire/ergo-tree'
 import { parseParsedTree as parseTree } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
-import { expectParseError } from './_helpers'
+import { ExprTpeError } from '../../src/mir/expr-tpe'
+import { ExprParseError } from '../../src/wire/errors'
 
 /**
  * Task 16 tests: round-trips for the Box accessor variants
@@ -369,32 +370,47 @@ describe('ExtractRegisterAs variant', () => {
     expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
   })
 
-  it('round-trips a negative register_id (i8 two\'s-complement)', () => {
-    // Sigma-rust uses i8 for register_id (raw u8 cast). A "-1" round-trips
-    // through 0xff via two's-complement.
-    //
-    // bytes:
-    //   0x00                       header
-    //   0xd9 0x01 0x00 0x63        FuncValue prologue
-    //   0xc6                       OP_EXTRACT_REGISTER_AS
-    //   0x72 0x00                  input = ValUse(0)
-    //   0xff                       register_id (i8) = -1
-    //   0x04                       elem_tpe = SInt
-    const bytes = new Uint8Array([
-      0x00,
-      ...SBOX_FUNC_PROLOGUE,
-      0xc6,
-      ...VALUSE_0,
-      0xff,
-      0x04,
-    ])
+  // bytes:
+  //   0x00                       header
+  //   0xd9 0x01 0x00 0x63        FuncValue prologue
+  //   0xc6                       OP_EXTRACT_REGISTER_AS
+  //   0x72 0x00                  input = ValUse(0)
+  //   0xff                       register_id (i8) = -1
+  //   0x04                       elem_tpe = SInt
+  const NEGATIVE_ID_BYTES = new Uint8Array([0x00, ...SBOX_FUNC_PROLOGUE, 0xc6, ...VALUSE_0, 0xff, 0x04])
 
-    const tree = parseTree(bytes)
-    if (tree.body.tag !== 'FuncValue') throw new Error('unreachable')
-    if (tree.body.body.tag !== 'ExtractRegisterAs') throw new Error('unreachable')
-    expect(tree.body.body.registerId).toBe(-1)
-    expect(tree.body.body.elemTpe).toEqual({ tag: 'SInt' })
-    expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
+  it('rejects a negative register_id at parse: the JVM looks the id up as it reads it', () => {
+    // ExtractRegisterAsSerializer.scala:28: ErgoBox.findRegisterByIndex(-1).get, a NoSuchElementException
+    // (ErgoBox.scala:197-198). A local sigma-state 6.0.6 probe (tree mode, v0, checkType false and true):
+    // rejected, NoSuchElementException.
+    let err: unknown
+    try {
+      parseTree(NEGATIVE_ID_BYTES)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprParseError)
+    expect((err as ExprParseError).code).toBe('extract-register-as-id-out-of-range')
+  })
+
+  it("writes a negative register_id as its i8 two's complement (a tree built through the API)", () => {
+    // The writer takes any i8, as sigma-rust's put_i8 does (a raw u8 cast): -1 is written as 0xff.
+    const tree: ErgoTree = {
+      header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'FuncValue',
+        args: [{ id: 0, tpe: { tag: 'SBox' } }],
+        body: {
+          tag: 'ExtractRegisterAs',
+          input: { tag: 'ValUse', valId: 0, tpe: { tag: 'SBox' } },
+          registerId: -1,
+          elemTpe: { tag: 'SInt' },
+        },
+      },
+    }
+    expect(Array.from(serializeTree(tree))).toEqual(Array.from(NEGATIVE_ID_BYTES))
   })
 
   it('builds and serializes ExtractRegisterAs programmatically', () => {
@@ -497,10 +513,11 @@ describe('SelectField variant', () => {
   })
 
   it('rejects field_index = 0 at parse time', () => {
-    // Sigma-rust's TupleFieldIndex::try_from rejects 0
-    // (`mir/select_field.rs:31-37`). The wire-layer parser must do the
-    // same; otherwise serialization of a programmatic AST with fieldIndex=0
-    // would round-trip silently and mismatch sigma-rust's taxonomy.
+    // The JVM's SelectField constructor casts the input's type to STuple, then indexes it with
+    // fieldIndex - 1 (sigma/ast/transformers.scala:294-295): index 0 over this (Int, Long) is out of
+    // range once the node is built, which the parse hook's type read mirrors (ExprTpeError). A local
+    // sigma-state 6.0.6 probe (tree mode, v0, checkType false and true): ArrayIndexOutOfBoundsException,
+    // index -1.
     const bytes = new Uint8Array([
       0x00,
       0xd9,
@@ -513,7 +530,14 @@ describe('SelectField variant', () => {
       0x00, // field_index = 0 (invalid)
     ])
 
-    expectParseError(() => parseTree(bytes), 'select-field-index-out-of-range')
+    let err: unknown
+    try {
+      parseTree(bytes)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprTpeError)
+    expect((err as ExprTpeError).code).toBe('select-field-out-of-range')
   })
 
   it('builds and serializes SelectField programmatically', () => {

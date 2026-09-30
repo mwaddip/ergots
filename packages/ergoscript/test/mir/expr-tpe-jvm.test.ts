@@ -279,10 +279,10 @@ describe("SelectField: the JVM's signed Byte index (SelectFieldSerializer.scala:
       // at 0x80 and 0 with ArrayIndexOutOfBoundsException (index -129, -1) and parses at index 1.
       expect(hex(tree(0x80))).toBe('00d801d6018cdb6501fe80d10101')
       expect(codeOf(() => parseTree(tree(0x80), { checkType: true }))).toBe('select-field-out-of-range')
-      // The writer refuses index 0, so the probed bytes are given as read. The parse arm's own index
-      // check rejects them first today; when it goes (spec §3), the ValDef's type read above does.
+      // The writer refuses index 0, so the probed bytes are given as read. The parse arm makes no index
+      // check (spec §3): the node's own type read, when it is built, rejects them.
       const index0 = Uint8Array.from('00d801d6018cdb6501fe00d10101'.match(/../g)!.map((b) => parseInt(b, 16)))
-      expect(codeOf(() => parseTree(index0, { checkType: true }))).toBe('select-field-index-out-of-range')
+      expect(codeOf(() => parseTree(index0, { checkType: true }))).toBe('select-field-out-of-range')
     })
     it('the ValDef tree at 0x7f parses in ergots only (residual 1)', () => {
       // The probe rejects 00d801d6018cdb6501fe7fd10101 with a ClassCastException: dataInputs is no

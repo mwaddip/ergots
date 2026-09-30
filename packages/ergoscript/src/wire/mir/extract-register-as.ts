@@ -25,8 +25,10 @@
  *   - non-SOption `tpe` arguments (the `try_build` wraps elem_tpe; the
  *     parser passes `SType::SOption(elem_tpe.into())` so this can never
  *     fail at parse time)
- * We do NOT enforce the SBox-input check at the wire layer — type-shape
- * checks belong to a later pass.
+ * The JVM does not check the input's type at parse either (its `asInstanceOf`
+ * is erased), so neither does ergots. Both look the register id up right after
+ * reading it (ExtractRegisterAsSerializer.scala:28): an id outside 0..9 rejects
+ * (`'extract-register-as-id-out-of-range'`), before the type is read.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/extract_reg_as.rs
@@ -35,7 +37,7 @@
 
 import type { ExtractRegisterAs, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprSerializeError } from '../errors'
+import { ExprParseError, ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
@@ -61,6 +63,15 @@ export function parseExtractRegisterAs(
   // sigma-rust's `get_i8 -> get_u8 as i8`.
   const rawByte = r.readU8()
   const registerId = rawByte > 127 ? rawByte - 256 : rawByte
+  // ExtractRegisterAsSerializer.scala:28: ErgoBox.findRegisterByIndex(regId).get right after the id byte,
+  // before the type; outside R0..R9 it is None.get (ErgoBox.scala:197-198), a NoSuchElementException,
+  // which no sized tree degrades on.
+  if (registerId < 0 || registerId > 9) {
+    throw new ExprParseError(
+      `ExtractRegisterAs: register id ${registerId} is not a register (R0..R9)`,
+      'extract-register-as-id-out-of-range'
+    )
+  }
   const elemTpe = parseSType(r)
   return { tag: 'ExtractRegisterAs', input, registerId, elemTpe }
 }

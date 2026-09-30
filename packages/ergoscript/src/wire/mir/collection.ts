@@ -47,7 +47,9 @@
 import type { Collection, Expr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { OP_COLL, OP_COLL_OF_BOOL_CONST } from '../../mir/opcodes'
-import { ExprSerializeError } from '../errors'
+import { exprTpe } from '../../mir/expr-tpe'
+import { jvmTypeEquals } from '../../mir/jvm-types'
+import { ExprParseError, ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
@@ -77,7 +79,18 @@ export function parseCollection(
   const elemTpe = parseSType(r)
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
+    const item = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+    items.push(item)
+    // ConcreteCollectionSerializer.scala:38: assert(v.tpe == tItem) after each item, before the next: an
+    // AssertionError, which no sized tree degrades on. ergots' own SAny compares as unknown and passes
+    // (jvmTypeEquals, residual 1).
+    const itemTpe = exprTpe(item, treeVersion)
+    if (jvmTypeEquals(itemTpe, elemTpe) === false) {
+      throw new ExprParseError(
+        `collection item ${i} has type ${itemTpe.tag}, not ${elemTpe.tag}`,
+        'collection-item-type-mismatch'
+      )
+    }
   }
   return { tag: 'Collection', kind: 'Exprs', elemTpe, items }
 }
@@ -146,7 +159,8 @@ export function serializeCollection(c: Collection, w: ByteWriter, treeVersion: n
  * An item of a Boolean-constant collection. The JVM's serializer takes each item's value only from
  * a BooleanConstant and fails on any other (ConcreteCollectionBooleanConstantSerializer.scala:22-27):
  * a constant of another type, which the JVM's parse rejects before it gets here (the item-type
- * assert, ConcreteCollectionSerializer.scala:38) and ergots parses (residual 9).
+ * assert, ConcreteCollectionSerializer.scala:38), as `parseCollection` does. Only a collection built
+ * through the API reaches this throw.
  */
 function booleanConstantValue(item: Expr): boolean {
   if (item.tag === 'Const' && item.tpe.tag === 'SBoolean' && item.value.kind === 'Boolean') {

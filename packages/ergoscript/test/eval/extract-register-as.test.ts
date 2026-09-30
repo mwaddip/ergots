@@ -28,17 +28,19 @@
  *   - R0 type-mismatch (elem=SInt for SLong register) → 'register-type-mismatch'
  *   - R4..R6 happy paths with stored values (3 entries)
  *   - R4 absent (not set in box) → Option(None)
- *   - registerId=-1 → 'register-id-out-of-range'
- *   - registerId=10 → 'register-id-out-of-range'
+ *   - registerId=-1 and registerId=10 → rejected at parse since 2026-09-30
+ *     ('extract-register-as-id-out-of-range'), as the JVM rejects them; sigma-rust's
+ *     'register-id-out-of-range' at eval is the fixtures' expected_error_code
  *   - cost-limit: jitCostLimit=1 < Fixed(50) → 'cost-limit-exceeded'
  *
  * Error paths tested inline:
  *   - 'extract-input-not-box' inline guard: Const(SInt, 5) input.
  *   - 'extract-input-not-box' inline guard: Const(SBoolean, true) input.
+ *   - 'register-id-out-of-range' inline guard: a node built through the API, which a parse cannot give.
  *
- * Note: 'register-type-mismatch' and 'register-id-out-of-range' ARE triggered via
- * fixtures because sigma-rust's ExtractRegisterAs::new accepts any i8 at construction
- * time — validation only fires during eval (try_into::<RegisterId>() and tpe check).
+ * Note: 'register-type-mismatch' is triggered via fixtures because sigma-rust's
+ * ExtractRegisterAs::new accepts any element type at construction time — the type check
+ * fires only during eval.
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -46,13 +48,14 @@ import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
 import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { ExtractRegisterAs } from '../../src/mir/types'
-import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue, synthesizeStubBox } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -75,8 +78,31 @@ const fixture = JSON.parse(fs.readFileSync(fixturePath, 'utf8')) as {
   entries: EvalFixture[]
 }
 
+// Entries whose tree the JVM rejects at parse, as ergots does since 2026-09-30: the register id is
+// looked up right after its byte (ExtractRegisterAsSerializer.scala:28, ErgoBox.scala:197-198). Their
+// expected_error_code is sigma-rust's, which evaluates the tree. A local sigma-state 6.0.6 probe rejects
+// each at parse, with and without checkType: NoSuchElementException.
+const PARSE_REJECTS: Record<string, string> = {
+  extract_reg_id_negative: 'extract-register-as-id-out-of-range',
+  extract_reg_id_too_large: 'extract-register-as-id-out-of-range',
+}
+
 describe('ExtractRegisterAs arm — fixture-driven', () => {
   for (const entry of fixture.entries) {
+    const atParse = PARSE_REJECTS[entry.name]
+    if (atParse !== undefined) {
+      it(`${entry.name}: ${atParse} at parse`, () => {
+        let err: unknown
+        try {
+          parseTree(hexToBytes(entry.tree_bytes_hex))
+        } catch (e) {
+          err = e
+        }
+        expect(err).toBeInstanceOf(ExprParseError)
+        expect((err as ExprParseError).code).toBe(atParse)
+      })
+      continue
+    }
     it(`${entry.name}: ${entry.expected_error_code ?? 'value + cost'}`, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext({ ...entry.opts_json })
@@ -111,6 +137,18 @@ describe('ExtractRegisterAs arm — extract-input-not-box guard', () => {
     const ctx = makeContext()
     const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
     expect(err.code).toBe('extract-input-not-box')
+  })
+
+  it("throws register-id-out-of-range for an id outside 0..9 (a node built through the API; a parse rejects it first)", () => {
+    const expr: ExtractRegisterAs = {
+      tag: 'ExtractRegisterAs',
+      input: { tag: 'GlobalVars', kind: 'SelfBox' },
+      registerId: 10,
+      elemTpe: { tag: 'SLong' },
+    }
+    const ctx = makeContext({ selfBox: synthesizeStubBox() })
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('register-id-out-of-range')
   })
 
   it('throws extract-input-not-box when input is a Boolean', () => {

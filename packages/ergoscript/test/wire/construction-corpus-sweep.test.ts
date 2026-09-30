@@ -189,10 +189,12 @@ function keyOf(c: Candidate): string {
 /**
  * The statuses the construction checks change: each a finding, with the JVM's verdict for the tree.
  * `before` is the baseline's status and `after` the status now. Two groups, both trees the JVM
- * rejects at parse: SANTA's errored construction vectors (the Box files of santa 3f75e14), which
- * ergots accepted, and seven error-case eval fixtures, which ergots parsed leniently and rejected
- * only under the box rules, through the root's type. No tree the JVM accepts changes status,
- * mainnet's included.
+ * rejects at parse: SANTA's errored construction vectors (the Box files of santa 3f75e14, and
+ * #20-#21 of the same entries at 7e2f5f4), which ergots accepted, and ten error-case eval fixtures,
+ * which ergots parsed leniently and rejected only under the box rules, through the root's type. The
+ * parse hook changed 22; the mid-parse checks in the arms (the collection item assert, the pre-v3
+ * ByIndex index, the ExtractRegisterAs register id) changed 5 more. No tree the JVM accepts changes
+ * status, mainnet's included.
  */
 const CHANGED: Record<string, { source: string; before: Status; after: Status; why: string }> = {
   'box@3:cf0bd96a5cf08141a07fdc0a5966085c': {
@@ -285,6 +287,19 @@ const CHANGED: Record<string, { source: string; before: Status; after: Status; w
     after: { box: 'ExprTpeError:slice-input-not-scoll' },
     why: 'SANTA box-e2-slice-on-int-sized-reject#9, errored (jvm:sigma-state-6.0.6)',
   },
+  // The collection item assert (ConcreteCollectionSerializer.scala:35-39), in parseCollection.
+  'box@3:7a18060c20b49ed54f09b284c82d8617': {
+    source: 'packages/ergoscript/test/fixtures/conformance/wire/Box.tree_parse_acceptance.json#/entries/20/bytes_hex',
+    before: { box: 'parsed' },
+    after: { box: 'ExprParseError:collection-item-type-mismatch' },
+    why: 'SANTA box-coll-item-wrong-type-reject#20, errored (jvm:sigma-state-6.0.6)',
+  },
+  'box@3:79f09420d8b519439935406ea6a1862e': {
+    source: 'packages/ergoscript/test/fixtures/conformance/wire/Box.tree_parse_acceptance.json#/entries/21/bytes_hex',
+    before: { box: 'parsed' },
+    after: { box: 'ExprParseError:collection-item-type-mismatch' },
+    why: 'SANTA box-coll-item-wrong-type-sized-reject#21, errored (jvm:sigma-state-6.0.6)',
+  },
   'tree:cac9df0453ca40aefce1b75f653bfaab': {
     source: 'packages/ergoscript/test/fixtures/eval/bin-op-bit.json#/entries/17/tree_bytes_hex',
     before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop' },
@@ -326,6 +341,26 @@ const CHANGED: Record<string, { source: string; before: Status; after: Status; w
     before: { lenient: 'parsed', box: 'ExprTpeError:slice-input-not-scoll' },
     after: { lenient: 'ExprTpeError:slice-input-not-scoll', box: 'ExprTpeError:slice-input-not-scoll' },
     why: 'coll_slice_not_coll: the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: ClassCastException)',
+  },
+  // The pre-v3 ByIndex index (ByIndexSerializer.scala:29-33), in parseCollByIndex.
+  'tree:7cafcac8a37b72e02346dd0953f9e52c': {
+    source: 'packages/ergoscript/test/fixtures/eval/coll-by-index.json#/entries/8/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop' },
+    after: { lenient: 'ExprParseError:by-index-index-not-int', box: 'ExprParseError:by-index-index-not-int' },
+    why: 'coll_by_index_idx_not_int: the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: AssertionError, a Boolean index does not upcast)',
+  },
+  // The ExtractRegisterAs register id (ExtractRegisterAsSerializer.scala:28), in parseExtractRegisterAs.
+  'tree:5e43176801795b72c547647b9e495301': {
+    source: 'packages/ergoscript/test/fixtures/eval/extract-register-as.json#/entries/9/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop' },
+    after: { lenient: 'ExprParseError:extract-register-as-id-out-of-range', box: 'ExprParseError:extract-register-as-id-out-of-range' },
+    why: 'extract_reg_id_negative: the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: NoSuchElementException, id -1)',
+  },
+  'tree:5162e8d4b1e88d629017bb52611a580a': {
+    source: 'packages/ergoscript/test/fixtures/eval/extract-register-as.json#/entries/10/tree_bytes_hex',
+    before: { lenient: 'parsed', box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop' },
+    after: { lenient: 'ExprParseError:extract-register-as-id-out-of-range', box: 'ExprParseError:extract-register-as-id-out-of-range' },
+    why: 'extract_reg_id_too_large: the JVM rejects it at parse, lenient and under the box rules (a local sigma-state 6.0.6 probe: NoSuchElementException, id 10)',
   },
 }
 

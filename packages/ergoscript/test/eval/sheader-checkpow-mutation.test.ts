@@ -18,8 +18,8 @@
  *   0xdc empty-args node at ErgoTree version >= 3. The PropertyCall form drops
  *   the MethodCall args-count byte, so this encoding is 1 byte shorter (12 vs 13)
  *   than the prior sigma-rust-shaped 0xdc fixture. See
- *   src/eval/validate-method-call-arity.ts (the pre-eval pass that rejects the
- *   0xdc empty-args form).
+ *   src/wire/mir/method-call.ts (the parse rejects the 0xdc empty-args form
+ *   from V3, as the JVM's does).
  *
  *   Byte map:
  *     [0]     0x00 = ErgoTree header (V0, no size, no constant-segregation)

@@ -16,6 +16,7 @@ import { ByteReader } from '@ergots/scorex'
 import { parseTree, serializeTree, parseErgoTreeBytes } from '../../src/wire/ergo-tree'
 import { reencodeTreeBytes } from '../../src/wire/box-tree'
 import { isUnparsedTree } from '../../src/mir/types'
+import type { ErgoTree } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
 const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
@@ -46,14 +47,31 @@ describe('a ConcreteCollection of Boolean constants re-encodes as 0x85', () => {
       expect(reencoded(wire)).toBe(wire)
     })
   }
-  it('a Coll[Boolean] whose constant item is not a Boolean cannot be re-encoded', () => {
+  it('a Coll[Boolean] whose constant item is not a Boolean is rejected at parse, and cannot be re-encoded', () => {
     // 00 d1 96 83 01 01 04 00: AND(Coll[Boolean](Int 0)). The JVM rejects it at parse, where
-    // ConcreteCollectionSerializer asserts each item's type (:38); ergots does not check item
-    // types (residual 9), so it parses, and its re-encoding fails where the JVM's
+    // ConcreteCollectionSerializer asserts each item's type (:38), and so does ergots (a local
+    // sigma-state 6.0.6 probe, with and without checkType: AssertionError).
+    expect(errOf(() => parseTree(hex('00d1968301010400')))).toMatchObject({ name: 'ExprParseError', code: 'collection-item-type-mismatch' })
+    // A tree built through the API can still hold one. Its re-encoding fails where the JVM's
     // ConcreteCollectionBooleanConstantSerializer (:22-27) would: an item is a Constant, but not a
     // Boolean one.
-    const tree = parseTree(hex('00d1968301010400'))
-    expect(isUnparsedTree(tree)).toBe(false)
+    const tree: ErgoTree = {
+      header: { version: 0, hasSize: false, constantSegregation: false, rawHeader: 0x00 },
+      constantTypes: [],
+      constants: [],
+      body: {
+        tag: 'BoolToSigmaProp',
+        input: {
+          tag: 'And',
+          input: {
+            tag: 'Collection',
+            kind: 'Exprs',
+            elemTpe: { tag: 'SBoolean' },
+            items: [{ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 0 } }],
+          },
+        },
+      },
+    }
     expect(errOf(() => serializeTree(tree))).toMatchObject({ name: 'ExprSerializeError', code: 'collection-item-not-boolean-constant' })
   })
 })

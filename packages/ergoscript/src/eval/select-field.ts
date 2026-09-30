@@ -27,14 +27,14 @@
  * `field_index` is 1-based on the wire (ErgoScript's `t._1` / `t._2`
  * syntax). Subtract 1 inline for 0-based array access.
  *
- * Defensive 'select-field-input-not-tuple' guards against non-Tuple
- * input. Wire-format invariants make this unreachable for parser-
- * produced trees; same posture as LogicalNot.
- *
- * 'select-field-index-out-of-range' guards against out-of-bounds
- * fieldIndex on a pair (now reachable only via hand-built MIR with a
- * fieldIndex > 2 on an arity-2 input, since the arity≠2 reject precedes it
- * for non-pairs). Tested via inline TS test with a hand-built MIR node.
+ * 'select-field-input-not-tuple' guards against non-Tuple input, and
+ * 'select-field-index-out-of-range' against an out-of-bounds fieldIndex on a
+ * pair (the arity≠2 reject precedes it for non-pairs). The parse types the
+ * input and rejects both shapes as the JVM's constructor does, except for an
+ * input typed as ergots' own SAny (residual 1), which reaches them here:
+ * SelectField(CONTEXT.dataInputs, 1) and SelectField(SELF.creationInfo, 3),
+ * which the JVM rejects at parse (facts/ergoscript-eval.md). The index case is
+ * also tested via inline TS test with a hand-built MIR node.
  */
 
 import type { SelectField, SValue } from '../mir/types'

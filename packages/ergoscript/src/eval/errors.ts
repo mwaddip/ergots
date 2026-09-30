@@ -105,6 +105,9 @@
  *        ('coll-map-elem-type-infer-failed' — defensive default arm of the
  *        exhaustive SValue-kind switch in svalue-type.ts, originated phase 2f,
  *        tsc-provably unreachable) → 84
+ *    − 1 code moved to the wire layer on 2026-09-30 ('method-call-empty-args', now an
+ *        ExprParseError raised at parse; docs/specs/2026-09-30-jvm-node-construction-design.md).
+ *        The union held 86 before this step, two more than this chain records, and holds 85 after.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -836,22 +839,9 @@ export type EvalErrorCode =
    */
   | 'unsigned-bigint-not-invertible'
 
-  // -------------------------------------------------------------------------
-  // v6 P4 — V3+ empty-args MethodCall reject (1 new code; 73 → 74)
-  // -------------------------------------------------------------------------
-  /**
-   * `validateMethodCallArity` pre-eval pass: a `MethodCall`-opcode node with
-   * empty args (`args.length === 0`) appears in a `treeVersion >= 3` tree.
-   * Mirrors the JVM `MethodCallSerializer.parse`
-   * `if (isV3OrLaterErgoTreeVersion) assert(args.nonEmpty)`
-   * (data/shared/.../serialization/MethodCallSerializer.scala:53-55). Honest
-   * trees never emit this (zero-arg calls use the PropertyCall opcode); it is an
-   * adversarial over-accept (any zero-arg method reached via the MethodCall
-   * opcode — `none` 106:10, `groupGenerator` 106:1 — would otherwise evaluate).
-   * Pre-V3 is grandfathered (the JVM does not assert there). Zero-cost reject.
-   * Source: `eval/validate-method-call-arity.ts` (v6 P4).
-   */
-  | 'method-call-empty-args'
+  // v6 P4's 'method-call-empty-args' (a V3+ MethodCall without arguments) moved to the wire layer on
+  // 2026-09-30: the parse raises it, as the JVM's MethodCallSerializer does (ExprParseError,
+  // wire/mir/method-call.ts; facts/ergoscript-eval.md, "Retired / non-emitted codes").
 
   // -------------------------------------------------------------------------
   // v6 P5a — Global.serialize / Global.deserializeTo (2 new codes; 74 → 76)

@@ -844,9 +844,9 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr): Expr {
  * built by `Traversable::children` (mir/expr.rs:534-605) and the per-variant
  * `iter_from!` macro expansion.
  *
- * Used by {@link hasDeserializeWalk} and by the whole-tree passes of
- * `eval/validate-v6-types.ts` and `eval/validate-method-call-arity.ts`; the
- * substitution walker uses {@link mapChildren} which reconstructs the parent.
+ * Used by {@link hasDeserializeWalk} and by the whole-tree pass of
+ * `eval/validate-v6-types.ts`; the substitution walker uses {@link mapChildren}
+ * which reconstructs the parent.
  */
 export function* childrenOf(e: Expr): Generator<Expr, void, void> {
   switch (e.tag) {

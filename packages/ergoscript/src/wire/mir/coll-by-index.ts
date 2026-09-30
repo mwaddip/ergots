@@ -25,8 +25,13 @@
  * Sigma-rust's `ByIndex::new` enforces post-eval typing: input must be
  * `SColl(_)`, index must be `SInt`, and if `default` is present its
  * post-eval tpe must match the collection's element type
- * (`mir/coll_by_index.rs:33-66`). We do NOT enforce that at the wire layer
- * — type-shape checks belong to a later pass.
+ * (`mir/coll_by_index.rs:33-66`). ergots makes the JVM's checks instead:
+ * before tree v3, the index is upcast to Int as it is read
+ * (ByIndexSerializer.scala:27-36), so a Long, BigInt or UnsignedBigInt index,
+ * or one that is not numeric, rejects (`'by-index-index-not-int'`); and the
+ * constructor casts the input's type to a collection, which the parse hook
+ * checks (facts/ergoscript-wire.md, "Node construction"). The default's type
+ * is not checked at parse, as in the JVM.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/coll_by_index.rs
@@ -36,6 +41,9 @@
 
 import type { ByIndex, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { exprTpe } from '../../mir/expr-tpe'
+import { isJvmNumeric, isOwnSAny, numericTypeIndex } from '../../mir/jvm-types'
+import { ExprParseError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 
@@ -57,6 +65,17 @@ export function parseCollByIndex(
 ): ByIndex {
   const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   const index = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  // ByIndexSerializer.scala:29-33: before v3, index.upcastTo(SInt): assert numeric, and
+  // assert SInt.max(t) == SInt (syntax.scala:168-177). Right after the index, before the default flag: an
+  // AssertionError, which no sized tree degrades on. The JVM wraps a Byte or Short index in an Upcast,
+  // which ergots does not insert (residual 11). An index typed as ergots' own SAny passes (residual 1).
+  // From v3 the index is taken as it is (:29-30).
+  if (treeVersion < 3) {
+    const t = exprTpe(index, treeVersion)
+    if (!isOwnSAny(t) && (!isJvmNumeric(t) || numericTypeIndex(t) > 2)) {
+      throw new ExprParseError(`ByIndex index type ${t.tag} does not upcast to Int`, 'by-index-index-not-int')
+    }
+  }
   const tag = r.readU8()
   const def =
     tag !== 0

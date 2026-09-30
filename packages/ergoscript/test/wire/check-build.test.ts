@@ -281,9 +281,9 @@ describe("a ValUse bound to an Apply of a non-function carries the store's NoTyp
     const b = probed('T3-notype-window-valuse', block(sp(EQ(V1, int(0)))), 0x00, '00d801d601da0400010400d19372010400')
     expectRejected(parseBox(b), ExprParseError, 'relation-operand-type-mismatch')
   })
-  it('T3-notype-window-coll: rejects (the JVM: AssertionError, the item assert; ergots rejects at the EQ until the item check lands)', () => {
+  it('T3-notype-window-coll: rejects at the item assert, before the EQ is built (the JVM: AssertionError)', () => {
     const b = probed('T3-notype-window-coll', block(sp(EQ(Coll(T.Int, [V1]), int(0)))), 0x00, '00d801d601da0400010400d19383010472010400')
-    expectRejected(parseBox(b), ExprParseError, 'relation-operand-type-mismatch')
+    expectRejected(parseBox(b), ExprParseError, 'collection-item-type-mismatch')
   })
   it('T3-notype-window-eq-self: EQ(ValUse, ValUse) parses, and the ValUse is typed NOTYPE_JVM (the JVM: parsed)', () => {
     const b = probed('T3-notype-window-eq-self', block(sp(EQ(V1, V1))), 0x00, '00d801d601da0400010400d19372017201')

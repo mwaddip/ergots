@@ -19,7 +19,6 @@ import {
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
-import { validateMethodCallArity } from './validate-method-call-arity'
 import { validateV6Types } from './validate-v6-types'
 
 /**
@@ -156,7 +155,9 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
   }
   // The relations' check2 (SameType, OnlyNumeric) is made at parse, as the JVM's builder makes it
   // when each node is built (wire/check-build.ts); a relation rebuilt around a substituted script is
-  // not re-checked, as Kiama's dup bypasses the builder.
+  // not re-checked, as Kiama's dup bypasses the builder. The v3 MethodCall arity assert is made at
+  // parse too, as the JVM's serializer makes it (wire/mir/method-call.ts, MethodCallSerializer.scala:52-55),
+  // a decoded script's included; the evaluator makes neither.
   const treeVersion = ctx.treeVersion ?? 0
   if (treeHasDeserialize(tree)) {
     const constSubstituted = tree.header.constantSegregation
@@ -169,13 +170,8 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
     // eval/validate-v6-types.ts. Walks rewrittenBody so attacker-controlled
     // Deserialize* sub-trees are covered.
     validateV6Types(tree, rewrittenBody, treeVersion)
-    // JVM-align: reject a V3+ MethodCall-opcode node with empty args (honest
-    // trees use PropertyCall for zero args). Closes the none/groupGenerator
-    // over-accept. Pre-V3 grandfathered. See eval/validate-method-call-arity.ts.
-    validateMethodCallArity(rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
   validateV6Types(tree, tree.body, treeVersion)
-  validateMethodCallArity(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }

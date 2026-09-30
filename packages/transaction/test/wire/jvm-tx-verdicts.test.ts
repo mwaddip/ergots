@@ -117,10 +117,11 @@ describe('output trees re-encode in the JVM canonical form', () => {
     const tree = '10010101d19683020173000100'
     expectAccepted(tx([{ tree }]), '0202d67d519d4969da9af03dfafbeb96ec1c023d339d32b19bdf756a606ec9ad', ['P:' + tree])
   })
-  it("a Coll[Boolean] holding an Int constant rejects (the JVM asserts item types at parse): 'output-tree-not-reencodable'", () => {
+  it("a Coll[Boolean] holding an Int constant rejects at the tree's parse, as the JVM asserts item types there: 'collection-item-type-mismatch'", () => {
+    // ConcreteCollectionSerializer.scala:38; a local sigma-state 6.0.6 probe of the tree: AssertionError.
+    // The output never reaches the re-encoding ('output-tree-not-reencodable' before 2026-09-30).
     const err = errorOf(() => parseTransaction(tx([{ tree: '00d1968301010400' }])))
-    expect(err).toMatchObject({ code: 'output-tree-not-reencodable' })
-    expect(err?.cause).toMatchObject({ code: 'collection-item-not-boolean-constant' })
+    expect(err).toMatchObject({ name: 'ExprParseError', code: 'collection-item-type-mismatch' })
   })
   it('SELF.value > 0L as a MethodCall without arguments: the id is over the PropertyCall', () => {
     expectAccepted(tx([{ tree: '00d191dc6301a7000500' }]),

@@ -139,8 +139,8 @@ describe('SHeader.checkPow edge cases', () => {
     // SHeader.checkPow (104:16). checkPow is a ZERO-ARG method, so the
     // JVM-faithful encoding is the PropertyCall opcode (0xdb) — exactly how the
     // real fixture now serializes it. (A MethodCall-opcode (0xdc) empty-args node
-    // is rejected pre-eval by validateMethodCallArity at V3; see
-    // src/eval/validate-method-call-arity.ts.) PropertyCall and MethodCall share
+    // is rejected at parse at V3, as the JVM's MethodCallSerializer rejects it; see
+    // src/wire/mir/method-call.ts.) PropertyCall and MethodCall share
     // the same dispatch path for 104:16: the V3 gate passes (treeVersion=3); the
     // cost-700 charge runs; then assertHeaderObj throws because
     // obj.kind === 'Long' !== 'Header'.

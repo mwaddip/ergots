@@ -20,8 +20,9 @@
  *                                     SMethod — there is NO length prefix
  *                                     on the wire.
  *
- * A MethodCall without arguments parses from this opcode but is written as a
- * PropertyCall (0xdb), as the JVM's companion writes it (see `serializeMethodCall`).
+ * A MethodCall without arguments parses from this opcode below tree v3, and is
+ * written as a PropertyCall (0xdb), as the JVM's companion writes it (see
+ * `serializeMethodCall`); from v3 the parse rejects it, as the JVM's does.
  *
  * Source: sigma-rust `serialization/method_call.rs`. Sigma-rust resolves
  * the SMethod via `SMethod::from_ids(type_id, method_id)?` then reads one
@@ -42,7 +43,7 @@
 import type { Expr, MethodCall, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { OP_METHOD_CALL, OP_PROPERTY_CALL } from '../../mir/opcodes'
-import { ExprSerializeError } from '../errors'
+import { ExprParseError, ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
@@ -77,6 +78,15 @@ export function parseMethodCall(
   const args: Expr[] = []
   for (let i = 0; i < argsCount; i++) {
     args.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
+  }
+  // MethodCallSerializer.scala:52-55: from tree v3 (isV3OrLaterErgoTreeVersion, VersionContext.scala:29),
+  // assert(args.nonEmpty), after the arguments and before the method lookup (SMethod.fromIds, :56) and
+  // the explicit type arguments (:58-65): an AssertionError, which no sized tree degrades on.
+  if (treeVersion >= 3 && argsCount === 0) {
+    throw new ExprParseError(
+      `MethodCall (typeId=${typeId}, methodId=${methodId}) has no arguments in a tree of version ${treeVersion}`,
+      'method-call-empty-args'
+    )
   }
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
