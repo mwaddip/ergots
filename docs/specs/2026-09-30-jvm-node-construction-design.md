@@ -220,10 +220,13 @@ Rows use ergots' MIR tags. Every read goes through `exprTpe(child, treeVersion)`
 | `If`, `TreeLookup` | both | the three children | none | — |
 | `Map`, `Append`, `Slice`, `ByIndex`, `SelectField`, `OptionGet`, `OptionGetOrElse` | both | the node's own type, as `exprTpe` computes it | its casts | the `exprTpe` codes |
 | `OptionIsDefined`, `SigmaPropIsProven`, `SigmaPropBytes` | both | input | none | — |
-| `MethodCall` | parse | for a catalogued pair only: each argument, then the object; then records the call's type | none | — |
-| `PropertyCall` | parse | for a catalogued pair without explicit type arguments only: the object; then records the call's type | none | — |
+| `MethodCall` | parse | each argument, then the object; then records the call's type | none | — |
+| `PropertyCall` | parse | without explicit type arguments: the object; then records the call's type | none | — |
 
-The `MethodCall` and `PropertyCall` reads are gated on the pair being in ergots' catalog (`methodSignature(typeId, methodId) !== undefined`, review M3). The JVM reads them only after `SMethod.fromIds` accepts the pair, and for a pair it does not know, `fromIds` throws a soft ValidationException first (rule 1016 from v6 activation, 1011 before; `methods.scala:128-136`), which a sized tree degrades on. Reading them for a pair ergots does not catalogue would turn that degrade into a hard reject. The reads lost for a pair the JVM knows and ergots does not catalogue join residual 1.
+The JVM makes the `MethodCall` and `PropertyCall` reads only after `SMethod.fromIds` accepts the pair. For a pair it does not know, `fromIds` first throws a soft `ValidationException` (rule 1016 from v6 activation, 1011 before; `methods.scala:128-136`), which a sized tree degrades on.
+- **Before §4a,** ergots could not tell which pairs the JVM knows, so it gated the reads on its own catalog (review M3), and the reads lost for a known, uncatalogued pair joined residual 1.
+- **With §4a's lookup** in the parse arm, a call reaches the hook only if the JVM knows its pair. So every such call gets the JVM's reads, catalogued or not (Task 9's ruling).
+- **The catalog now decides only the recorded type:** `resolveReturnTpe` for a catalogued pair, ergots' own SAny for any other (residual 1).
 
 A few conventions for the table:
 - An operand typed as ergots' own SAny passes every numeric test and every equality.
@@ -294,7 +297,7 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
   - A soft failure inside an argument comes first (`W:143`).
   - A failure is `ExprParseError('method-type-no-methods')` (1010) or `ExprParseError('method-unknown')` (1016), both soft.
 - **The explicit type arguments** keep their six-pair registry. With the lookup first, they are read only for a pair the JVM knows at that version, as in the JVM.
-- **`checkBuild` is unchanged.** A pair the JVM does not know at the tree's version never reaches it (Task 3 review, I1).
+- **`checkBuild`'s reads follow the lookup.** A pair the JVM does not know at the tree's version never reaches `checkBuild` (Task 3 review, I1). A pair it knows gets the JVM's reads, whether or not ergots catalogues it (§3).
 
 **The degrade set.** The five codes join `SOFT_FORKABLE_PARSE_CODES`, and `isSoftForkableParseError` also accepts an `STypeParseError`.
 - A soft failure inside a decoded script is not a class cast, so it rejects the spend (`deserialize-parse-failed`). The JVM rethrows it too, since the rule is enabled (`Interpreter.scala:249`; `W:116-119`).
@@ -455,7 +458,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 
 ## Residuals (documented, not closed)
 
-1. **The method catalog (residual 1).** ergots' own SAny is unknown, and every parse-time check passes it: equality and the numeric tests. The substitution's comparisons keep `master`'s structural equality, under which a script or default typed as ergots' own SAny equals only a declared SAny: an over-reject for an honest script of an uncatalogued type, and an over-accept for a declared SAny. A call ergots does not catalogue reads nothing at parse, where the JVM, when it knows the method, reads the object and argument types (a missed class cast), and, when it does not, degrades a sized tree on rule 1016, as ergots now does too (§4a). A pre-v3 `ByIndex` index typed as ergots' own SAny passes the Int check the JVM may fail.
+1. **The method catalog (residual 1).** ergots' own SAny is unknown, and every parse-time check passes it: equality and the numeric tests. The substitution's comparisons keep `master`'s structural equality, under which a script or default typed as ergots' own SAny equals only a declared SAny: an over-reject for an honest script of an uncatalogued type, and an over-accept for a declared SAny. A call's result type comes from the catalog, so an uncatalogued pair is typed as ergots' own SAny. Its reads at parse follow the JVM's lookup (§4a), and a pair the JVM does not know degrades a sized tree on rule 1016 in both. A pre-v3 `ByIndex` index typed as ergots' own SAny passes the Int check the JVM may fail.
 2. **Register and extension values (residual 4, SANTA's evaluated values).** A Tuple-expression register kept as `opaqueBytes` is never built, so its items' construction checks do not run. The JVM builds them with `getValue`.
 3. **The pre-v3 builder rewrites (residual 11).** Only their type is modelled. The bytes and ids still differ. The JVM's parse-time upcasts also survive a rebuild (`dup` bypasses the builder), while ergots widens by the kinds it meets at eval, so a default of another width that reaches mixed-width arithmetic, a relation, or a pre-v3 `ByIndex` index (§8, review R2-m1) can evaluate differently (review m4).
 4. **Soft-forked rules in substitution.** A `ValidationException` during substitution becomes `TrueSigmaProp` when the settings mark its rule soft-forked (`trySoftForkable`, `Interpreter.scala:249`). ergots rejects. This belongs with B-full.
