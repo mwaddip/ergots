@@ -19,8 +19,9 @@
  *   3. Eval e.func → must be Lambda. Otherwise throw 'apply-non-lambda'.
  *   4. Arity check: closure.argIds.length === e.args.length, which is 1 here.
  *      Otherwise throw 'apply-arity-mismatch' (BEFORE arg-eval; pure structural).
- *      The JVM rejects such a closure where it is created instead
- *      (FuncValue.eval, values.scala:1084): the same verdict.
+ *      Unreachable: a FuncValue of other than one parameter rejects where it is
+ *      evaluated (eval/func-value.ts; the JVM's FuncValue.eval,
+ *      values.scala:1070-1085), so every closure has one parameter.
  *   5. Eval each arg expression in order.
  *   6. Build bodyEnv via immutable extend for each (closure.argIds[i],
  *      args[i]) pair, charging ADD_TO_ENV_COST (5 JIT) per binding (mirrors
@@ -62,7 +63,8 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
     )
   }
   const closure = func.closure
-  // Arity check BEFORE arg-eval (pure structural; per design spec Decision #6).
+  // Arity check BEFORE arg-eval (pure structural; per design spec Decision #6). A structural guard: every closure has one
+  // parameter, since a FuncValue of any other arity rejects where it is evaluated (eval/func-value.ts).
   if (closure.argIds.length !== e.args.length) {
     throw new EvalError(
       `Apply: arity mismatch — closure expects ${closure.argIds.length} args, got ${e.args.length}`,

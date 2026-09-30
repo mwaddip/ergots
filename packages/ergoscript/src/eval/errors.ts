@@ -199,9 +199,11 @@ export type EvalErrorCode =
   /** Apply: func evaluated to non-Lambda SValue. */
   | 'apply-non-lambda'
   /**
-   * Apply: other than one argument (the JVM's Apply.eval, values.scala:1262-1272; thrown after Apply's 30 and before the
-   * function or any argument is evaluated), or a one-argument application of a closure whose arity is not 1 (the JVM
-   * rejects that closure where it is created, values.scala:1084).
+   * The JVM's two one-argument rules. An Apply with other than one argument (Apply.eval, values.scala:1262-1272; thrown
+   * after Apply's 30, before the function or any argument is evaluated), and a FuncValue with other than one parameter,
+   * wherever it is evaluated (FuncValue.eval, values.scala:1070-1085; thrown after its 5, before any closure is built).
+   * The Apply arm's structural check of a closure's arity throws it too; since no closure of another arity is built, that
+   * check is unreachable.
    */
   | 'apply-arity-mismatch'
 
@@ -1090,10 +1092,13 @@ export type EvalErrorCode =
    * pre-eval pass) ⇒ JVM-faithful laziness: a non-pair-tuple-typed const in a
    * DEAD branch is never evaluated, so it never rejects.
    *
-   * Adversarial-only (honest compilers never emit these). Residual: the
-   * FuncValue/Apply param+body SFunc arms (P6 closure path) are NOT hooked — no
-   * SFunc witness; tracked F5 item. The helper still rejects a non-unary SFunc
-   * VALUE flowing through a data seam.
+   * Adversarial-only (honest compilers never emit these). The FuncValue/Apply
+   * param+body SFunc arms (P6 closure path) are not hooked and need no hook: a
+   * FuncValue of other than one parameter rejects where it is evaluated, before
+   * any seam sees its value ('apply-arity-mismatch', eval/func-value.ts;
+   * values.scala:1070-1085). So the helper's SFunc branch is reached only
+   * through MIR built by the API, such as a Const declared with a non-unary
+   * SFunc type.
    *
    * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the Tuple EXPR
    * node's own arity≠2 gate (values.scala:797); this is the DECLARED-type

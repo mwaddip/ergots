@@ -33,14 +33,19 @@
  * call). A non-pair tuple NESTED inside a pair tuple's item type is therefore
  * still caught — by the item seam, not by recursion here.
  *
- * Residual: the FuncValue/Apply param+body SFunc arms (the P6 closure path) are
- * deliberately NOT hooked. The JVM-blessed witnesses (vendored at
- * test/fixtures/conformance/v5/authored/{FuncValue,Apply}.non_unary_arity.json,
- * F5 batch 4 Ask 11) confirm this unhooked state is faithful: a non-unary
- * FuncValue rejects via the BlockValue valdef-rhs DATA seam when its Lambda
- * value flows through a binding (bound-only still rejects; dead-branch
- * accepts), and a wrong-arg-count Apply rejects via apply.ts's own structural
- * arity guard ('apply-arity-mismatch') — no closure-path hook needed.
+ * The FuncValue/Apply param+body SFunc arms (the P6 closure path) are not
+ * hooked, and need no hook: no value of a non-unary SFunc is ever built. The
+ * JVM's FuncValue.eval charges its 5 and then rejects a lambda of other than one
+ * parameter wherever it is evaluated (values.scala:1070-1085), before any seam
+ * sees it, and eval/func-value.ts does the same ('apply-arity-mismatch'); an
+ * Apply of other than one argument rejects in eval/apply.ts, as the JVM's
+ * Apply.eval does (values.scala:1262-1272). The SANTA witnesses
+ * (test/fixtures/conformance/v5/authored/{FuncValue,Apply}.non_unary_arity.json)
+ * cover a lambda that is bound or applied only; a non-unary lambda passed to
+ * map, exists, forall or filter, or compared with ==, also rejects in the JVM
+ * (test/eval/func-value.test.ts). So this helper's SFunc branch is reached only
+ * through MIR built by the API, such as a Const declared with a non-unary SFunc
+ * type: parsed data never has an SFunc type (rule 1009, facts/ergoscript-wire.md).
  *
  * `readCheckedType(node, ctx)` is the type READ each JVM `checkType` site makes
  * first (`val tpe = node.tpe`), before it compares the value's class (spec

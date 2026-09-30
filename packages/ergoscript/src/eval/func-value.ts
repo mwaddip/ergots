@@ -10,8 +10,13 @@
  *   Ok(Value::Lambda(Lambda { args: self.args().to_vec(),
  *                             body: self.body().clone().into() }))
  *
- * Cost-charging order: envelope BEFORE returning the Lambda (the only
- * "work" the arm does).
+ * The JVM, unlike sigma-rust, builds a closure for exactly one parameter
+ * (FuncValue.eval, values.scala:1070-1085): it charges the 5, then throws
+ * "Function must have 1 argument" for 0, 2 or more. So does this arm
+ * ('apply-arity-mismatch', the code of Apply's own one-argument rule; spec §9).
+ *
+ * Cost-charging order: envelope BEFORE the arity check and before returning
+ * the Lambda (the only "work" the arm does).
  *
  * Closure shape per packages/ergoscript/src/mir/types.ts:
  *   { argIds: number[], argTpes: SType[], body: Expr, capturedEnv: Env }
@@ -36,11 +41,22 @@
 import type { FuncValue, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
 
 const FUNC_VALUE_COST = 5
 
 export function evalFuncValue(e: FuncValue, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(FUNC_VALUE_COST)
+  // The JVM's FuncValue.eval charges its cost, then builds a closure only for exactly one parameter, and otherwise throws
+  // "Function must have 1 argument" (values.scala:1070-1085). So a lambda of 0, 2 or more parameters rejects wherever it
+  // is evaluated: passed to map, exists, forall or filter, compared, or bound. The code is the one Apply's own
+  // one-argument rule throws (eval/apply.ts).
+  if (e.args.length !== 1) {
+    throw new EvalError(
+      `FuncValue: function must have 1 argument, got ${e.args.length}`,
+      'apply-arity-mismatch'
+    )
+  }
   return {
     kind: 'Lambda',
     closure: {
