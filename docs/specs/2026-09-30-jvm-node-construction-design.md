@@ -361,10 +361,10 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
   - the pre-eval gates removed;
   - the new `EvalError` codes;
   - `method-call-empty-args` moved;
-  - `deserialize-input-not-byte-array` no longer thrown for a register.
+  - `deserialize-input-not-byte-array` is no longer thrown for a register of another type; that register leaves the node. It is still thrown, defensively, for a register typed `Coll[Byte]` whose value is not a `Coll` of bytes.
 - **`facts/ergoscript.md`:** the hub's coverage line.
 - **`facts/transaction.md`:** the pre-eval gates it names, if any.
-- **SANTA fixtures:** copied verbatim into ergoscript's wire conformance: `Box.tree_parse_acceptance`, `Box.tree_bool_pair_form` and, for the transaction replay, their `Transaction.*` twins.
+- **SANTA fixtures:** copied verbatim into ergoscript's wire conformance: `Box.tree_parse_acceptance`, `Box.tree_bool_pair_form` and `Box.tree_nested_degrade`. The transaction replay has their `Transaction.*` twins and the substitution spends, `deserialize-substitution-spend`.
 
 ### 7. (Moved.) The eval-time type discipline
 
@@ -432,7 +432,7 @@ The ModQ family and TaggedVariable are in the same class, but ergots rejects the
 | B1c: v3 dead `GT(Negation(OptionGet(get(DR(R4, Coll[Int], default Filter(BI, f)), 0))), 0)`, R4 absent: the default's type read is a class cast, so it is substituted untyped, and the rebuilt `OptionGet` reads the call's type | acc (probe) | rej | acc (the call keeps its recorded `Option[Int]`) |
 | M1: variable 1 = `BitOr(true, Filter(BI, f))` under a dead DeserializeContext | acc (the CCE from the require's message is swallowed) | rej | acc |
 | M2: `SelectField(OptionGet(GetVar(1, (Int × 200))), 0xC8)` | rej (index −57) | acc | rej |
-| M3: a sized tree with the unknown pair `12:200` over `Filter(BI, f)` | deg (rule 1016) | acc | acc (no read; residual 1) |
+| M3: a sized tree with the unknown pair `12:200` over `Filter(BI, f)` | deg (rule 1016) | acc | deg (rule 1016, §4a) |
 | M4: v0 `Coll[Long](Plus(Int 1, CONTEXT.preHeader.timestamp))` | acc | acc | acc |
 | K1: `ValUse(1)` typed SInt, bound to a default Long 5, live | rej (checkType) | rej (typed default) | rej (typed default) |
 | R2-B2: live `Coll[SigmaProp](DR(R4, SSigmaProp, default true))`, R4 absent | rej (`ArrayStoreException`) | rej (typed default) | rej (typed default) |
@@ -502,6 +502,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
      - ergots' own `coll-elem-tpe-mismatch` checks, which the JVM does not make (`Filter(Coll[Int](), (x: Long) => true)`).
      - the JVM's cast of a value to its static type at arithmetic. `Plus(c(0), 1)`, with `c: Coll[Int]` bound to a `Coll[Byte]` argument, is a `ClassCastException` in the JVM, and ergots accepts it (Task 6's review);
      - `flatMap`'s and `Option.map`'s up-front read of the lambda body's type (`scoll-flat-map.ts`, `soption-map.ts`). Over an empty collection or `None`, it rejects a class-cast default that the JVM accepts (Task 5's review, I2; pinned in `substitution-jvm.test.ts`). The JVM types the result from the call's type, `mc.tpe` (`methods.scala:1005`), which needs both methods in the catalog (residual 1).
+   - Four SANTA spends reject as the JVM does, but for residual 7's reason, the typed default, not the JVM's: `deserialize-substitution-spend` #9, #10, #21 and #22. They are pinned as reason-only divergences.
    - The draft: `.superpowers/sdd/2026-09-30-jvm-node-construction/next-spec-eval-discipline-draft.md`.
 8. **A soft failure inside a nested register payload that starts with an opcode** (§4a; audit `W:130-131`).
    - The JVM builds such a payload with `getValue` before its `EvaluatedValue` cast (`ErgoBoxCandidate.scala:231`), so a soft failure inside the payload degrades the enclosing sized tree.
@@ -540,7 +541,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
    - the `validateBinOpTypes` and `validateMethodCallArity` suites, which move to parse-level tests;
    - `apply-func-no-type` and `val-def-rhs-tpe` users;
    - the register substitution tests expecting `deserialize-input-not-byte-array`.
-6. **Gates:** `npm test`, `npm run typecheck`, jsdom for ergoscript and transaction, the bare-root run, the harness tests, and a replay of SANTA's 157-red corpus that must regress nothing.
+6. **Gates:** `npm test`, `npm run typecheck`, jsdom for ergoscript and transaction, the bare-root run, the harness tests, and a replay of SANTA's corpus that must regress nothing. At the close-out that corpus is SANTA `912a704`, with 218 dasher reds on `master`.
 
 ## SANTA: requests
 
