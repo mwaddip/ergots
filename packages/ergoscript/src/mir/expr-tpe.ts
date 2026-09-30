@@ -16,7 +16,7 @@
  * The arms without a JVM citation mirror sigma-rust's `Expr::tpe` (`ergotree-ir/src/mir/expr.rs:252-325`).
  */
 
-import type { ByIndex, Expr, MethodCall, PropertyCall, SType, STypeVar } from './types'
+import type { BinOp, ByIndex, Expr, MethodCall, PropertyCall, SType, STypeVar } from './types'
 import { NOTYPE_JVM, SANY_JVM } from './types'
 import { isJvmNumeric, isOwnSAny, numericTypeIndex } from './jvm-types'
 import { methodSignature, resolveReturnTpe } from './method-signatures'
@@ -62,9 +62,10 @@ export function recordedCallType(e: Expr): SType | undefined {
  * Whether the JVM's parse put an `Upcast` over a pre-v3 `ByIndex` index. `ByIndexSerializer` upcasts the index to Int
  * as it reads it (`index.upcastTo(SInt)`, ByIndexSerializer.scala:29-33, syntax.scala:168-177): unless the index is an
  * Int, the tree holds an actual `Upcast` node, evaluated and charged with the index, and Kiama's `dup` keeps that node
- * through a substitution rebuild (Rewriter.scala:236-320). So the decision is fixed when the node is parsed and survives
- * a rewrite of the index beneath it, as a call's type does (`callTypes`). ergots inserts no node. It records the
- * decision on the ByIndex, keyed by node so the `Expr` shape does not change:
+ * through a substitution rebuild (Rewriter.scala:236-320), re-running its constructor's check over a rewritten index
+ * (`checkBuild`'s `'rebuild'` site). So the decision is fixed when the node is parsed and survives a rewrite of the index
+ * beneath it, as a call's type does (`callTypes`). ergots inserts no node. It records the decision on the ByIndex, keyed
+ * by node so the `Expr` shape does not change:
  *   - `'upcast'`: the index is statically Byte or Short, so the JVM's `Upcast` is there;
  *   - `'int'`: the index is statically Int, so it is not;
  *   - `'unknown'`: the index types as ergots' own SAny (residual 1), so ergots cannot tell, and the arm decides by the
@@ -93,6 +94,48 @@ export function recordIndexUpcast(e: ByIndex, d: IndexUpcast): void {
 /** The decision recorded for `e` by `recordIndexUpcast`, if any. */
 export function recordedIndexUpcast(e: Expr): IndexUpcast | undefined {
   return indexUpcasts.get(e)
+}
+
+/**
+ * Which operand of a pre-v3 relation the JVM's builder wrapped in an `Upcast`. Before v3 the parse builds EQ and NEQ
+ * through `equalityOp`, and LT, LE, GT and GE through `comparisonOp`, and both run `applyUpcast`: when the operand types
+ * are two different numeric types, the narrower operand is wrapped in an `Upcast` to the wider type
+ * (SigmaBuilder.scala:674-704; `upcastTo`, syntax.scala:168-177; a no-op from v3, SigmaBuilder.scala:757-763). Kiama's
+ * `dup` rebuilds that `Upcast` over a rewritten operand and re-runs its constructor's check,
+ * `require(input.tpe.isInstanceOf[SNumericType])` (trees.scala:398), which reads the operand's type. The relation's own
+ * constructor reads nothing. ergots inserts no node. The parse records the wrapped operand on the relation, keyed by
+ * node so the `Expr` shape does not change, a rebuild copies it (`mapChildren`), and `checkBuild`'s `'rebuild'` site
+ * reads that operand:
+ *   - `'left'`, `'right'`: that operand, the narrower of two different numeric types;
+ *   - `'unknown'`: an operand types as ergots' own SAny (residual 1), so ergots cannot tell whether the builder wrapped
+ *     either operand, and a rebuild reads neither.
+ * No record: the builder wrapped neither operand (the types are equal, or not both numeric), the tree is v3 or later, or
+ * the node was built through the API. Arithmetic needs no record: its rebuild reads both operands anyway (`ArithOp`'s
+ * `val opType`, trees.scala:708).
+ */
+export type RelationUpcast = 'left' | 'right' | 'unknown'
+
+const relationUpcasts = new WeakMap<Expr, RelationUpcast>()
+
+/**
+ * `applyUpcast`'s choice for a relation whose operands type as `lt` and `rt`, before v3 (SigmaBuilder.scala:674-683):
+ * the narrower of two different numeric types (`numericTypeIndex`), `'unknown'` where either types as ergots' own SAny,
+ * or none.
+ */
+export function relationUpcastOf(lt: SType, rt: SType): RelationUpcast | undefined {
+  if (isOwnSAny(lt) || isOwnSAny(rt)) return 'unknown'
+  if (!isJvmNumeric(lt) || !isJvmNumeric(rt) || lt.tag === rt.tag) return undefined
+  return numericTypeIndex(lt) < numericTypeIndex(rt) ? 'left' : 'right'
+}
+
+/** Record the operand the builder wrapped in the pre-v3 relation `e`; a rebuild copies it (`mapChildren`). */
+export function recordRelationUpcast(e: BinOp, d: RelationUpcast): void {
+  relationUpcasts.set(e, d)
+}
+
+/** The operand recorded for `e` by `recordRelationUpcast`, if any. */
+export function recordedRelationUpcast(e: Expr): RelationUpcast | undefined {
+  return relationUpcasts.get(e)
 }
 
 /** A type read's outcome. Only an `ExprTpeError`, the JVM's verdict on the node, is kept. */

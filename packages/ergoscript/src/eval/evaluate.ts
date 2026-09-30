@@ -160,7 +160,8 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
   }
   // The relations' check2 (SameType, OnlyNumeric) is made at parse, as the JVM's builder makes it
   // when each node is built (wire/check-build.ts); a relation rebuilt around a substituted script is
-  // not re-checked, as Kiama's dup bypasses the builder. The v3 MethodCall arity assert is made at
+  // not checked by check2 again, as Kiama's dup bypasses the builder (the rebuild re-checks only the
+  // Upcast a pre-v3 builder put over its narrower operand). The v3 MethodCall arity assert is made at
   // parse too, as the JVM's serializer makes it (wire/mir/method-call.ts, MethodCallSerializer.scala:52-55),
   // a decoded script's included; the evaluator makes neither. So is the version of every type: each is
   // read at the version in force at its read (wire/parse-stype.ts), a decoded script's at the spent

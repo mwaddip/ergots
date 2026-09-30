@@ -17,7 +17,15 @@ import { ReaderError } from '@ergots/scorex'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { ExprParseError } from '../../src/wire/errors'
 import { checkBuild } from '../../src/wire/check-build'
-import { ExprTpeError, exprTpe, recordedCallType } from '../../src/mir/expr-tpe'
+import {
+  ExprTpeError,
+  exprTpe,
+  recordIndexUpcast,
+  recordRelationUpcast,
+  recordedCallType,
+  recordedRelationUpcast,
+} from '../../src/mir/expr-tpe'
+import type { RelationUpcast } from '../../src/mir/expr-tpe'
 import { isOwnSAny } from '../../src/mir/jvm-types'
 import { isUnparsedTree, NOTYPE_JVM } from '../../src/mir/types'
 import type { ErgoTree, Expr, ParsedErgoTree, SType } from '../../src/mir/types'
@@ -504,5 +512,91 @@ describe("checkBuild's two sites (spec §3): 'rebuild', Kiama's dup, makes the c
     const parsed = MC(12, 33, collInt([1]), [int(0)])
     checkBuild(parsed, 'parse', 3)
     expect(recordedCallType(parsed)).toEqual({ tag: 'SOption', elem: { tag: 'SInt' } })
+  })
+})
+
+describe("the builder's Upcast at a rebuild (spec §5; the final review, C1)", () => {
+  // Before v3 the builder wraps the narrower of two different numeric operands of a relation in an Upcast (applyUpcast,
+  // SigmaBuilder.scala:674-683), and the ByIndex serializer wraps a Byte or Short index (ByIndexSerializer.scala:29-33).
+  // Kiama's dup rebuilds that Upcast over a substituted operand and re-runs its require, which reads the operand's type
+  // (trees.scala:398). ergots inserts no node: the parse records the operand the builder wrapped, and the rebuild site
+  // reads it. The spends, against the probe, are in test/eval/substitution-jvm.test.ts.
+  const codeOf = (f: () => unknown): string | undefined => {
+    try {
+      f()
+    } catch (e) {
+      return (e as { code?: string }).code
+    }
+    return undefined
+  }
+  const byte = (n: number): Expr => ({ tag: 'Const', tpe: T.Byte, value: { kind: 'Byte', value: n } })
+  const short = (n: number): Expr => ({ tag: 'Const', tpe: { tag: 'SShort' }, value: { kind: 'Short', value: n } })
+  const LT = (l: Expr, r: Expr): Expr => ({ tag: 'BinOp', op: { kind: 'Relation', op: 'Lt' }, left: l, right: r })
+  const relation = (left: Expr, right: Expr, recorded?: RelationUpcast): Expr => {
+    const node = EQ(left, right)
+    if (recorded !== undefined) recordRelationUpcast(node, recorded)
+    return node
+  }
+
+  it.each<[string, () => Expr, number, RelationUpcast | undefined]>([
+    ['EQ(Int, Long): the left', () => EQ(int(1), long(1)), 0, 'left'],
+    ['EQ(Long, Int): the right', () => EQ(long(1), int(1)), 0, 'right'],
+    ['GT(Byte, Int) at v1: the left', () => GT(byte(1), int(1)), 1, 'left'],
+    ['LT(Long, Short) at v2: the right', () => LT(long(1), short(1)), 2, 'right'],
+    ["EQ(ergots' own SAny, Int): unknown (residual 1)", () => EQ(TS, int(1)), 0, 'unknown'],
+    ["EQ(Int, ergots' own SAny): unknown (residual 1)", () => EQ(int(1), TS), 0, 'unknown'],
+    ['EQ(Int, Int): nothing, the same type', () => EQ(int(1), int(2)), 0, undefined],
+    ['EQ(Boolean, Boolean): nothing, not numeric', () => EQ(bool(true), bool(false)), 0, undefined],
+    ["EQ(ergots' own SAny, Int) at v3: nothing, no builder Upcast from v3", () => EQ(TS, int(1)), 3, undefined],
+  ])('the parse site records a relation: %s', (_name, build, v, recorded) => {
+    const node = build()
+    checkBuild(node, 'parse', v)
+    expect(recordedRelationUpcast(node)).toBe(recorded)
+  })
+
+  it('the parse hook records it on a parsed relation', () => {
+    const t = expectParsed(parseBox(treeBytes(sp(EQ(DR(4, T.Int), long(1))), 0x00)))
+    expect(recordedRelationUpcast((t.body as { input: Expr }).input)).toBe('left')
+  })
+
+  /** The code `checkBuild(node, 'rebuild', 0)` throws, if any. The node is built first, outside the catch. */
+  const rebuildCode = (node: Expr): string | undefined => codeOf(() => checkBuild(node, 'rebuild', 0))
+
+  it("a rebuild reads the recorded operand, which must be numeric, as the rebuilt Upcast's require reads it", () => {
+    expect(rebuildCode(relation(Filter(BI), long(1), 'left'))).toBe('filter-input-class-cast')
+    expect(rebuildCode(relation(long(1), Filter(BI), 'right'))).toBe('filter-input-class-cast')
+    expect(rebuildCode(relation(bool(true), long(1), 'left'))).toBe('numeric-cast-input-not-numeric')
+    expect(rebuildCode(relation(APPLY_NO, long(1), 'left'))).toBe('numeric-cast-input-not-numeric')
+    expect(rebuildCode(relation(TS, long(1), 'left'))).toBeUndefined()
+    expect(rebuildCode(relation(int(1), long(1), 'left'))).toBeUndefined()
+  })
+
+  it('a rebuild does not read the operand the builder did not wrap', () => {
+    expect(rebuildCode(relation(int(1), Filter(BI), 'left'))).toBeUndefined()
+    expect(rebuildCode(relation(Filter(BI), int(1), 'right'))).toBeUndefined()
+  })
+
+  it("a rebuild reads neither operand of a relation recorded 'unknown', or not recorded", () => {
+    const unknown = relation(Filter(BI), Filter(BI), 'unknown')
+    expect(recordedRelationUpcast(unknown)).toBe('unknown')
+    expect(rebuildCode(unknown)).toBeUndefined()
+    expect(rebuildCode(relation(Filter(BI), Filter(BI)))).toBeUndefined()
+  })
+
+  it("a rebuilt ByIndex recorded 'upcast' reads its index before its own type, and the index must be numeric", () => {
+    const byIndex = (input: Expr, index: Expr, recorded?: 'upcast' | 'int' | 'unknown'): Expr => {
+      const node = ByIndex(input, index)
+      if (recorded !== undefined) recordIndexUpcast(node, recorded)
+      return node
+    }
+    expect(rebuildCode(byIndex(collInt([1]), Filter(BI), 'upcast'))).toBe('filter-input-class-cast')
+    expect(rebuildCode(byIndex(collInt([1]), bool(true), 'upcast'))).toBe('numeric-cast-input-not-numeric')
+    // Kiama rebuilds the Upcast over a changed index before it rebuilds the ByIndex, so the index's failure comes first.
+    expect(rebuildCode(byIndex(int(0), Filter(BI), 'upcast'))).toBe('filter-input-class-cast')
+    expect(rebuildCode(byIndex(collInt([1]), byte(0), 'upcast'))).toBeUndefined()
+    for (const recorded of ['int', 'unknown', undefined] as const) {
+      expect(rebuildCode(byIndex(collInt([1]), Filter(BI), recorded))).toBeUndefined()
+      expect(rebuildCode(byIndex(int(0), Filter(BI), recorded))).toBe('by-index-input-not-scoll')
+    }
   })
 })

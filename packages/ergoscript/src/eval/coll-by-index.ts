@@ -14,9 +14,10 @@
  *
  * The index (the JVM's, not sigma-rust's; spec 2026-09-30 §8). The JVM's parse upcasts it to Int by its STATIC type
  * (`index.upcastTo(SInt)`, ByIndexSerializer.scala:29-33): unless the index is an Int, the tree holds an actual Upcast
- * node over it, and Kiama's `dup` keeps that node through a substitution rebuild. ergots inserts no node. The parse
- * records the same decision on the ByIndex (`recordIndexUpcast`, wire/mir/coll-by-index.ts), a rebuild copies it
- * (eval/_substitute-deserialize.ts), and the arm evaluates from it, as a call's type is recorded and kept:
+ * node over it, and Kiama's `dup` keeps that node through a substitution rebuild, re-running its check over a rewritten
+ * index. ergots inserts no node. The parse records the same decision on the ByIndex (`recordIndexUpcast`,
+ * wire/mir/coll-by-index.ts), a rebuild copies it (eval/_substitute-deserialize.ts) and re-checks the index from it
+ * (wire/check-build.ts), and the arm evaluates from it, as a call's type is recorded and kept:
  *   - V0/V1/V2, "upcast" (statically Byte or Short): the inserted Upcast is charged, 10 (CostKind.scala:60-66), and a
  *     Byte, Short or Int value is accepted, as `SInt.upcast` does (SType.scala:465-470).
  *   - V0/V1/V2, "int" (statically Int): an Int value only. A Byte value behind an Int type is a class cast in the JVM,

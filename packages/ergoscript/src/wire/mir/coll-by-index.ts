@@ -71,9 +71,9 @@ export function parseCollByIndex(
   // AssertionError, which no sized tree degrades on. An index typed as ergots' own SAny passes (residual 1).
   // From v3 the index is taken as it is (:29-30).
   // Unless the index is an Int, the JVM's parse puts an Upcast node over it, which Kiama's dup keeps through
-  // a substitution rebuild. ergots inserts no node: it records that decision on the ByIndex
-  // (`recordIndexUpcast`), a rebuild copies it (eval/_substitute-deserialize.ts), and the evaluator reads it
-  // (eval/coll-by-index.ts).
+  // a substitution rebuild, re-checking it. ergots inserts no node: it records that decision on the ByIndex
+  // (`recordIndexUpcast`), a rebuild copies it (eval/_substitute-deserialize.ts) and re-checks the index
+  // (wire/check-build.ts), and the evaluator reads it (eval/coll-by-index.ts).
   let decision: IndexUpcast | undefined
   if (treeVersion < 3) {
     const t = exprTpe(index, treeVersion)

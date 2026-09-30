@@ -700,19 +700,17 @@ describe('a class-cast default under a numeric index is never a number', () => {
   })
 
   const closureOverFilter = (): Expr => Apply(lam(T.Int, Filter(BI)), [int(0)])
-  it.each([
-    [
-      'a declared Byte', T.Byte,
-      '00d193b210020a0ed5040201dad9010104b5b2860204000400040000d9010104010101040000040e',
-      'InvocationTargetException: Kiama\'s dup rebuilding the inserted Upcast, whose constructor reads the default\'s type',
-    ],
-    [
-      'a declared Int', T.Int,
-      '00d193b210020a0ed5040401dad9010104b5b2860204000400040000d9010104010101040000040e',
-      'ClassCastException at eval: a Coll where an Int is cast',
-    ],
-  ])('a lambda over Filter as the default, %s: parses, and is a Coll, so it rejects (the probe: %s)', (_name, declared, expected) => {
-    const bytes = probed(one(DR(4, declared, closureOverFilter())), 0x00, expected)
+  it("a lambda over Filter as the default, a declared Byte: the rebuilt Upcast reads the default's type, a class cast (the probe: InvocationTargetException <- ClassCastException, Kiama's dup)", () => {
+    // Until the final review's C1 (2026-09-30) ergots made no check there and rejected later, at eval, for its own
+    // reason (coll-input-not-coll): the same verdict. It now rejects where the JVM does (spec §5, "The builder's Upcast at a
+    // rebuild").
+    const bytes = probed(one(DR(4, T.Byte, closureOverFilter())), 0x00, '00d193b210020a0ed5040201dad9010104b5b2860204000400040000d9010104010101040000040e')
+    const err = captureEvalError(() => run(bytes))
+    expect(err.code).toBe('deserialize-rebuild-failed')
+    expect(err.cause).toMatchObject({ code: 'filter-input-class-cast' })
+  })
+  it('a lambda over Filter as the default, a declared Int: no Upcast; it parses, and is a Coll, so it rejects at eval (the probe: ClassCastException, a Tuple2 cast to a Coll)', () => {
+    const bytes = probed(one(DR(4, T.Int, closureOverFilter())), 0x00, '00d193b210020a0ed5040401dad9010104b5b2860204000400040000d9010104010101040000040e')
     expect(captureEvalError(() => run(bytes)).code).toBe('coll-input-not-coll')
   })
 })

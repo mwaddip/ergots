@@ -450,6 +450,125 @@ describe('the review witnesses', () => {
     typeReadAtEval(spend(R4B2)))
 })
 
+// ── The builder's Upcast at a rebuild (spec §5; the final review, C1) ──────
+// Before v3 the JVM's builder wraps the narrower of two different numeric operands of a relation in an Upcast
+// (applyUpcast, SigmaBuilder.scala:674-683; equalityOp for EQ and NEQ, comparisonOp for LT, LE, GT and GE), and the
+// ByIndex serializer wraps a Byte or Short index the same way (ByIndexSerializer.scala:29-33). Kiama's dup rebuilds that
+// Upcast over a substituted child and re-runs its require, which reads the child's type (trees.scala:398). A class-cast
+// default, substituted untyped, fails that read, so the JVM rejects the spend, in a dead branch too. The wider operand
+// is not wrapped, and the JVM accepts a substituted default there. Every verdict is the local sigma-state 6.0.6 probe's,
+// spend mode with R4 absent; each reject is an InvocationTargetException over a ClassCastException, the rebuilt Upcast's
+// read of Filter(BI)'s type.
+const LT = (l: M.Expr, r: M.Expr): M.BinOp => ({ tag: 'BinOp', op: { kind: 'Relation', op: 'Lt' }, left: l, right: r })
+const GE = (l: M.Expr, r: M.Expr): M.BinOp => ({ tag: 'BinOp', op: { kind: 'Relation', op: 'Ge' }, left: l, right: r })
+const byte = (n: number): M.Const => ({ tag: 'Const', tpe: T.Byte, value: { kind: 'Byte', value: n } })
+const SHORT: M.SType = { tag: 'SShort' }
+/** A default whose type read is a class cast: the substitution puts it in untyped. */
+const X = (): M.Filter => Filter(BI)
+/** CONTEXT.preHeader.timestamp: ergots' catalog lacks 105:3, so it types as ergots' own SAny; the JVM's type is Long. */
+const TS = PC(105, 3, PC(101, 3, Ctx))
+const UPCAST = {
+  // The witnesses: the DR is the operand the builder wraps.
+  eqNarrow: treeBytes(dead(EQ(DR(4, T.Int, X()), long(1))), 0x00),
+  ltNarrow: treeBytes(dead(LT(DR(4, T.Int, X()), long(1))), 0x00),
+  neqRightNarrow: treeBytes(dead(NEQ(long(1), DR(4, T.Int, X()))), 0x00),
+  geByteV1: treeBytes(dead(GE(DR(4, T.Byte, X()), int(1))), 0x09),
+  eqUnderBlock: treeBytes(dead(EQ(Block([], DR(4, T.Int, X())), long(1))), 0x00),
+  byIndexByteV0: treeBytes(dead(EQ(ByIndex(collInt([1, 2]), DR(4, T.Byte, X())), int(1))), 0x00),
+  byIndexShortV2: treeBytes(dead(EQ(ByIndex(collInt([1, 2]), DR(4, SHORT, X())), int(1))), 0x0a),
+  eqLive: treeBytes(sp(EQ(DR(4, T.Int, X()), long(1))), 0x00),
+  /** The wider operand a placeholder: the placeholder rewrite rebuilds the EQ first, and must keep the record. */
+  eqSegregated: serializeTree({
+    header: { version: 0, hasSize: false, constantSegregation: true, rawHeader: 0x10 },
+    constantTypes: [T.Long],
+    constants: [{ kind: 'Long', value: 1n }],
+    body: dead(EQ(DR(4, T.Int, X()), CP(0, T.Long))),
+  }),
+  // The controls: the builder wraps the other operand, or nothing.
+  eqWide: treeBytes(dead(EQ(DR(4, T.Long, X()), int(1))), 0x00),
+  ltWide: treeBytes(dead(LT(DR(4, T.Long, X()), int(1))), 0x00),
+  neqRightWide: treeBytes(dead(NEQ(int(1), DR(4, T.Long, X()))), 0x00),
+  geWideV1: treeBytes(dead(GE(DR(4, T.Int, X()), byte(1))), 0x09),
+  eqSame: treeBytes(dead(EQ(DR(4, T.Long, X()), long(1))), 0x00),
+  eqSameV3: treeBytes(dead(EQ(DR(4, T.Long, X()), long(1))), 0x0b),
+  eqNarrowTypedDefault: treeBytes(dead(EQ(DR(4, T.Int, int(7)), long(1))), 0x00),
+  plusNarrow: treeBytes(dead(GT(Plus(DR(4, T.Int, X()), long(1)), long(0))), 0x00),
+  byIndexIntV0: treeBytes(dead(EQ(ByIndex(collInt([1, 2]), DR(4, T.Int, X())), int(1))), 0x00),
+  byIndexByteV3: treeBytes(dead(EQ(ByIndex(collInt([1, 2]), DR(4, T.Byte, X())), int(1))), 0x0b),
+  // Residual 1: an operand typed as ergots' own SAny, so ergots cannot tell which operand the builder wrapped.
+  ownSAnyNarrowDR: treeBytes(dead(EQ(TS, DR(4, T.Int, X()))), 0x00),
+  ownSAnySameDR: treeBytes(dead(EQ(TS, DR(4, T.Long, X()))), 0x00),
+}
+
+describe("the builder's Upcast at a rebuild (spec §5; the final review, C1)", () => {
+  it('each tree is the one the probe was given', () => {
+    const trees: [Uint8Array, string][] = [
+      [UPCAST.eqNarrow, '00d195010093d5040401b5b2860204000400040000d9010104010105020101'],
+      [UPCAST.ltNarrow, '00d19501008fd5040401b5b2860204000400040000d9010104010105020101'],
+      [UPCAST.neqRightNarrow, '00d1950100940502d5040401b5b2860204000400040000d901010401010101'],
+      [UPCAST.geByteV1, '091ed195010092d5040201b5b2860204000400040000d9010104010104020101'],
+      [UPCAST.eqUnderBlock, '00d195010093d800d5040401b5b2860204000400040000d9010104010105020101'],
+      [UPCAST.byIndexByteV0, '00d195010093b210020204d5040201b5b2860204000400040000d901010401010004020101'],
+      [UPCAST.byIndexShortV2, '0a24d195010093b210020204d5040301b5b2860204000400040000d901010401010004020101'],
+      [UPCAST.eqLive, '00d193d5040401b5b2860204000400040000d901010401010502'],
+      [UPCAST.eqSegregated, '10010502d195010093d5040401b5b2860204000400040000d9010104010173000101'],
+      [UPCAST.eqWide, '00d195010093d5040501b5b2860204000400040000d9010104010104020101'],
+      [UPCAST.ltWide, '00d19501008fd5040501b5b2860204000400040000d9010104010104020101'],
+      [UPCAST.neqRightWide, '00d1950100940402d5040501b5b2860204000400040000d901010401010101'],
+      [UPCAST.geWideV1, '091ed195010092d5040401b5b2860204000400040000d9010104010102010101'],
+      [UPCAST.eqSame, '00d195010093d5040501b5b2860204000400040000d9010104010105020101'],
+      [UPCAST.eqSameV3, '0b1ed195010093d5040501b5b2860204000400040000d9010104010105020101'],
+      [UPCAST.eqNarrowTypedDefault, '00d195010093d5040401040e05020101'],
+      [UPCAST.plusNarrow, '00d1950100919ad5040401b5b2860204000400040000d90101040101050205000101'],
+      [UPCAST.byIndexIntV0, '00d195010093b210020204d5040401b5b2860204000400040000d901010401010004020101'],
+      [UPCAST.byIndexByteV3, '0b24d195010093b210020204d5040201b5b2860204000400040000d901010401010004020101'],
+      [UPCAST.ownSAnyNarrowDR, '00d195010093db6903db6503fed5040401b5b2860204000400040000d901010401010101'],
+      [UPCAST.ownSAnySameDR, '00d195010093db6903db6503fed5040501b5b2860204000400040000d901010401010101'],
+    ]
+    for (const [bytes, probed] of trees) expect(hex(bytes)).toBe(probed)
+  })
+
+  describe('the witnesses: the rebuilt Upcast reads the substituted default, a class cast (the JVM: InvocationTargetException <- ClassCastException)', () => {
+    it('v0 EQ(DR(R4, Int, F(BI)), 1L): the DR, an Int against a Long, is wrapped', () =>
+      rebuildFailed(spend(UPCAST.eqNarrow), 'filter-input-class-cast'))
+    it('v0 LT, the same operands (comparisonOp)', () => rebuildFailed(spend(UPCAST.ltNarrow), 'filter-input-class-cast'))
+    it('v0 NEQ with the DR on the right', () => rebuildFailed(spend(UPCAST.neqRightNarrow), 'filter-input-class-cast'))
+    it('v1 GE of a Byte DR against an Int', () => rebuildFailed(spend(UPCAST.geByteV1), 'filter-input-class-cast'))
+    it('v0 EQ over BlockValue([], DR): the Upcast wraps the block, whose type is its result\'s', () =>
+      rebuildFailed(spend(UPCAST.eqUnderBlock), 'filter-input-class-cast'))
+    it('v0 ByIndex with a Byte DR index: the parse wrapped the index (ByIndexSerializer.scala:29-33)', () =>
+      rebuildFailed(spend(UPCAST.byIndexByteV0), 'filter-input-class-cast'))
+    it('v2 ByIndex with a Short DR index', () => rebuildFailed(spend(UPCAST.byIndexShortV2), 'filter-input-class-cast'))
+    it('the first witness live: the same rebuild rejects it before any evaluation', () =>
+      rebuildFailed(spend(UPCAST.eqLive), 'filter-input-class-cast'))
+    it('the wider operand a segregated constant: the placeholder rewrite keeps the record through its own rebuild', () =>
+      rebuildFailed(spend(UPCAST.eqSegregated), 'filter-input-class-cast'))
+  })
+
+  describe('the controls (the JVM: TrueProp, except where noted)', () => {
+    it('v0 EQ with the DR the wider operand: the builder wraps the constant, and the DR is not read', () =>
+      accepted(spend(UPCAST.eqWide)))
+    it('v0 LT with the DR the wider operand', () => accepted(spend(UPCAST.ltWide)))
+    it('v0 NEQ with the DR on the right, the wider operand', () => accepted(spend(UPCAST.neqRightWide)))
+    it('v1 GE of an Int DR against a Byte', () => accepted(spend(UPCAST.geWideV1)))
+    it('v0 EQ of the same type: no Upcast', () => accepted(spend(UPCAST.eqSame)))
+    it('v3 EQ of the same type: no builder Upcast from v3 (SigmaBuilder.scala:757-763)', () => accepted(spend(UPCAST.eqSameV3)))
+    it('v0 EQ with the DR narrower and a default of the declared Int: the rebuilt Upcast reads an Int', () =>
+      accepted(spend(UPCAST.eqNarrowTypedDefault)))
+    it('v0 Plus with the DR narrower: the rebuilt ArithOp reads both operands already (the JVM: InvocationTargetException <- ClassCastException)', () =>
+      rebuildFailed(spend(UPCAST.plusNarrow), 'filter-input-class-cast'))
+    it('v0 ByIndex with an Int DR index: no Upcast, so the index is not read', () => accepted(spend(UPCAST.byIndexIntV0)))
+    it('v3 ByIndex with a Byte DR index: no Upcast from v3', () => accepted(spend(UPCAST.byIndexByteV3)))
+    it('v0 EQ of ergots\' own SAny (the JVM: Long) and a Long DR: no Upcast in the JVM, and none read in ergots', () =>
+      accepted(spend(UPCAST.ownSAnySameDR)))
+    // Residual 1: ergots cannot tell which operand the JVM's builder wrapped when one is typed as its own SAny, so it
+    // records 'unknown' and a rebuild reads neither. Here the JVM's type is Long, so it wrapped the Int DR, and its rebuild
+    // rejects (probe: InvocationTargetException <- ClassCastException). Pinned so a fix of residual 1 flips it knowingly.
+    it("v0 EQ of ergots' own SAny (the JVM: Long) and an Int DR: ergots accepts where the JVM rejects (residual 1, a known divergence)", () =>
+      accepted(spend(UPCAST.ownSAnyNarrowDR)))
+  })
+})
+
 describe('the type reads at the checkType sites (spec §5 item 5)', () => {
   // A class-cast default substituted untyped: a lambda whose type read reads Filter(BI)'s. Each site reads it after
   // evaluating it (values.scala:251-254). Every probe verdict is a plain ClassCastException unless it says otherwise.

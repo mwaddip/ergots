@@ -10,7 +10,13 @@
  *   then the constructor's. `parseExpr` runs it when an opcode's arm returns (wire/parse.ts).
  * - `'rebuild'`: Kiama's `dup`, which rebuilds a changed node through its first constructor by
  *   reflection and bypasses the builder (core/.../sigma/kiama/rewriting/Rewriter.scala:236-320,
- *   446-471): the constructor's checks only.
+ *   446-471): the constructor's checks only. They include the checks of the `Upcast` nodes a pre-v3
+ *   parse inserted, over a relation's narrower operand and a `ByIndex`'s Byte or Short index, which
+ *   ergots does not build: the parse records where they are (spec §5, "The builder's Upcast at a
+ *   rebuild"), and this site makes their `require` over the operand it recorded.
+ *
+ * A `MethodCall` or `PropertyCall` built at parse records its type, and a pre-v3 relation the
+ * operand the builder wrapped (`recordRelationUpcast`).
  *
  * Every child type read goes through `exprTpe`, so a throwing read (a `Filter` over a non-collection,
  * say) propagates its own `ExprTpeError`, the JVM's `ClassCastException` from that read. Reads and
@@ -22,7 +28,14 @@
 
 import type { Expr, SType } from '../mir/types'
 import { NOTYPE_JVM } from '../mir/types'
-import { exprTpe, recordCallType } from '../mir/expr-tpe'
+import {
+  exprTpe,
+  recordCallType,
+  recordRelationUpcast,
+  recordedIndexUpcast,
+  recordedRelationUpcast,
+  relationUpcastOf,
+} from '../mir/expr-tpe'
 import { isJvmNumeric, isOwnSAny, jvmTypeEquals } from '../mir/jvm-types'
 import { ExprParseError } from './errors'
 
@@ -43,10 +56,22 @@ function numOrNoType(t: SType): boolean {
 }
 
 /**
+ * The `Upcast` and `Downcast` constructors' check, `require(input.tpe.isInstanceOf[SNumericType])` (trees.scala:398,
+ * 431): a read of the input's type, which must be numeric. `NOTYPE_JVM` fails it. `node` names the node for the message.
+ */
+function requireNumericInput(node: string, input: Expr, v: number): void {
+  const it = exprTpe(input, v)
+  if (!numeric(it)) {
+    throw new ExprParseError(`${node}: input type ${it.tag} is not numeric`, 'numeric-cast-input-not-numeric')
+  }
+}
+
+/**
  * The JVM's checks for building `e` at `site`, in a tree of version `v`. Throws `ExprParseError` for a
  * failed check, or the `ExprTpeError` of a child type read that throws. A node the JVM builds with no
  * type read passes untouched. A `MethodCall` or `PropertyCall` built at parse records its type
- * (`recordCallType`).
+ * (`recordCallType`), and a relation built at parse below v3 the operand the builder wrapped in an
+ * `Upcast` (`recordRelationUpcast`).
  */
 export function checkBuild(e: Expr, site: BuildSite, v: number): void {
   switch (e.tag) {
@@ -61,10 +86,7 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
         )
       }
       // trees.scala:398, 431: require(input.tpe.isInstanceOf[SNumericType]); NoType fails it.
-      const it = exprTpe(e.input, v)
-      if (!numeric(it)) {
-        throw new ExprParseError(`${e.tag}: input type ${it.tag} is not numeric`, 'numeric-cast-input-not-numeric')
-      }
+      requireNumericInput(e.tag, e.input, v)
       return
     }
     case 'Negation':
@@ -102,12 +124,21 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
           exprTpe(e.right, v)
           return
         case 'Relation': {
-          // check2 is the builder's (SigmaBuilder.scala:286-295, 686-704), so Kiama's dup never runs it.
-          // It reads left.tpe, then right.tpe, then applies its constraint.
-          if (site !== 'parse') return
+          const op = e.op.op
+          if (site === 'rebuild') {
+            // The relation's constructor reads nothing, and check2 is the builder's (SigmaBuilder.scala:286-295,
+            // 686-704), which Kiama's dup never runs. But before v3 the builder wrapped the narrower of two different
+            // numeric operands in an Upcast (applyUpcast, :674-683), and dup rebuilds that Upcast over a rewritten
+            // operand with its require (trees.scala:398), a read of the operand's type. The parse recorded which operand
+            // it wrapped. The wider operand, which it did not wrap, is not read; 'unknown' (residual 1) reads neither.
+            const wrapped = recordedRelationUpcast(e)
+            if (wrapped === 'left') requireNumericInput(`the Upcast over ${op}'s left operand`, e.left, v)
+            if (wrapped === 'right') requireNumericInput(`the Upcast over ${op}'s right operand`, e.right, v)
+            return
+          }
+          // check2 reads left.tpe, then right.tpe, then applies its constraint.
           const lt = exprTpe(e.left, v)
           const rt = exprTpe(e.right, v)
-          const op = e.op.op
           // comparisonOp: check2(OnlyNumeric) on the operands as parsed, before applyUpcast (:696-704).
           if ((op === 'Lt' || op === 'Le' || op === 'Gt' || op === 'Ge') && (!numeric(lt) || !numeric(rt))) {
             throw new ExprParseError(
@@ -116,14 +147,19 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
             )
           }
           // Before v3, applyUpcast widens two different numeric types to one, so SameType passes
-          // (:674-683; a no-op from v3, :757-763).
-          if (v < 3 && isJvmNumeric(lt) && isJvmNumeric(rt)) return
-          // check2(SameType): t1 == t2 (:786-788). An unknown ('unknown') passes (residual 1).
-          if (jvmTypeEquals(lt, rt) === false) {
+          // (:674-683; a no-op from v3, :757-763). check2(SameType): t1 == t2 (:786-788). An unknown
+          // ('unknown') passes (residual 1).
+          const widened = v < 3 && isJvmNumeric(lt) && isJvmNumeric(rt)
+          if (!widened && jvmTypeEquals(lt, rt) === false) {
             throw new ExprParseError(
               `${op}: operand types ${lt.tag}, ${rt.tag} differ (check2 SameType)`,
               'relation-operand-type-mismatch'
             )
+          }
+          // The node is built. Before v3, record the operand applyUpcast wrapped, for a rebuild to re-check.
+          if (v < 3) {
+            const upcast = relationUpcastOf(lt, rt)
+            if (upcast !== undefined) recordRelationUpcast(e, upcast)
           }
           return
         }
@@ -145,15 +181,25 @@ export function checkBuild(e: Expr, site: BuildSite, v: number): void {
       exprTpe(e.key, v)
       exprTpe(e.proof, v)
       return
+    case 'ByIndex':
+      // Before v3 the parse wrapped a Byte or Short index in an Upcast (ByIndexSerializer.scala:29-33), and Kiama's dup
+      // rebuilds that Upcast over a rewritten index, with its require (trees.scala:398), before it rebuilds the ByIndex
+      // (children first, Rewriter.scala:805-842). The parse recorded it ('upcast'; wire/mir/coll-by-index.ts, whose own
+      // check of the index at parse is the stricter upcastTo(SInt)).
+      if (site === 'rebuild' && recordedIndexUpcast(e) === 'upcast') {
+        requireNumericInput("the Upcast over ByIndex's index", e.index, v)
+      }
+      // val tpe = input.tpe.elemType casts the input's type to SCollection as the node is built (transformers.scala:254).
+      exprTpe(e, v)
+      return
     case 'Map':
     case 'Append':
     case 'Slice':
-    case 'ByIndex':
     case 'SelectField':
     case 'OptionGet':
     case 'OptionGetOrElse':
       // Their val tpe or val opType casts the input's (for Map, the mapper's) type as the node is
-      // built (transformers.scala:38, 62, 89, 254, 294-295, 600-601, 625-626): the node's own type.
+      // built (transformers.scala:38, 62, 89, 294-295, 600-601, 625-626): the node's own type.
       exprTpe(e, v)
       return
     case 'OptionIsDefined':

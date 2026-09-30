@@ -160,7 +160,10 @@ export function binOpKindToOpcode(k: BinOpKind): number {
  * `SigmaBuilder.scala:674-683`, applied by the deserialization builder only
  * below v3, `:750-764`). The parse does not; the evaluator coerces such
  * operands instead (`eval/bin-op/arith.ts`, `eval/bin-op/relation.ts`), and the
- * re-encoding does not write the inserted nodes (residual 11).
+ * re-encoding does not write the inserted nodes (residual 11). For a relation,
+ * the parse hook records which operand the builder wrapped
+ * (`recordRelationUpcast`, `wire/check-build.ts`), so that a substitution
+ * rebuild re-checks it as Kiama's `dup` re-checks the `Upcast`.
  */
 export function parseBinOpFromByte(
   opcode: number,

@@ -17,6 +17,7 @@
  */
 
 import type {
+  BinOp,
   ByIndex,
   DeserializeContext,
   DeserializeRegister,
@@ -33,7 +34,15 @@ import { ByteReader } from '@ergots/scorex'
 import { parseExpr } from '../wire/parse'
 import { checkBuild } from '../wire/check-build'
 import { isJvmClassCast } from '../wire/jvm-exceptions'
-import { exprTpe, recordCallType, recordIndexUpcast, recordedCallType, recordedIndexUpcast } from '../mir/expr-tpe'
+import {
+  exprTpe,
+  recordCallType,
+  recordIndexUpcast,
+  recordRelationUpcast,
+  recordedCallType,
+  recordedIndexUpcast,
+  recordedRelationUpcast,
+} from '../mir/expr-tpe'
 import { scriptTypeEquals } from '../mir/jvm-types'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { collByteToUint8Array } from './_byte-coll'
@@ -291,8 +300,9 @@ function keepCallType<C extends MethodCall | PropertyCall>(before: C, rebuilt: C
  * A rebuilt `ByIndex` keeps the decision its predecessor was parsed with. Before v3 the JVM's parse put an actual
  * `Upcast` over an index that is not an Int (ByIndexSerializer.scala:29-33), and `dup` keeps that node while it rebuilds
  * the ByIndex around a rewritten index (Rewriter.scala:236-320), so no rewrite changes whether the Upcast is there,
- * whatever type the node that replaced the index has. A parsed node has a record (`parseCollByIndex`); one built through
- * the API, or parsed from v3, has none, and neither does its rebuild.
+ * whatever type the node that replaced the index has. `dup` re-runs the `Upcast`'s check over the rewritten index, which
+ * `checkBuild`'s `'rebuild'` site makes from the record. A parsed node has a record (`parseCollByIndex`); one built
+ * through the API, or parsed from v3, has none, and neither does its rebuild.
  */
 function keepIndexUpcast(before: ByIndex, rebuilt: ByIndex): ByIndex {
   const decision = recordedIndexUpcast(before)
@@ -301,11 +311,24 @@ function keepIndexUpcast(before: ByIndex, rebuilt: ByIndex): ByIndex {
 }
 
 /**
+ * A rebuilt relation keeps the operand its predecessor's builder wrapped in an `Upcast`. Before v3 the JVM's builder
+ * wrapped the narrower of two different numeric operands (applyUpcast, SigmaBuilder.scala:674-683), and `dup` keeps that
+ * node while it rebuilds the relation (Rewriter.scala:236-320), re-running the `Upcast`'s check over a rewritten operand
+ * (`checkBuild`'s `'rebuild'` site reads the record). A parsed relation has a record where the builder wrapped an operand
+ * (`checkBuild`'s `'parse'` site); one built through the API has none, and neither does its rebuild.
+ */
+function keepRelationUpcast(before: BinOp, rebuilt: BinOp): BinOp {
+  const wrapped = recordedRelationUpcast(before)
+  if (wrapped !== undefined) recordRelationUpcast(rebuilt, wrapped)
+  return rebuilt
+}
+
+/**
  * `e` with each Expr child replaced by `fn(child)`, visited in the order of the JVM node's constructor fields, as
  * Kiama's `allProduct` visits them (Rewriter.scala:446-471). When every child comes back as the same object, `e`
  * itself (review m7); otherwise a copy of `e` with the new children, every other field kept (a `ValDef`'s `tpeArgs`
- * included). A new call keeps its recorded type ({@link keepCallType}), and a new `ByIndex` its recorded decision
- * ({@link keepIndexUpcast}).
+ * included). A new call keeps its recorded type ({@link keepCallType}), a new `ByIndex` its recorded decision
+ * ({@link keepIndexUpcast}), and a new relation its recorded `Upcast` ({@link keepRelationUpcast}).
  *
  * The switch is exhaustive over the Expr union: a new variant is a compile-time error at the `default` arm.
  */
@@ -359,7 +382,11 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr, v: number): Expr {
     }
 
     // Two children.
-    case 'BinOp':
+    case 'BinOp': {
+      const left = fn(e.left)
+      const right = fn(e.right)
+      return left === e.left && right === e.right ? e : keepRelationUpcast(e, { ...e, left, right })
+    }
     case 'Xor':
     case 'MultiplyGroup':
     case 'Exponentiate': {
