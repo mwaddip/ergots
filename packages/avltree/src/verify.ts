@@ -290,10 +290,12 @@ export class BatchAVLVerifier {
    * proof exactly as `performOneOperation({ tag: 'Lookup', key })` does —
    * same key validation, same bits, same poisoning — and reports, for a
    * present key, its value and the next leaf's key, or for an absent key the
-   * keys of the leaves either side; `null` for a sentinel. The report is
-   * authenticated: the leaf is in the tree this verifier's digest commits to,
-   * and the key lies in [leaf.key, leaf.nextLeafKey). See facts/avltree.md
-   * § Neighbor lookups for what "no key in between" rests on.
+   * keys of the leaves either side; `null` for a sentinel. The leaf is
+   * authenticated: it is in the tree this verifier's digest commits to. An
+   * absent key is also checked to lie strictly between leaf.key and
+   * leaf.nextLeafKey; a present key is only checked to equal leaf.key, so its
+   * nextKey > key is not checked (as in both references). See facts/avltree.md
+   * § Neighbor lookups: the rest of the report rests on the digest's provenance.
    */
   performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
     this.assertUsable('performLookupWithNeighbors')

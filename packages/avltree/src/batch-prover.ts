@@ -405,7 +405,7 @@ export class BatchAVLProver {
    * The engine half of an operation: modify pass, optional delete pass,
    * direction rollback on failure, height bookkeeping. Ports
    * batch_avl_prover.rs::perform_one_operation (120-141 @568e7c3) +
-   * authenticated_tree_ops.rs::return_result_of_one_operation (261-288 @568e7c3).
+   * authenticated_tree_ops.rs::return_result_of_one_operation (270-287 @568e7c3).
    */
   private runOperation(
     op: Operation,

@@ -65,7 +65,8 @@ const DIGEST_LENGTH = 32
  *   1. `new VerifierCore(startingDigest, proof, config)` — runs
  *      proof-decode to reconstruct the tree. On failure `root === null` and
  *      `lastFailReason` is set; `isValid` returns false.
- *   2. `performOneOperation(op)` — applies one operation:
+ *   2. `performOneOperation(op)`, or (0.5.0) `lookupWithNeighbors(key)`
+ *      (both run the private `perform`) — applies one operation:
  *        - If the tree is already poisoned (`root === null`), returns
  *          `{ failed: true }` without touching state.
  *        - Otherwise dispatches modify_helper → (optional) delete_helper per
@@ -73,7 +74,8 @@ const DIGEST_LENGTH = 32
  *        - On failure, sets `root = null` (poisoning), records
  *          `lastFailReason`, returns `{ failed: true }`.
  *        - On success, updates `root` and `height`, returns the old value
- *          (Uint8Array if the key existed, `null` if absent).
+ *          (Uint8Array if the key existed, `null` if absent);
+ *          `lookupWithNeighbors` returns its neighbor report instead.
  *   3. `digest()` — computes the current 33-byte digest, or null if poisoned.
  *
  * `lastFailReason` is set on every failure path (proof decode, modifyHelper,
@@ -90,8 +92,9 @@ export class VerifierCore {
   root: AvlNode | null
   /**
    * The current tree height. Set from `startingDigest[32]` on construction
-   * (Rust line 83 @568e7c3) and updated by `performOneOperation` via
-   * `heightDelta` from modify/delete results.
+   * (Rust line 83 @568e7c3) and updated by the private `perform` (behind
+   * `performOneOperation` and `lookupWithNeighbors`) via `heightDelta` from
+   * modify/delete results.
    */
   height: number
   /**
@@ -134,7 +137,8 @@ export class VerifierCore {
    * Failure handling: on parseProofPackedTree failure, `root` stays null,
    * `lastFailReason` is set, and `isValid` returns false. Callers (verifyAvlBatch)
    * MUST check `isValid` (or equivalently `root !== null`) before issuing
-   * operations — otherwise performOneOperation returns `{ failed: true }`.
+   * operations — otherwise performOneOperation and lookupWithNeighbors
+   * return `{ failed: true }`.
    */
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof

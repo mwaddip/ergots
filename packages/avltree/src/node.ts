@@ -123,6 +123,7 @@ export function newLeaf(key: ADKey, value: ADValue, nextLeafKey: ADKey): LeafNod
  * caller buffer — an Insert's own key (modify.ts::addNode), or a Buffer view
  * handed over by deserializeNode — would let caller-side mutation rewrite the
  * tree. `new Uint8Array(key)`, not `.slice()`: a Buffer's slice is a view.
+ *
  * left and right are AvlNode references (object references; no defensive
  * copy needed). balance is a primitive (Balance = -1 | 0 | 1).
  */
