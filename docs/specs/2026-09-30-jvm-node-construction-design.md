@@ -1,6 +1,6 @@
 # 2026-09-30 — Build each node as the JVM builds it: construction-time type reads at parse and after substitution
 
-**Status:** spec, amended after two adversarial reviews (`.superpowers/sdd/2026-09-30-jvm-node-construction/spec-review-{1,2}.md`: three blockers, seven majors and nineteen minors in all, each checked on the probe or the source and resolved below). Branch `jvm-node-construction`, off `master` `953e6b3`.
+**Status:** spec, amended after three adversarial reviews (`.superpowers/sdd/2026-09-30-jvm-node-construction/spec-review-{1,2,3}.md`). Each finding was checked on the probe or in the source, and resolved below or moved to the next spec. **Scope narrowed after review 3 (the controller's ruling, 2026-09-30):** the untyped default, the spend root wrap and the JVM's eval-time type discipline move to the next spec (Decision 8), because a faithful mirror of the JVM's typed collection stores needs its runtime collection representations, a design of its own. The draft and the review inputs for that spec are in `.superpowers/sdd/2026-09-30-jvm-node-construction/next-spec-eval-discipline-draft.md`. Branch `jvm-node-construction`, off `master` `953e6b3`.
 
 **Written under the user's autonomous-work authorization of 2026-09-30.** The framing and scope below are the controller's proposal of that date. The user's go-ahead did not object to them, but the user has not reviewed this spec; every decision it takes is marked as the controller's.
 
@@ -10,8 +10,10 @@
 - residual 12 of `docs/specs/2026-09-28-sized-tree-declared-size-design.md` (the spend-time substitution);
 - that spec's follow-up "the JVM's node-construction checks, at parse and after substitution", and its residuals 8 and 9;
 - the audit's excluded sites from the same follow-ups list (a v3+ MethodCall without arguments, an ExtractRegisterAs register id, a SelectField index, a BlockValue item that is not a ValDef);
-- SANTA's §3 construction rows (34 of dasher's 40 over-accepts at `3d48cd1a`), and its `(1, 2, 3) == (1, 2, 3)` over-accept through the eval-time type check (§7);
-- the JVM's eval-time type discipline (§7): `checkType` (the SString, SAny and NoType types; a value that does not fit a type fixed at parse), the typed array stores, `stypeToRType`'s failures, and the removal of ergots' own static element-type checks; and the pre-v3 Byte or Short `ByIndex` index (§8).
+- SANTA's §3 construction rows (34 of dasher's 40 over-accepts at `3d48cd1a`);
+- the six probed spends that regress `master` (G1, G2, G3, G3j, G16, G16j), and the pre-v3 Byte or Short `ByIndex` index (§8).
+
+Residual 12's untyped default is not closed here (residual 7).
 
 ## Problem
 
@@ -158,10 +160,10 @@ These are the controller's calls, 2026-09-30.
    - `SANY_JVM` equals only itself;
    - ergots' own SAny (a fresh `{ tag: 'SAny' }` from its method typing) is unknown, and the check passes (residual 1).
 4. **A failure's JVM exception class is known from its code,** as `isSoftForkableParseError` already knows a soft failure. Only the `ClassCastException` codes are swallowed by the substitution.
-5. **The substitution follows Kiama and the JVM**, with the four behaviours of residual 12, the rebuild checks and the root check (§5).
+5. **The substitution follows Kiama and the JVM** in the class-cast swallow, the register read, the rebuild checks and the type comparison (§5). The default keeps `master`'s type check, except where the JVM's own behaviour is certain: a class cast while reading the default's type substitutes it untyped, as the JVM does.
 6. **`check2` and the v3 MethodCall arity check move to parse.** `validateBinOpTypes` and `validateMethodCallArity` leave `dispatchTreeBody`, as the JVM makes neither at eval.
 7. **A method call's type is fixed when the call is built** (review B1). The JVM's `MethodCall.tpe` is a `val` over the `SMethod` specialized at parse (`values.scala:1355`), and Kiama's `dup` passes the same `SMethod` to the rebuilt node, so a substitution never changes a call's type. ergots records it at parse and carries it through rebuilds (§1).
-8. **The JVM's eval-time type discipline is mirrored** (reviews m6, R2-B2, R2-M1, R2-M2, §7): `checkType` at its 17 sites, the typed array stores, `stypeToRType`'s failures, and the JVM's value classes, with ergots' own static element-type checks, which the JVM never makes, removed. The untyped default needs it: the JVM rejects a default whose value does not fit a type fixed at parse (a `ValUse`'s, a lambda argument's, a recorded call's, a collection's element type) where that value is checked or stored, and so must ergots. It also closes SANTA's `(1, 2, 3) == (1, 2, 3)` over-accept and the JVM's eval-time rejects of the SString, SAny and NoType types.
+8. **The untyped default, the spend root wrap and the JVM's eval-time type discipline are the next spec** (the controller's ruling after review 3). The JVM takes a default untyped, and then rejects a value that does not fit a type fixed at parse wherever that value is checked or stored: `checkType` at 17 sites, typed array stores, `stypeToRType`, all over the JVM's own value classes. Reviews 2 and 3 showed that the stores depend on the JVM's runtime collection representations (primitive arrays, pair collections stored component by component, `append`'s array-class check), so a faithful mirror is a design of its own. Until it lands, an untyped default would open over-accepts that `master` does not have. Keeping `master`'s default check (with the class-cast exception of Decision 5) opens none, and it fixes the six regressions. The price is residual 7.
 9. **Before v3, a Byte or Short `ByIndex` index evaluates through the Upcast the JVM's parse inserted** (review m5, §8).
 
 Rejected alternatives:
@@ -248,15 +250,9 @@ The degrade set (`wire/ergo-tree.ts:140-146`) is unchanged: no construction code
    - The register comes from `getRegisterEntry(selfBox, e.reg)` (`eval/extract-register-as.ts`), which synthesizes R0–R3 as the JVM's `ErgoBox.get` does. R1 is the proposition bytes as received, so a DeserializeRegister(R1) decodes SELF's own tree bytes, and their decode failure rejects even in a dead branch (probe: `InvalidTypePrefix`).
    - Present but not `Coll[Byte]`: the node stays.
    - Present and `Coll[Byte]`: decode, read the type and compare as for a context variable.
-   - Absent with a default: the default, untyped.
+   - Absent with a default: the default, type-checked as today: `exprTpe(default, v)` is compared with `e.tpe` by `jvmTypeEquals`, and false is `EvalError('deserialize-tpe-mismatch')` (a non-JVM check, residual 7). One exception follows the JVM exactly: when reading the default's type throws a class cast (`isJvmClassCast`), the default is substituted untyped, as the JVM substitutes every default (review 2's G1 and G2 regressions).
    - Absent with no default: the node stays.
-4. **Root, for a spend only.** This is the JVM's `toValidScriptTypeJITC`, which only `fullReduction`'s substitution path runs. SANTA's eval-tier blesser evaluates the proposition directly, with no substitution and no root check (`jvm-blesser/src/main/scala/santa/EvalCore.scala:180-196`), so `evaluate()` keeps returning the root's own value.
-   - The check applies when the new `EvalOpts.reduceForSpend` is true. `@ergots/transaction` sets it for every input it validates.
-   - After the rewrite, the root's type is read. A throw rejects with `EvalError('deserialize-root-not-sigma-prop', { cause })`.
-   - SBoolean: the body becomes `{ tag: 'BoolToSigmaProp', input: root }`, which evaluates and charges as that node does.
-   - SSigmaProp, or ergots' own SAny: unchanged.
-   - Anything else: `EvalError('deserialize-root-not-sigma-prop')`.
-   - A tree with no Deserialize node is untouched, as on the JVM's plain path.
+4. **No root check.** The JVM's `toValidScriptTypeJITC` wraps a Boolean root in `BoolToSigmaProp` after substitution. With the default type-checked, a box tree's root keeps its SigmaProp type through substitution, so the wrap has nothing to act on. It moves with the untyped default to the next spec (residual 7).
 
 `dispatchTreeBody` (`eval/evaluate.ts`) drops `validateBinOpTypes` and `validateMethodCallArity`. `validateV6Types` stays (B-full, residual 3). The two modules are deleted if nothing else uses them.
 
@@ -275,68 +271,12 @@ The degrade set (`wire/ergo-tree.ts:140-146`) is unchanged: no construction code
   - `method-call-empty-args` moved;
   - `deserialize-input-not-byte-array` no longer thrown for a register.
 - **`facts/ergoscript.md`:** the hub's coverage line.
-- **`facts/transaction.md`:** the spend path sets `reduceForSpend`; the gates it names, if any.
-- **`EvalOpts.reduceForSpend`** (`eval/eval-context.ts`): a new optional field, defaulting to false. It is an additive change to the public options type. The mainnet harness's own spend path (`tools/mainnet-validate/harness/src/validate-tx.ts:784`) sets it too (review m9).
-- **`facts/ergoscript-eval.md`, the eval-time type checks (§7):** the sites, the semantics and the new code.
+- **`facts/transaction.md`:** the pre-eval gates it names, if any.
 - **SANTA fixtures:** copied verbatim into ergoscript's wire conformance: `Box.tree_parse_acceptance`, `Box.tree_bool_pair_form` and, for the transaction replay, their `Transaction.*` twins.
 
-### 7. The eval-time type discipline (`eval/_check-type.ts` and the arms)
+### 7. (Moved.) The eval-time type discipline
 
-The JVM checks evaluated values against types in four ways. ergots mirrors all four, and drops its own static element-type checks, which the JVM never makes.
-
-**7a. Value classes.** The JVM's value for each type (`sigma/package.scala:20-45`; `Evaluation.scala:99-102`):
-- one runtime class per primitive type and per chain type (Box, AvlTree, Header, PreHeader, GroupElement, SigmaProp, Context, Global, Unit, BigInt, UnsignedBigInt);
-- a `Coll` for any `SCollectionType`;
-- an `Option` for an `SOption`;
-- a `Tuple2` for a two-item `STuple`;
-- a `Function1` for a lambda.
-
-A tuple value of any other arity is a `Coll[Any]`, not a `Tuple2` (review R2-M1). In ergots terms, a `'Tuple'` value whose item count is not 2 has the `Coll` class.
-
-**7b. `checkType` at the JVM's sites.** `Value.checkType(node, value)` (`values.scala:251-262`) throws unless `SType.isValueOfType(value, node.tpe)` (`core/.../SType.scala:187-213`).
-- That test checks only the top-level class of 7a. It does not check a collection's element, an option's content, or a pair's items.
-- It throws `sys.error` for every type without a value class: a tuple or function of another arity, SAny, NoType, SString, STypeVar, and `SUnsignedBigInt` below tree v3.
-- The type each site reads is the node's current type, as `exprTpe` computes it. That type carries every type fixed at parse (review R2-m6): a `ValUse`'s store type, a lambda's declared argument type, a recorded call type, and an Upcast's target, directly or through the `def`s that derive a node's type from them.
-
-The sites (the second review's table):
-
-| JVM line | Type read | When | ergots arm |
-|---|---|---|---|
-| `transformers:227` | the zero's | always | `coll-fold` |
-| `:268`, `:273` | the default's | from v3 only out of bounds; before v3 always | `coll-by-index` |
-| `:634`, `:640` | the default's | from v3 on None; before v3 always | `option-get-or-else` |
-| `values:412` | the constant's | on the plain path only (on the Deserialize path placeholders are inlined as constants, which have no check) | `const-placeholder` |
-| `:830`, `:833` | each item's | after the arity-2 check | `tuple` |
-| `:894` | each item's | per item | `collection` |
-| `:991` | the store's | always | `val-use` |
-| `:1027`, `:1034` | the right-hand side's, the result's | always | `block-value` |
-| `:1074`, `:1080` | the declared argument type, the body's | at each application | every arm that applies a closure: `apply`, `coll-map`, `coll-filter`, `coll-exists`, `coll-forall`, `coll-fold`, `scoll-flat-map`, `soption-map`, and the higher-order handlers in `method-call.ts` |
-| `trees:1206-1228` | each operand's | the left's before the right is evaluated; before v3, on the value before any widening | `bin-op/relation` (EQ, NEQ) |
-| `:1360`, `:1364` | the taken branch's | on evaluation | `if` |
-| `methods:842` | the default argument's | always | `Coll.getOrElse` (12:2) has no ergots handler, so the site lands with the handler (a pre-existing over-reject, recorded under residual 1) |
-
-**7c. Typed array stores** (review R2-B2). The JVM stores collection items into an array typed by `stypeToRType(elementType)`. A value of another class fails the store: `ArrayStoreException` for a reference element type, and the unboxing `ClassCastException` for a primitive one (probe: `Coll[SigmaProp](DR(R4, SSigmaProp, default true))`, live, R4 absent, is rejected with `ArrayStoreException`; `Coll[Int](1).updated(0, true)` with a class cast). SAny's array accepts any value. The stores:
-- `ConcreteCollection` against its element type fixed at parse (`values.scala:888-897`);
-- `MapCollection`'s result against the mapper's declared range type (`transformers.scala:41-45`);
-- `Coll.updated`, `updateMany` and `patch` against the receiver's element type (`CollsOverArrays.scala:94-116`);
-- `Coll.append` (`++`) against the left operand's element type (`:48-57`, `CollectionUtil.scala:34-42`). An empty left operand returns the right one unchecked.
-
-**7d. `stypeToRType`'s failures** (`Evaluation.scala:17-56`, review R2-m8). It throws `sys.error` for NoType, STypeVar, and an SFunc with type parameters or with other than one argument. It is reached, and rejects, at:
-- `ConcreteCollection`, even for an empty collection;
-- `MapCollection`'s result;
-- `GetVar` and `ExtractRegisterAs`.
-
-**7e. ergots' own checks go** (review R2-M2). `'coll-elem-tpe-mismatch'` compares static element types in Map, Filter, Exists, ForAll, flatMap (the input's element type against the lambda's declared argument type) and Append (the two element types). The JVM makes no such comparison. It checks each applied value (7b) and each stored value (7c). Probe:
-- `Filter(Coll[Int](), (x: Long) => true)` is accepted (no application);
-- `Coll[Int]() ++ Coll[Boolean](true)` is accepted (an empty left operand).
-
-These checks are removed.
-
-**ergots.** `assertValueTypeSupported(tpe)` covers only the tuple and function arities, at five sites. It becomes `checkValueType(tpe, value, treeVersion)`, the JVM's `isValueOfType` over 7a's classes, called at every site of 7b. A store check `checkStoreType(elemTpe, value, treeVersion)`, which differs by accepting any value for SAny, serves 7c. 7d's check runs where the JVM calls `stypeToRType`.
-- A failure is `EvalError('value-type-mismatch')` for a value of another class.
-- It is `EvalError('unsupported-value-type')` (the existing code) for a type the JVM cannot represent.
-- ergots' own SAny passes everything (residual 1).
-- The plan's first task maps each site to its ergots arm by search, since a missed site is a missed reject.
+The untyped default, the spend root wrap, and the JVM's eval-time type discipline are the next spec (Decision 8, residual 7). Its draft carries the text this section held at `a0b052b`, and the findings of reviews 2 and 3.
 
 ### 8. The pre-v3 `ByIndex` index at eval (`eval/coll-by-index.ts`)
 
@@ -363,24 +303,23 @@ Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSe
 | The re-review's spends S1, G1, S2, G2, S3, S3j, G3, G3j, S16, G16, S16b, G16j | acc | rej (six regress `master`) | acc |
 | S3b | acc | acc | acc |
 | S8, G8, S5, S6, S9, S3h | rej | rej | rej |
-| S6b, S7, S7b, S9b (a wrong-typed default no rebuilt ancestor reads), S3e | acc | rej | acc |
+| S3e | acc | rej | acc |
+| S6b, S7, S7b, S9b (a wrong-typed default no rebuilt ancestor reads) | acc | rej | rej (residual 7) |
 | S15 (a non-`Coll[Byte]` register in a dead branch) | acc | rej | acc |
 | L1 (a live register script whose OptionGet construction fails) | rej | acc | rej |
 | S10, S10b, S16c (a decoded `NoType` against a declared SAny) | rej | acc | rej |
-| A spend of a root DR(SSigmaProp) with R4 absent and a Boolean default `true` | acc | rej | acc (wrapped, with `reduceForSpend`) |
-| B1a: v3 root `OptionGet(Coll.get(DR(R4, Coll[SigmaProp], default Coll[Boolean](true)), 0))`, R4 absent | rej ("Invalid result type") | rej | rej (the call keeps `Option[SigmaProp]`) |
-| B1b: v3 dead `GT(Negation(OptionGet(get(DR(R4, Coll[Int], default Coll[Boolean]()), 0))), 0)`, R4 absent | acc | rej | acc |
+| A spend of a root DR(SSigmaProp) with R4 absent and a Boolean default `true` | acc | rej | rej (residual 7) |
+| B1a: v3 root `OptionGet(Coll.get(DR(R4, Coll[SigmaProp], default Coll[Boolean](true)), 0))`, R4 absent | rej ("Invalid result type") | rej | rej (the default's type check) |
+| B1b: v3 dead `GT(Negation(OptionGet(get(DR(R4, Coll[Int], default Coll[Boolean]()), 0))), 0)`, R4 absent | acc | rej | rej (residual 7) |
+| B1c: v3 dead `GT(Negation(OptionGet(get(DR(R4, Coll[Int], default Filter(BI, f)), 0))), 0)`, R4 absent: the default's type read is a class cast, so it is substituted untyped, and the rebuilt `OptionGet` reads the call's type | acc (probe) | rej | acc (the call keeps its recorded `Option[Int]`) |
 | M1: variable 1 = `BitOr(true, Filter(BI, f))` under a dead DeserializeContext | acc (the CCE from the require's message is swallowed) | rej | acc |
 | M2: `SelectField(OptionGet(GetVar(1, (Int × 200))), 0xC8)` | rej (index −57) | acc | rej |
 | M3: a sized tree with the unknown pair `12:200` over `Filter(BI, f)` | deg (rule 1016) | acc | acc (no read; residual 1) |
 | M4: v0 `Coll[Long](Plus(Int 1, CONTEXT.preHeader.timestamp))` | acc | acc | acc |
-| K1: `ValUse(1)` typed SInt, bound to a default Long 5, live | rej (checkType) | rej (typed default) | rej (checkType) |
-| K6: a live `Coll[String]("a")` | rej ("Unknown type SString") | acc | rej |
-| SANTA `Tuple.non_pair_type_check` #0, `(1, 2, 3) == (1, 2, 3)` | rej | acc | rej |
-| R2-B2: live `Coll[SigmaProp](DR(R4, SSigmaProp, default true))`, R4 absent | rej (`ArrayStoreException`) | rej (typed default) | rej (the store, 7c) |
-| R2-B2b: v3 `Coll[Int](1).updated(0, true)` | rej (class cast in the store) | acc | rej |
-| R2-M2: `Filter(Coll[Int](), (x: Long) => true)`; `Coll[Int]() ++ Coll[Boolean](true)` | acc | rej (`coll-elem-tpe-mismatch`) | acc |
-| B1a and B1b with the call's argument a segregated constant (review R2-B1) | as B1a, B1b | as B1a, B1b | as B1a, B1b |
+| K1: `ValUse(1)` typed SInt, bound to a default Long 5, live | rej (checkType) | rej (typed default) | rej (typed default) |
+| R2-B2: live `Coll[SigmaProp](DR(R4, SSigmaProp, default true))`, R4 absent | rej (`ArrayStoreException`) | rej (typed default) | rej (typed default) |
+| K6 (a live `Coll[String]("a")`), SANTA `Tuple.non_pair_type_check` #0, R2-B2b (`Coll[Int](1).updated(0, true)`), R2-M2 (two static element checks) | as probed | pre-existing divergences | unchanged (residual 7) |
+| B1c with the call's argument a segregated constant (review R2-B1) | acc | rej | acc |
 
 The re-review's verdicts come from its sigma-state 6.0.6 probe. The controller re-probed these rows on a rebuilt sigma-state 6.0.6 probe (2026-09-30), and each came out as the table says, with the expected exception class:
 - the order case (A1: `SerializerException` ← `IllegalArgumentException`, before the window) and its control (A2: degraded, rule 1014);
@@ -390,7 +329,7 @@ The re-review's verdicts come from its sigma-state 6.0.6 probe. The controller r
 - a dead-branch `DeserializeRegister(R1)`, which rejects: SELF's own bytes fail to decode (`InvalidTypePrefix`);
 - S1, G1, S3, S15 (`TrueProp`), S5 and S8 (`InvocationTargetException` wrapping the rebuilt constructor's `IllegalArgumentException` or `ClassCastException`), L1 (the unsubstituted node evaluated) and S10 (the `NoType` mismatch).
 
-The reviews' witnesses (B1a, B1b, M1, M2, M3, M4, R2-B2, R2-B2b, R2-M2) and K1, K6 were probed the same way, with the verdicts shown.
+The reviews' witnesses (B1a, B1b, M1, M2, M3, M4, R2-B2, R2-B2b, R2-M2) and K1, K6 were probed the same way. B1c, which shows why the recorded call type is still needed under the type-checked default, was probed too: `TrueProp`.
 
 The probe's reduction costs also include the deserialization charge the Follow-ups name: S1 costs 67, of which 64 is the tree's 32 bytes × 2.
 
@@ -414,7 +353,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 
 **Gates.**
 - **Parse:** a fresh mainnet ids walk from h=1 (`tools/mainnet-validate`, `--mode ids`, a new `--checkpoint-path`). It also stands in for the walk the shipped head still owes (HANDOFF decision 1).
-- **Eval:** the ids walk does not evaluate. §7's checks run at every `EQ`, `If`, `ValUse`, `BlockValue`, collection item, store and lambda application of every evaluated tree, so a wrong type class in `exprTpe` or in the method catalogue now rejects honest spends (review R2-M3). The eval-side changes therefore need an evaluating walk over the whole chain, and the testnet v6 capstone for the v6 catalogue, before merge.
+- **Eval:** the ids walk does not evaluate. The eval-side changes here are the substitution (only trees with a Deserialize node), the pre-v3 arithmetic types, which reach eval-visible types such as a `map`'s output element, and §8. They need an evaluating walk over the pre-v3 era and every tree with a Deserialize node. The next spec's eval-time checks will need a whole-chain evaluating walk (review R2-M3).
 - The caps and the choice of walks are the user's call.
 
 ## Residuals (documented, not closed)
@@ -426,29 +365,34 @@ The probe's reduction costs also include the deserialization charge the Follow-u
 5. **A Box constant's register lead in a decoded script** (review m1). The JVM reads the register with `getValue` and casts it to `EvaluatedValue` (`ErgoBoxCandidate.scala:231`). A class cast there is swallowed in a decoded script, but only after the payload has been built, and a payload's own failure comes first. ergots rejects on the lead byte (`'sbox-register-unsupported-expr'`) without building the payload, so it cannot tell the two apart: it rejects both. Where the JVM swallows the cast, that is an over-reject, which weighs as much as an over-accept; it closes with residual 4, which builds the payload.
 6. **Collection operations over a non-pair tuple value** (review R2-M1). The JVM's value of a tuple of arity other than 2 is a `Coll[Any]`, so `SizeOf` or `ByIndex` over one evaluates; ergots keeps it as a `'Tuple'` value and throws `coll-input-not-coll` (`eval/_coll-helpers.ts:38-46`). An over-reject, pre-existing; §7's value classes count such a value as a `Coll` for the type checks only.
 
+7. **The untyped default, the spend root wrap and the eval-time type discipline** (residual 12's remainder; the next spec).
+   - ergots type-checks a default whose type it can read, and rejects a mismatch that the JVM substitutes untyped. It accepts the result where no rebuilt ancestor, `checkType` site or store rejects it: S6b, S7, S7b and S9b, B1b, and a Boolean default at a SigmaProp root (which the JVM wraps).
+   - The JVM's eval-time checks are pre-existing divergences in both directions:
+     - `checkType` of the SString, SAny and NoType types, and of 3-tuples (SANTA `Tuple.non_pair_type_check`);
+     - the typed stores (`Coll[Int](1).updated(0, true)`);
+     - `stypeToRType`'s failures;
+     - ergots' own `coll-elem-tpe-mismatch` checks, which the JVM does not make (`Filter(Coll[Int](), (x: Long) => true)`).
+   - The draft: `.superpowers/sdd/2026-09-30-jvm-node-construction/next-spec-eval-discipline-draft.md`.
+
 ## Tests (TDD, contracts first)
 
 1. **SANTA vectors, copied verbatim:** the four files of §6, from a pinned SANTA commit (its working tree held uncommitted additions during the review).
-2. **The re-review's case table as spend tests.** Each case goes through ergoscript's evaluator with SELF, R4 and variable 1 as in its probe, with `reduceForSpend: true` (the probe ran `fullReduction`), and the JVM verdict comes from the report. The six regressions come first.
+2. **The re-review's case table as spend tests.** Each case goes through ergoscript's evaluator with SELF, R4 and variable 1 as in its probe, and the JVM verdict comes from the report. The six regressions come first. S6b, S7, S7b and S9b are asserted to still reject, labelled residual 7, so a later change flips them knowingly.
 3. **A red, then green, per row** of §3's table and of the behaviour matrix:
    - each in-arm check at the bound and one past it;
    - the ordering case;
    - the version split for pre-v3 arithmetic and the ByIndex index;
    - `jvmTypeEquals`' three leaves;
    - `isJvmClassCast` against every code;
-   - the review's witnesses B1a, B1b, M1, M2, M3, M4 (probe verdicts in the matrix);
-   - each of §7b's sites, with a value of another class and with each type the JVM cannot hold (SString, SAny, NoType, a 3-tuple), and K1;
-   - 7a's classes, including a non-pair tuple value passing a `Coll` check;
-   - each 7c store, including SAny's array and an empty left operand of `++`, and 7d at each call site, including an empty collection;
-   - 7e: the probe's two accepts, and a `Coll[Coll[Int]]` input to a lambda over `Coll[Boolean]`;
-   - B1a and B1b with the argument as a segregated constant, and without;
+   - the review's witnesses B1a, B1b, B1c, M1, M2, M3, M4 (probe verdicts in the matrix);
+   - B1c with the argument as a segregated constant, and without;
    - §8's Byte and Short index, value and cost, against the probe.
-4. **Mutation checks** on the hook call, each in-arm check, the rebuild check, the swallow, the untyped default and the root wrap.
+4. **Mutation checks** on the hook call, each in-arm check, the rebuild check, the swallow, and the default's class-cast exception.
 5. **Existing expectations that change:**
    - `rule-1001-jvm-sany-arms.test.ts` (codes, not verdicts);
    - the `validateBinOpTypes` and `validateMethodCallArity` suites, which move to parse-level tests;
    - `apply-func-no-type` and `val-def-rhs-tpe` users;
-   - the register substitution tests expecting `deserialize-input-not-byte-array` or a typed default.
+   - the register substitution tests expecting `deserialize-input-not-byte-array`.
 6. **Gates:** `npm test`, `npm run typecheck`, jsdom for ergoscript and transaction, the bare-root run, the harness tests, and a replay of SANTA's 157-red corpus that must regress nothing.
 
 ## SANTA: requests
@@ -476,6 +420,8 @@ Sent at the start of implementation. These are for the batch the sized-tree spec
 - **The version class:** an Expr typed under one version and read under the other gets its own entry, since the cache is keyed by version class.
 
 ## Follow-ups (not in this spec)
+
+- **The next spec: the untyped default, the spend root wrap and the JVM's eval-time type discipline** (residual 7; Decision 8). Its first design problem is review 3's blocker: the JVM's runtime collection representations. The draft carries the §7 text of `a0b052b` and the findings of reviews 2 and 3.
 
 - **The substitution path's cost** (pre-existing; probe-confirmed; the recommended next task).
   - The JVM charges the tree's bytes × 2 into `initCost` from V6 activation (`Interpreter.scala:246-259`), and a decoded script's length × 2 (`:79-87`), even when a class cast at the type read is swallowed. The evaluator's cost starts from `initCost` (`CErgoTreeEvaluator.scala:561`). ergots charges neither.
