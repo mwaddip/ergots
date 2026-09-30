@@ -29,12 +29,16 @@
  *
  * 'select-field-input-not-tuple' guards against non-Tuple input, and
  * 'select-field-index-out-of-range' against an out-of-bounds fieldIndex on a
- * pair (the arity≠2 reject precedes it for non-pairs). The parse types the
- * input and rejects both shapes as the JVM's constructor does, except for an
- * input typed as ergots' own SAny (residual 1), which reaches them here:
- * SelectField(CONTEXT.dataInputs, 1) and SelectField(SELF.creationInfo, 3),
- * which the JVM rejects at parse (facts/ergoscript-eval.md). The index case is
- * also tested via inline TS test with a hand-built MIR node.
+ * pair (the arity≠2 reject precedes it for non-pairs). The parse checks the
+ * input's type and the index as the JVM's constructor does, so a parsed tree
+ * reaches them by two routes (facts/ergoscript-eval.md):
+ *   - an If whose false branch differs from its true branch, as in the JVM,
+ *     whose If does not check its branch types and is typed by its true branch
+ *     (sigma/ast/trees.scala:1347-1350): SelectField(If(false, (1, 2, 3), (1, 2)), 3)
+ *     parses in both and fails here, as the JVM's eval does;
+ *   - an input typed as ergots' own SAny (residual 1), where the JVM rejects at
+ *     parse: SelectField(SELF.creationInfo, 3), SelectField(CONTEXT.dataInputs, 1).
+ * The index case is also tested via inline TS test with a hand-built MIR node.
  */
 
 import type { SelectField, SValue } from '../mir/types'

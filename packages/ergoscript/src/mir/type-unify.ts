@@ -17,6 +17,7 @@
  */
 
 import type { SType } from './types'
+import { SANY_JVM } from './types'
 import { isPrimitive, sTypeEquals } from './stype-helpers'
 
 /** A substitution of type-variable NAMES to concrete types (JVM `STypeSubst`). */
@@ -36,7 +37,10 @@ export function unifyTypes(t1: SType, t2: SType): STypeSubst | null {
   if (t1.tag === 'SAny') return new Map()
   if (t1.tag === 'SColl') {
     if (t2.tag === 'SColl') return unifyTypes(t1.elem, t2.elem)
-    if (t2.tag === 'STuple') return unifyTypes(t1.elem, { tag: 'SAny' })
+    // package.scala:46-47: `case (e1: SCollectionType[_], _: STuple) => unifyTypes(e1.elemType, SAny)`,
+    // the JVM's own SAny (STuple's elemType), a known type the parse-time checks compare as such; not
+    // ergots' own unresolved SAny, which they would pass (residual 1).
+    if (t2.tag === 'STuple') return unifyTypes(t1.elem, SANY_JVM)
     return null
   }
   if (t1.tag === 'SOption') {

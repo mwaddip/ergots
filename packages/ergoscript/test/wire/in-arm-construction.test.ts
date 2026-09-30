@@ -36,7 +36,7 @@ import type { EvalOpts } from '../../src/eval/eval-context'
 import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
 import { captureEvalError, parseParsedTree } from '../_helpers'
 import {
-  Apply, BI, Block, ByIndex, Coll, Ctx, DC, EQ, GetVar, OptionGet, OptionIsDefined, PC, Plus, SelectField,
+  Apply, BI, Block, ByIndex, Coll, Ctx, DC, EQ, GetVar, If, MC, OptionGet, OptionIsDefined, PC, Plus, SelectField,
   SigmaAnd, SizeOf, T, Tuple, ValDef, bool, bytes, collInt, dead, exprBytes, hex, int, long, sp, treeBytes,
 } from '../_helpers/mir-build'
 
@@ -158,6 +158,43 @@ describe('ConcreteCollection: the item assert, after each item and before the ne
       const b = probed('T4b-coll-order-in-coll-control', body, 0x08, `089927d193b183020404029ab10e8827${RUN}04020404`)
       expectWindowDegrade(parseBox(b))
     })
+  })
+})
+
+// A Coll method called on a tuple unifies Coll[IV] with the tuple, which binds IV to the JVM's own SAny
+// (core/.../sigma/ast/package.scala:46-47): a known type, which the item assert and check2 compare as
+// such, not ergots' own unresolved SAny (residual 1). The probe cases are v3 trees (12:30 reverse and
+// 12:33 get are v6 methods).
+describe("a Coll method on a tuple is typed with the JVM's SAny, which the parse-time checks compare", () => {
+  const REVERSE = PC(12, 30, Tuple(int(1), int(2)))
+  it('F1-coll-coll-int-tuple-reverse: Coll[Coll[Int]](tuple.reverse) fails the item assert (the JVM: AssertionError)', () => {
+    const b = probed('F1-coll-coll-int-tuple-reverse', sp(EQ(SizeOf(Coll(T.Coll(T.Int), [REVERSE])), int(1))), 0x0b,
+      '0b11d193b1830110db0c1e8602040204040402')
+    expectRejected(parseBox(b), ExprParseError, 'collection-item-type-mismatch')
+  })
+  it('F1-coll-coll-any-tuple-reverse: Coll[Coll[Any]](tuple.reverse) parses (the JVM: parsed)', () => {
+    const b = probed('F1-coll-coll-any-tuple-reverse', sp(EQ(SizeOf(Coll(T.Coll(T.Any), [REVERSE])), int(1))), 0x0b,
+      '0b12d193b183010c61db0c1e8602040204040402')
+    expectParsed(parseBox(b))
+  })
+  it("F1-eq-tuple-reverse-coll-int: tuple.reverse == Coll[Int](2, 1) fails check2's SameType (the JVM: ConstraintFailed)", () => {
+    const b = probed('F1-eq-tuple-reverse-coll-int', sp(EQ(REVERSE, collInt([2, 1]))), 0x0b, '0b0fd193db0c1e86020402040410020402')
+    expectRejected(parseBox(b), ExprParseError, 'relation-operand-type-mismatch')
+  })
+  it('F1-eq-tuple-reverse-coll-any: tuple.reverse == Coll[Any]() parses (the JVM: parsed)', () => {
+    const b = probed('F1-eq-tuple-reverse-coll-any', sp(EQ(REVERSE, Coll(T.Any, []))), 0x0b, '0b0ed193db0c1e860204020404830061')
+    expectParsed(parseBox(b))
+  })
+  it("F1-eq-tuple-get-int: tuple.get(0).get == 1 fails check2's SameType (the JVM: ConstraintFailed)", () => {
+    const body = sp(EQ(OptionGet(MC(12, 33, Tuple(int(1), int(2)), [int(0)])), int(1)))
+    const b = probed('F1-eq-tuple-get-int', body, 0x0b, '0b11d193e4dc0c218602040204040104000402')
+    expectRejected(parseBox(b), ExprParseError, 'relation-operand-type-mismatch')
+  })
+  it('F1-root-byindex-tuple-reverse: a root typed as that SAny fails rule 1001, so the sized tree degrades (the JVM: unparsed, rule 1001)', () => {
+    const b = probed('F1-root-byindex-tuple-reverse', ByIndex(REVERSE, int(0)), 0x0b, '0b0db2db0c1e860204020404040000')
+    const o = parseBox(b)
+    if (o.status !== 'degraded') throw new Error(`expected a degrade, got ${o.status}`)
+    expect((o.error as { code?: string }).code).toBe('root-not-sigma-prop')
   })
 })
 
@@ -314,6 +351,23 @@ describe('SelectField: the tuple cast, then the index (transformers.scala:294-29
   it('T4-sf-index-1-over-tuple-control: index 1 parses (the JVM: parsed)', () => {
     const b = probed('T4-sf-index-1-over-tuple-control', sp(EQ(SelectField(Tuple(int(1), int(2)), 1), int(1))), 0x00, '00d1938c860204020404010402')
     expectParsed(parseBox(b))
+  })
+  describe("through an If whose branches differ, as in the JVM: the parse accepts, the eval rejects", () => {
+    // The JVM's If does not check its branch types, and is typed by its true branch
+    // (sigma/ast/trees.scala:1347-1350), so the parse checks the index against the true branch; the
+    // false branch's value reaches the eval. The probe parses both trees, and rejects both spends.
+    it('F1-sf-if-tuple3-tuple2-index3: SelectField(If(false, (1, 2, 3), (1, 2)), 3) (the JVM: Unknown fieldIndex 3)', () => {
+      const body = sp(EQ(SelectField(If(bool(false), Tuple(int(1), int(2), int(3)), Tuple(int(1), int(2))), 3), int(0)))
+      const b = probed('F1-sf-if-tuple3-tuple2-index3', body, 0x00, '00d1938c9501008603040204040406860204020404030400')
+      const tree = expectParsed(parseBox(b))
+      expect(captureEvalError(() => evaluate(tree)).code).toBe('select-field-index-out-of-range')
+    })
+    it('F1-sf-if-pair-int-index1: SelectField(If(false, (1, 2), 5), 1) (the JVM: InterpreterException, Value.typeError)', () => {
+      const body = sp(EQ(SelectField(If(bool(false), Tuple(int(1), int(2)), int(5)), 1), int(1)))
+      const b = probed('F1-sf-if-pair-int-index1', body, 0x00, '00d1938c950100860204020404040a010402')
+      const tree = expectParsed(parseBox(b))
+      expect(captureEvalError(() => evaluate(tree)).code).toBe('select-field-input-not-tuple')
+    })
   })
   describe("over an input typed as ergots' own SAny, the parse passes an index of 1 to 127: residual 1", () => {
     // 99:6 (SELF.creationInfo) and 101:1 (CONTEXT.dataInputs) are not in ergots' catalog. The JVM knows
