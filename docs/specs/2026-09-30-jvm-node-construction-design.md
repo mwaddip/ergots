@@ -473,6 +473,7 @@ The probe's reduction costs also include the deserialization charge the Follow-u
      - the typed stores (`Coll[Int](1).updated(0, true)`);
      - `stypeToRType`'s failures;
      - ergots' own `coll-elem-tpe-mismatch` checks, which the JVM does not make (`Filter(Coll[Int](), (x: Long) => true)`).
+     - `flatMap`'s and `Option.map`'s up-front read of the lambda body's type (`scoll-flat-map.ts`, `soption-map.ts`). Over an empty collection or `None`, it rejects a class-cast default that the JVM accepts (Task 5's review, I2; pinned in `substitution-jvm.test.ts`). The JVM types the result from the call's type, `mc.tpe` (`methods.scala:1005`), which needs both methods in the catalog (residual 1).
    - The draft: `.superpowers/sdd/2026-09-30-jvm-node-construction/next-spec-eval-discipline-draft.md`.
 8. **A soft failure inside a nested register payload that starts with an opcode** (§4a; audit `W:130-131`).
    - The JVM builds such a payload with `getValue` before its `EvaluatedValue` cast (`ErgoBoxCandidate.scala:231`), so a soft failure inside the payload degrades the enclosing sized tree.
@@ -542,7 +543,7 @@ Sent at the start of implementation. These are for the batch the sized-tree spec
 - **The next spec: the untyped default, the spend root wrap and the JVM's eval-time type discipline** (residual 7; Decision 8). Its first design problem is review 3's blocker: the JVM's runtime collection representations. The draft carries the §7 text of `a0b052b` and the findings of reviews 2 and 3.
 
 - **The substitution path's cost** (pre-existing; probe-confirmed; the recommended next task).
-  - The JVM charges the tree's bytes × 2 into `initCost` from V6 activation (`Interpreter.scala:246-259`), and a decoded script's length × 2 (`:79-87`), even when a class cast at the type read is swallowed. The evaluator's cost starts from `initCost` (`CErgoTreeEvaluator.scala:561`). ergots charges neither.
+  - The JVM charges the tree's bytes × 2 into `initCost` from V6 activation (`Interpreter.scala:246-259`), and a decoded script's length × 2 (`:99-107`), even when a class cast at the type read is swallowed. The evaluator's cost starts from `initCost` (`CErgoTreeEvaluator.scala:561`). ergots charges neither.
   - On the substituted body, ergots' trivial reduce charges 50 JitCost for a SigmaProp-constant root (`eval/evaluate.ts:42-61, 181`), where the JVM evaluates the constant as a node (review m10).
   - Probe: S1 costs 67 = 64 (tree 32 B × 2) + 3; a DeserializeRegister root decoding `08 d3` costs 14 = 10 (tree 5 B × 2) + 4 (script 2 B × 2) + 0; S3 costs 103, the decode charged although the type read's class cast was swallowed.
   - An under-charge counts toward a block's cost limit, so it is consensus-relevant at the limit.
