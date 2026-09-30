@@ -3,9 +3,10 @@
 // Before tree v3 the JVM's parse upcasts the index to Int by its STATIC type (ByIndexSerializer.scala:29-33,
 // `upcastTo(SInt)`, syntax.scala:168-177). An index statically Byte or Short sits under an inserted Upcast, evaluated and
 // charged: NumericCastCostKind, 10 for an Int target (CostKind.scala:60-66). One statically Int has none, and
-// `index.evalTo[Int]` (transformers.scala:258) fails on any other value. ergots inserts no node: it reads the index's
-// static type, `exprTpe(index)`, and charges the 10 itself (eval/coll-by-index.ts). From v3 the parse does not upcast
-// (ByIndexSerializer.scala:29-30), so a Byte index fails, with 'coll-by-index-index-not-int'.
+// `index.evalTo[Int]` (transformers.scala:258) fails on any other value. ergots inserts no node: the parse records the
+// decision on the ByIndex, a substitution rebuild keeps it, and the arm charges the 10 itself (eval/coll-by-index.ts).
+// From v3 the parse does not upcast (ByIndexSerializer.scala:29-30), so a Byte index fails, with
+// 'coll-by-index-index-not-int'.
 //
 // Every verdict and cost below is a local sigma-state 6.0.6 probe's (spend mode, the tree as SELF, no register or
 // variable). The probe prints the cost in block units, a JitCost total / 10 rounded down, so each expectation here
@@ -13,20 +14,28 @@
 //   sp(EQ(ByIndex(Coll[Int](5, 7), <index 1>), 7))             Byte 7, Short 7, Int 6    (a difference of one block unit)
 //   the same 50 times, in a Coll[Boolean] under SizeOf         Byte 295, Short 295, Int 245
 // The 50-fold trees are the exactness check: a widening charged at 9 or 11 would not differ by exactly 50 block units.
-// Every tree is built through `probed`, which asserts its bytes against the ones the probe was given.
+// Every tree is built through `probed`, which asserts its bytes against the ones the probe was given. The nodes built
+// through the API, in the blocks on the recorded decision, have no bytes and no JVM verdict, and say so where they are.
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
-import { ExprTpeError, exprTpe } from '../../src/mir/expr-tpe'
+import { childrenOf, substituteConstants, substituteDeserialize } from '../../src/eval/_substitute-deserialize'
+import type { EvalContext } from '../../src/eval/eval-context'
+import { ExprTpeError, exprTpe, recordIndexUpcast, recordedIndexUpcast } from '../../src/mir/expr-tpe'
+import type { IndexUpcast } from '../../src/mir/expr-tpe'
 import { isOwnSAny } from '../../src/mir/jvm-types'
-import type { Expr, FuncValue, SType, SValue } from '../../src/mir/types'
+import type { ByIndex as ByIndexNode, Expr, FuncValue, ParsedErgoTree, SType, SValue } from '../../src/mir/types'
+import { parseTree, serializeTree } from '../../src/wire/ergo-tree'
 import { captureEvalError, parseParsedTree, synthesizeStubBox } from '../_helpers'
 import {
   Apply,
+  BI,
   ByIndex,
   Coll,
+  Ctx,
+  DC,
   DR,
   Downcast,
   EQ,
@@ -34,6 +43,7 @@ import {
   GetVar,
   If,
   OptionGet,
+  PC,
   Plus,
   SelectField,
   SizeOf,
@@ -43,6 +53,7 @@ import {
   bool,
   bytes as collBytes,
   collInt,
+  exprBytes,
   hex,
   int,
   long,
@@ -79,17 +90,40 @@ function probed(tree: Expr, header: number, expected: string): Uint8Array {
   return b
 }
 
-/** The tree spent as the probe does: SELF holds it, no register or variable, its own header version; the cost read back. */
-function run(bytes: Uint8Array): { value: SValue; jitCost: number } {
-  const tree = parseParsedTree(bytes)
-  const ctx = makeContext({
+/** A register or context variable: a typed value. */
+type Entry = { tpe: SType; value: SValue }
+/** A `Coll[Byte]` holding the bytes of the script `e`: what a DeserializeRegister or DeserializeContext decodes. */
+const script = (e: Expr): Entry => ({
+  tpe: T.Coll(T.Byte),
+  value: { kind: 'Coll', elem: T.Byte, items: Array.from(exprBytes(e), (x) => ({ kind: 'Byte', value: (x << 24) >> 24 })) },
+})
+
+/** The context the probe's spend gives `bytes`: SELF holds it, R4 and variable 1 as given, the tree's own version. */
+function spendContext(bytes: Uint8Array, tree: ParsedErgoTree, opts: { r4?: Entry; var1?: Entry }): EvalContext {
+  return makeContext({
     treeVersion: tree.header.version,
     constants: tree.constants,
-    selfBox: { ...synthesizeStubBox(), ergoTreeBytes: bytes },
-    extension: { values: new Map() },
+    selfBox: { ...synthesizeStubBox(), ergoTreeBytes: bytes, registers: opts.r4 ? { 4: opts.r4 } : {} },
+    extension: { values: new Map(opts.var1 ? [[1, opts.var1]] : []) },
   })
+}
+
+/** The tree spent as the probe does, with R4 and variable 1 as given (none by default); the cost read back. */
+function run(bytes: Uint8Array, opts: { r4?: Entry; var1?: Entry } = {}): { value: SValue; jitCost: number } {
+  const tree = parseParsedTree(bytes)
+  const ctx = spendContext(bytes, tree, opts)
   const value = evaluateWith(tree, ctx)
   return { value, jitCost: ctx.jitCost }
+}
+
+/** The first ByIndex under `e`, in the order `childrenOf` visits. */
+function firstByIndex(e: Expr): ByIndexNode | undefined {
+  if (e.tag === 'ByIndex') return e
+  for (const child of childrenOf(e)) {
+    const found = firstByIndex(child)
+    if (found !== undefined) return found
+  }
+  return undefined
 }
 
 /** ergots' JitCost total and the block cost the probe prints for it. */
@@ -399,15 +433,20 @@ describe('an index typed by arithmetic is keyed on the type the builder leaves i
   })
 })
 
-describe('an index typed as ergots\' own SAny, or one whose type cannot be read, keeps the value-kind rule', () => {
+
+// ── The decision is made at parse and kept through a rebuild (Task 6, fix round 2; spec §8) ───────────────────────────
+// The JVM's parse puts an actual Upcast node over a pre-v3 index that is not an Int (`upcastTo`, syntax.scala:168-177),
+// and Kiama's `dup` keeps that node through a substitution rebuild (Rewriter.scala:236-320), rebuilding it with its
+// constructor's check. ergots inserts no node. The parse records the same decision on the ByIndex (`recordIndexUpcast`,
+// wire/mir/coll-by-index.ts), a rebuild copies it (`mapChildren`, eval/_substitute-deserialize.ts), and the arm evaluates
+// from it, as `recordCallType` does for a call's type. The decision is 'upcast' for a statically Byte or Short index,
+// 'int' for an Int one, and 'unknown' for ergots' own SAny (residual 1), which keeps the value-kind rule.
+
+describe('an index typed as ergots\' own SAny keeps the value-kind rule', () => {
   // ergots' own SAny stands for a type the JVM knows and ergots' catalog does not (residual 1), so no probe can say what
-  // the JVM's parse keyed on: the arm widens by the value's kind. An index whose type read throws is the same, since the
-  // JVM reads no index type at run time (only its parse read one), so the throw must not reject. Both are ergots-only
-  // expectations; each premise is asserted, so a case cannot rot into a typed one.
+  // the JVM's parse did: the arm widens by the value's kind. These are ergots-only expectations; the premise is asserted.
   const ownAny: SType = { tag: 'SAny' }
   const anyIndex = OptionGet(GetVar(1, ownAny))
-  // Filter over an Int is a type read that throws. It sits in the branch the If never takes, so the index still evaluates.
-  const unreadable = (taken: Expr): Expr => If(FALSE, Filter(int(1)), taken)
   const INT1: SValue = { kind: 'Int', value: 1 }
   const BYTE1: SValue = { kind: 'Byte', value: 1 }
   const SHORT1: SValue = { kind: 'Short', value: 1 }
@@ -415,20 +454,18 @@ describe('an index typed as ergots\' own SAny, or one whose type cannot be read,
   const ELEMENT: SValue = { kind: 'Int', value: 7 }
 
   /** Coll[Int](5, 7)(<index>), with variable 1 holding `entry`, at `treeVersion`: the element and the cost. */
-  function readAt(index: Expr, entry?: { tpe: SType; value: SValue }, treeVersion?: number): { value: SValue; jitCost: number } {
-    const values = new Map<number, { tpe: SType; value: SValue }>(entry ? [[1, entry]] : [])
-    const ctx = makeContext({ extension: { values }, treeVersion })
+  function readAt(index: Expr, entry: Entry, treeVersion?: number): { value: SValue; jitCost: number } {
+    const ctx = makeContext({ extension: { values: new Map([[1, entry]]) }, treeVersion })
     const value = evalExpr(ByIndex(collInt([5, 7]), index), Env.empty(), ctx)
     return { value, jitCost: ctx.jitCost }
   }
   const own = (value: SValue, treeVersion?: number) => readAt(anyIndex, { tpe: ownAny, value }, treeVersion)
 
-  it('the premises: one index is typed as ergots\' own SAny, the other\'s type read throws', () => {
+  it('the premise: the index is typed as ergots\' own SAny', () => {
     expect(isOwnSAny(exprTpe(anyIndex, 0))).toBe(true)
-    expect(() => exprTpe(unreadable(int(1)), 0)).toThrow(ExprTpeError)
   })
 
-  it('own SAny: an Int value is the element, a Byte or Short value is widened and charged the Upcast, 10 above the Int', () => {
+  it('an Int value is the element, a Byte or Short value is widened and charged the Upcast, 10 above the Int', () => {
     const base = own(INT1)
     expect(base.value).toEqual(ELEMENT)
     for (const value of [BYTE1, SHORT1]) {
@@ -438,23 +475,244 @@ describe('an index typed as ergots\' own SAny, or one whose type cannot be read,
     }
   })
 
-  it('own SAny: a Long value is rejected, and so is a Byte value from v3', () => {
+  it('a Long value is rejected, and so is a Byte value from v3', () => {
     expect(captureEvalError(() => own(LONG1)).code).toBe('coll-by-index-index-not-int')
     expect(captureEvalError(() => own(BYTE1, 3)).code).toBe('coll-by-index-index-not-int')
   })
+})
 
-  it('an unreadable type: an Int value is the element, a Byte or Short value is widened and charged, 10 above the Int', () => {
-    const base = readAt(unreadable(int(1)))
+describe('the parse records the decision on the ByIndex', () => {
+  // CONTEXT.preHeader.timestamp: ergots' catalog lacks 105:3, so the call types as its own SAny (the JVM: a Long, which
+  // rejects at parse: residual 1, pinned in wire/in-arm-construction.test.ts with these bytes).
+  const TS = PC(105, 3, PC(101, 3, Ctx))
+  it.each([
+    ['a Byte index', 'upcast', one(byte(1)), 0x00, '00d193b210020a0e020100040e'],
+    ['a Short index', 'upcast', one(short(1)), 0x00, '00d193b210020a0e030200040e'],
+    ['an Int index', 'int', one(int(1)), 0x00, '00d193b210020a0e040200040e'],
+    ['a Byte index at v2', 'upcast', one(byte(1)), 0x0a, '0a0cd193b210020a0e020100040e'],
+    [
+      'an index typed as ergots\' own SAny',
+      'unknown',
+      sp(EQ(ByIndex(collInt([1, 2]), Plus(int(1), TS)), int(1))),
+      0x00,
+      '00d193b2100202049a0402db6903db6503fe000402',
+    ],
+  ])('%s: recorded as %s', (_name, decision, tree, header, expected) => {
+    const parsed = parseParsedTree(probed(tree, header, expected))
+    expect(recordedIndexUpcast(firstByIndex(parsed.body)!)).toBe(decision)
+  })
+
+  it('from v3 the JVM inserts no Upcast, so nothing is recorded', () => {
+    const byteIndex = parseParsedTree(probed(one(byte(1)), 0x0b, '0b0cd193b210020a0e020100040e'))
+    const intIndex = parseParsedTree(probed(one(int(1)), 0x0b, '0b0cd193b210020a0e040200040e'))
+    expect(recordedIndexUpcast(firstByIndex(byteIndex.body)!)).toBeUndefined()
+    expect(recordedIndexUpcast(firstByIndex(intIndex.body)!)).toBeUndefined()
+  })
+})
+
+describe('a substitution rebuild copies the decision, as Kiama\'s dup keeps the inserted Upcast node', () => {
+  // The index is the node the substitution replaces, so the rebuilt ByIndex is a new object around a new index; the JVM's
+  // Upcast (declared Byte) or bare index (declared Int) is what the decision stands for.
+  it.each([
+    ['a DeserializeRegister default of the declared Byte', 'upcast', one(DR(4, T.Byte, byte(1))), '00d193b210020a0ed5040201020100040e', {}],
+    ['a DeserializeRegister default of the declared Int', 'int', one(DR(4, T.Int, int(1))), '00d193b210020a0ed5040401040200040e', {}],
+    ['a DeserializeRegister script of the declared Byte', 'upcast', one(DR(4, T.Byte)), '00d193b210020a0ed504020000040e', { r4: script(byte(1)) }],
+    ['a DeserializeRegister script of the declared Int', 'int', one(DR(4, T.Int)), '00d193b210020a0ed504040000040e', { r4: script(int(1)) }],
+    ['a DeserializeContext script of the declared Byte', 'upcast', one(DC(1, T.Byte)), '00d193b210020a0ed4020100040e', { var1: script(byte(1)) }],
+    ['a DeserializeContext script of the declared Int', 'int', one(DC(1, T.Int)), '00d193b210020a0ed4040100040e', { var1: script(int(1)) }],
+  ])('%s: the rebuilt ByIndex keeps %s', (_name, decision, tree, expected, opts) => {
+    const bytes = probed(tree, 0x00, expected)
+    const parsed = parseParsedTree(bytes)
+    const before = firstByIndex(parsed.body)!
+    const after = firstByIndex(substituteDeserialize(parsed.body, parsed, spendContext(bytes, parsed, opts)))!
+    expect(after).not.toBe(before)
+    expect(recordedIndexUpcast(before)).toBe(decision)
+    expect(recordedIndexUpcast(after)).toBe(decision)
+  })
+
+  it('the rewrite of the constants copies it too (ErgoTree.substConstants, ErgoTree.scala:314-322)', () => {
+    // A segregated tree: the ByIndex's input is a placeholder, so substituteConstants rebuilds the node.
+    const placeholder: Expr = { tag: 'ConstPlaceholder', id: 0, tpe: T.Coll(T.Int) }
+    const bytes = serializeTree({
+      header: { version: 0, hasSize: false, constantSegregation: true, rawHeader: 0x10 },
+      constantTypes: [T.Coll(T.Int)],
+      constants: [{ kind: 'Coll', elem: T.Int, items: [5, 7].map((n): SValue => ({ kind: 'Int', value: n })) }],
+      body: sp(EQ(ByIndex(placeholder, byte(1)), int(7))),
+    })
+    const parsed = parseParsedTree(bytes)
+    const before = firstByIndex(parsed.body)!
+    const after = firstByIndex(substituteConstants(parsed.body, parsed.constants, parsed.constantTypes, 0))!
+    expect(after).not.toBe(before)
+    expect(recordedIndexUpcast(before)).toBe('upcast')
+    expect(recordedIndexUpcast(after)).toBe('upcast')
+  })
+})
+
+describe('the arm evaluates from the recorded decision; a node with none is decided from its index\'s type', () => {
+  // Filter over an Int is a type read that throws. It sits in the branch the If never takes, so the index still
+  // evaluates: its type is unreadable, its value is not. No parse can build it (the JVM: ClassCastException at parse, see
+  // below), so these are nodes built through the API, which is what the record's absence means.
+  const unreadable = (taken: Expr): Expr => If(FALSE, Filter(int(1)), taken)
+  const ELEMENT: SValue = { kind: 'Int', value: 7 }
+  const node = (index: Expr, decision?: IndexUpcast): ByIndexNode => {
+    const n = ByIndex(collInt([5, 7]), index)
+    if (decision !== undefined) recordIndexUpcast(n, decision)
+    return n
+  }
+  const read = (n: ByIndexNode, treeVersion?: number): { value: SValue; jitCost: number } => {
+    const ctx = makeContext({ treeVersion })
+    const value = evalExpr(n, Env.empty(), ctx)
+    return { value, jitCost: ctx.jitCost }
+  }
+
+  it('the premise: the unreadable index\'s type read throws', () => {
+    expect(() => exprTpe(unreadable(int(1)), 0)).toThrow(ExprTpeError)
+  })
+
+  it.each([
+    ['an Int constant', int(1)],
+    ['an unreadable type holding an Int', unreadable(int(1))],
+  ])('"upcast" over %s charges the Upcast: 10 above "int"', (_name, index) => {
+    const upcast = read(node(index, 'upcast'))
+    const plain = read(node(index, 'int'))
+    expect(upcast.value).toEqual(ELEMENT)
+    expect(plain.value).toEqual(ELEMENT)
+    expect(upcast.jitCost - plain.jitCost).toBe(10)
+  })
+
+  it.each([
+    ['a Byte constant', byte(1)],
+    ['a Short constant', short(1)],
+    ['an unreadable type holding a Byte', unreadable(byte(1))],
+  ])('"upcast" takes %s, charged, and "int" rejects it, whatever the index\'s own type is', (_name, index) => {
+    expect(read(node(index, 'upcast')).value).toEqual(ELEMENT)
+    expect(captureEvalError(() => read(node(index, 'int'))).code).toBe('coll-by-index-index-not-int')
+  })
+
+  it('"upcast" rejects a Long value, as SInt.upcast errors on it', () => {
+    expect(captureEvalError(() => read(node(long(1), 'upcast'))).code).toBe('coll-by-index-index-not-int')
+  })
+
+  it('"unknown" is the value-kind rule: an Int is taken, a Byte or Short is widened and charged', () => {
+    const base = read(node(int(1), 'unknown'))
     expect(base.value).toEqual(ELEMENT)
-    for (const taken of [byte(1), short(1)]) {
-      const r = readAt(unreadable(taken))
+    for (const index of [byte(1), short(1)]) {
+      const r = read(node(index, 'unknown'))
       expect(r.value).toEqual(ELEMENT)
+      // The constant's own cost is the same 5 as the Int's, so the Upcast is the whole difference.
       expect(r.jitCost - base.jitCost).toBe(10)
     }
   })
 
-  it('an unreadable type: a Long value is rejected, and so is a Byte value from v3', () => {
-    expect(captureEvalError(() => readAt(unreadable(long(1)))).code).toBe('coll-by-index-index-not-int')
-    expect(captureEvalError(() => readAt(unreadable(byte(1)), undefined, 3)).code).toBe('coll-by-index-index-not-int')
+  it('a node with no record is decided from its index\'s type: a statically Byte constant is an Upcast, an Int one is not', () => {
+    const byteIndex = read(node(byte(1)))
+    const intIndex = read(node(int(1)))
+    expect(byteIndex.jitCost - intIndex.jitCost).toBe(10)
+  })
+
+  it('a node with no record and an index whose type read throws propagates the ExprTpeError, nothing swallowed', () => {
+    // No JVM path builds such a node, so there is no verdict to keep: the read's own error stands.
+    expect(() => read(node(unreadable(int(1))))).toThrow(ExprTpeError)
+  })
+
+  it('from v3 the record is not read: an Int value only', () => {
+    expect(captureEvalError(() => read(node(byte(1), 'upcast'), 3)).code).toBe('coll-by-index-index-not-int')
+    const r = read(node(int(1), 'upcast'), 3)
+    expect(r.jitCost - read(node(int(1), 'int'), 3).jitCost).toBe(0)
+  })
+})
+
+describe('a substituted index, spent against the probe: the decision survives and its 10 is charged', () => {
+  // The probe's costs include its deserialization charge, 2 per byte of the tree and the script (34 block units for each
+  // pair here), so a pair is compared by its difference: one block unit there, the Upcast's 10 JitCost here.
+  it.each([
+    [
+      'a DeserializeRegister script', '41 and 40',
+      one(DR(4, T.Byte)), '00d193b210020a0ed504020000040e', { r4: script(byte(1)) },
+      one(DR(4, T.Int)), '00d193b210020a0ed504040000040e', { r4: script(int(1)) },
+    ],
+    [
+      'a DeserializeContext script', '39 and 38',
+      one(DC(1, T.Byte)), '00d193b210020a0ed4020100040e', { var1: script(byte(1)) },
+      one(DC(1, T.Int)), '00d193b210020a0ed4040100040e', { var1: script(int(1)) },
+    ],
+    [
+      'a DeserializeRegister default', '41 and 40',
+      one(DR(4, T.Byte, byte(1))), '00d193b210020a0ed5040201020100040e', {},
+      one(DR(4, T.Int, int(1))), '00d193b210020a0ed5040401040200040e', {},
+    ],
+  ])('%s of the declared Byte against the declared Int: true, 10 apart (the probe: %s block units)', (
+    _name, _probe, byteTree, byteHex, byteOpts, intTree, intHex, intOpts,
+  ) => {
+    const asByte = run(probed(byteTree, 0x00, byteHex), byteOpts)
+    const asInt = run(probed(intTree, 0x00, intHex), intOpts)
+    expect(asByte.value).toEqual(TRUE_PROP)
+    expect(asInt.value).toEqual(TRUE_PROP)
+    expect(asByte.jitCost).toBe(73)
+    expect(asInt.jitCost).toBe(63)
+  })
+})
+
+describe('a ByIndex inside a decoded script is decided by the script\'s own parse, at the spent tree\'s version', () => {
+  // DeserializeRegister decodes R4 as ValueSerializer does, under the spent tree's version (Interpreter.scala:203-238), so
+  // the script's ByIndex is parsed, recorded and charged as one in the tree itself would be. The probe's 41 and 40 differ
+  // by its deserialization charge, which is the same in both.
+  const tree = (header: number, expected: string) => probed(sp(EQ(DR(4, T.Int), int(7))), header, expected)
+  const byIndexScript = (index: Expr, expected: string): Entry => {
+    const e = ByIndex(collInt([5, 7]), index)
+    expect(hex(exprBytes(e))).toBe(expected)
+    return script(e)
+  }
+
+  it('v0: a Byte index in the script is charged the Upcast, 10 above an Int index (the probe: 41 and 40)', () => {
+    const asByte = run(tree(0x00, '00d193d5040400040e'), { r4: byIndexScript(byte(1), 'b210020a0e020100') })
+    const asInt = run(tree(0x00, '00d193d5040400040e'), { r4: byIndexScript(int(1), 'b210020a0e040200') })
+    expect(asByte.value).toEqual(TRUE_PROP)
+    expect(asInt.value).toEqual(TRUE_PROP)
+    expect(asByte.jitCost - asInt.jitCost).toBe(10)
+  })
+
+  it('v3: a Byte index in the script is rejected, an Int index is not (the probe: ClassCastException, reduced)', () => {
+    const v3 = tree(0x0b, '0b08d193d5040400040e')
+    expect(captureEvalError(() => run(v3, { r4: byIndexScript(byte(1), 'b210020a0e020100') })).code).toBe('coll-by-index-index-not-int')
+    expect(run(v3, { r4: byIndexScript(int(1), 'b210020a0e040200') })).toEqual({ value: TRUE_PROP, jitCost: 63 })
+  })
+})
+
+describe('a class-cast default under a numeric index is never a number', () => {
+  // A default whose type read throws has a Filter over a class-cast input on its type path, the one node that reads its
+  // input's type only when it is asked for its own. Every node that reads a child's type when it is built, an If, a
+  // ValDef, a ByIndex, fails the JVM's parse instead, so a default that parses evaluates to a Coll or a closure. The
+  // inserted Upcast (declared Byte) is rebuilt around such a default by Kiama's dup, and reads its type there.
+  it.each([
+    ['a declared Byte, an Int value', If(FALSE, Filter(BI), int(1)), T.Byte, '00d193b210020a0ed5040201950100b5b2860204000400040000d90101040101040200040e'],
+    ['a declared Int, a Byte value', If(FALSE, Filter(BI), byte(1)), T.Int, '00d193b210020a0ed5040401950100b5b2860204000400040000d90101040101020100040e'],
+  ])('an If default, %s: cannot be parsed (the probe: ClassCastException at parse)', (_name, dflt, declared, expected) => {
+    const bytes = probed(one(DR(4, declared, dflt)), 0x00, expected)
+    let err: unknown
+    try {
+      parseTree(bytes)
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ExprTpeError)
+    expect((err as ExprTpeError).code).toBe('filter-input-class-cast')
+  })
+
+  const closureOverFilter = (): Expr => Apply(lam(T.Int, Filter(BI)), [int(0)])
+  it.each([
+    [
+      'a declared Byte', T.Byte,
+      '00d193b210020a0ed5040201dad9010104b5b2860204000400040000d9010104010101040000040e',
+      'InvocationTargetException: Kiama\'s dup rebuilding the inserted Upcast, whose constructor reads the default\'s type',
+    ],
+    [
+      'a declared Int', T.Int,
+      '00d193b210020a0ed5040401dad9010104b5b2860204000400040000d9010104010101040000040e',
+      'ClassCastException at eval: a Coll where an Int is cast',
+    ],
+  ])('a lambda over Filter as the default, %s: parses, and is a Coll, so it rejects (the probe: %s)', (_name, declared, expected) => {
+    const bytes = probed(one(DR(4, declared, closureOverFilter())), 0x00, expected)
+    expect(captureEvalError(() => run(bytes)).code).toBe('coll-input-not-coll')
   })
 })

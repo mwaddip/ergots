@@ -16,7 +16,7 @@
  * The arms without a JVM citation mirror sigma-rust's `Expr::tpe` (`ergotree-ir/src/mir/expr.rs:252-325`).
  */
 
-import type { Expr, MethodCall, PropertyCall, SType, STypeVar } from './types'
+import type { ByIndex, Expr, MethodCall, PropertyCall, SType, STypeVar } from './types'
 import { NOTYPE_JVM, SANY_JVM } from './types'
 import { isJvmNumeric, isOwnSAny, numericTypeIndex } from './jvm-types'
 import { methodSignature, resolveReturnTpe } from './method-signatures'
@@ -56,6 +56,43 @@ export function recordCallType(e: MethodCall | PropertyCall, t: SType): void {
 /** The type recorded for `e` by `recordCallType`, if any. */
 export function recordedCallType(e: Expr): SType | undefined {
   return callTypes.get(e)
+}
+
+/**
+ * Whether the JVM's parse put an `Upcast` over a pre-v3 `ByIndex` index. `ByIndexSerializer` upcasts the index to Int
+ * as it reads it (`index.upcastTo(SInt)`, ByIndexSerializer.scala:29-33, syntax.scala:168-177): unless the index is an
+ * Int, the tree holds an actual `Upcast` node, evaluated and charged with the index, and Kiama's `dup` keeps that node
+ * through a substitution rebuild (Rewriter.scala:236-320). So the decision is fixed when the node is parsed and survives
+ * a rewrite of the index beneath it, as a call's type does (`callTypes`). ergots inserts no node. It records the
+ * decision on the ByIndex, keyed by node so the `Expr` shape does not change:
+ *   - `'upcast'`: the index is statically Byte or Short, so the JVM's `Upcast` is there;
+ *   - `'int'`: the index is statically Int, so it is not;
+ *   - `'unknown'`: the index types as ergots' own SAny (residual 1), so ergots cannot tell, and the arm decides by the
+ *     value's kind.
+ * A node with no record was built through the API, which no JVM path does, or parsed from v3, which inserts nothing:
+ * the arm decides from `exprTpe` of its index (`indexUpcastOf`).
+ */
+export type IndexUpcast = 'upcast' | 'int' | 'unknown'
+
+const indexUpcasts = new WeakMap<Expr, IndexUpcast>()
+
+/**
+ * The decision for an index typed `t` (`upcastTo`, syntax.scala:168-177): an `Upcast` unless it is an Int. A type the
+ * parse does not accept as an index (wider than Int, not numeric) gives `'int'`: an Int value only.
+ */
+export function indexUpcastOf(t: SType): IndexUpcast {
+  if (isOwnSAny(t)) return 'unknown'
+  return t.tag === 'SByte' || t.tag === 'SShort' ? 'upcast' : 'int'
+}
+
+/** Record the decision the parse made for the pre-v3 `ByIndex` `e`; a rebuild copies it (`mapChildren`). */
+export function recordIndexUpcast(e: ByIndex, d: IndexUpcast): void {
+  indexUpcasts.set(e, d)
+}
+
+/** The decision recorded for `e` by `recordIndexUpcast`, if any. */
+export function recordedIndexUpcast(e: Expr): IndexUpcast | undefined {
+  return indexUpcasts.get(e)
 }
 
 /** A type read's outcome. Only an `ExprTpeError`, the JVM's verdict on the node, is kept. */

@@ -17,6 +17,7 @@
  */
 
 import type {
+  ByIndex,
   DeserializeContext,
   DeserializeRegister,
   Expr,
@@ -32,7 +33,7 @@ import { ByteReader } from '@ergots/scorex'
 import { parseExpr } from '../wire/parse'
 import { checkBuild } from '../wire/check-build'
 import { isJvmClassCast } from '../wire/jvm-exceptions'
-import { exprTpe, recordCallType, recordedCallType } from '../mir/expr-tpe'
+import { exprTpe, recordCallType, recordIndexUpcast, recordedCallType, recordedIndexUpcast } from '../mir/expr-tpe'
 import { scriptTypeEquals } from '../mir/jvm-types'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { collByteToUint8Array } from './_byte-coll'
@@ -286,10 +287,24 @@ function keepCallType<C extends MethodCall | PropertyCall>(before: C, rebuilt: C
 }
 
 /**
+ * A rebuilt `ByIndex` keeps the decision its predecessor was parsed with. Before v3 the JVM's parse put an actual
+ * `Upcast` over an index that is not an Int (ByIndexSerializer.scala:29-33), and `dup` keeps that node while it rebuilds
+ * the ByIndex around a rewritten index (Rewriter.scala:236-320), so no rewrite changes whether the Upcast is there,
+ * whatever type the node that replaced the index has. A parsed node has a record (`parseCollByIndex`); one built through
+ * the API, or parsed from v3, has none, and neither does its rebuild.
+ */
+function keepIndexUpcast(before: ByIndex, rebuilt: ByIndex): ByIndex {
+  const decision = recordedIndexUpcast(before)
+  if (decision !== undefined) recordIndexUpcast(rebuilt, decision)
+  return rebuilt
+}
+
+/**
  * `e` with each Expr child replaced by `fn(child)`, visited in the order of the JVM node's constructor fields, as
  * Kiama's `allProduct` visits them (Rewriter.scala:446-471). When every child comes back as the same object, `e`
  * itself (review m7); otherwise a copy of `e` with the new children, every other field kept (a `ValDef`'s `tpeArgs`
- * included). A new call keeps its recorded type ({@link keepCallType}).
+ * included). A new call keeps its recorded type ({@link keepCallType}), and a new `ByIndex` its recorded decision
+ * ({@link keepIndexUpcast}).
  *
  * The switch is exhaustive over the Expr union: a new variant is a compile-time error at the `default` arm.
  */
@@ -478,7 +493,9 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr, v: number): Expr {
       const input = fn(e.input)
       const index = fn(e.index)
       const def = e.default === null ? null : fn(e.default)
-      return input === e.input && index === e.index && def === e.default ? e : { ...e, input, index, default: def }
+      return input === e.input && index === e.index && def === e.default
+        ? e
+        : keepIndexUpcast(e, { ...e, input, index, default: def })
     }
     case 'DeserializeRegister': {
       if (e.default === null) return e

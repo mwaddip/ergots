@@ -41,7 +41,8 @@
 
 import type { ByIndex, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { exprTpe } from '../../mir/expr-tpe'
+import { exprTpe, indexUpcastOf, recordIndexUpcast } from '../../mir/expr-tpe'
+import type { IndexUpcast } from '../../mir/expr-tpe'
 import { isJvmNumeric, isOwnSAny, numericTypeIndex } from '../../mir/jvm-types'
 import { ExprParseError } from '../errors'
 import { parseExpr } from '../parse'
@@ -67,21 +68,28 @@ export function parseCollByIndex(
   const index = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   // ByIndexSerializer.scala:29-33: before v3, index.upcastTo(SInt): assert numeric, and
   // assert SInt.max(t) == SInt (syntax.scala:168-177). Right after the index, before the default flag: an
-  // AssertionError, which no sized tree degrades on. The JVM wraps a Byte or Short index in an Upcast,
-  // which ergots does not insert (residual 11). An index typed as ergots' own SAny passes (residual 1).
+  // AssertionError, which no sized tree degrades on. An index typed as ergots' own SAny passes (residual 1).
   // From v3 the index is taken as it is (:29-30).
+  // Unless the index is an Int, the JVM's parse puts an Upcast node over it, which Kiama's dup keeps through
+  // a substitution rebuild. ergots inserts no node: it records that decision on the ByIndex
+  // (`recordIndexUpcast`), a rebuild copies it (eval/_substitute-deserialize.ts), and the evaluator reads it
+  // (eval/coll-by-index.ts).
+  let decision: IndexUpcast | undefined
   if (treeVersion < 3) {
     const t = exprTpe(index, treeVersion)
     if (!isOwnSAny(t) && (!isJvmNumeric(t) || numericTypeIndex(t) > 2)) {
       throw new ExprParseError(`ByIndex index type ${t.tag} does not upcast to Int`, 'by-index-index-not-int')
     }
+    decision = indexUpcastOf(t)
   }
   const tag = r.readU8()
   const def =
     tag !== 0
       ? parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
       : null
-  return { tag: 'ByIndex', input, index, default: def }
+  const node: ByIndex = { tag: 'ByIndex', input, index, default: def }
+  if (decision !== undefined) recordIndexUpcast(node, decision)
+  return node
 }
 
 /**
