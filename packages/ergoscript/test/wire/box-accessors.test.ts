@@ -393,6 +393,8 @@ describe('ExtractRegisterAs variant', () => {
     expect((err as ExprParseError).code).toBe('extract-register-as-id-out-of-range')
   })
 
+  // Deliberate: the writer emits the register id the MIR holds, even one outside 0..9, whose bytes both the JVM's
+  // parser and ergots' reject; in-arm-construction.test.ts builds its probed adversarial trees this way.
   it("writes a negative register_id as its i8 two's complement (a tree built through the API)", () => {
     // The writer takes any i8, as sigma-rust's put_i8 does (a raw u8 cast): -1 is written as 0xff.
     const tree: ErgoTree = {
