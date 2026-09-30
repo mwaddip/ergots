@@ -271,7 +271,7 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
 **SFunc data (rule 1009).** Data of an SFunc type is `CheckSerializableTypeCode`'s soft failure (`CoreDataSerializer.scala:144-146`: code 112 is above `LastDataType`, 111). That covers a constant or a register value. It is reachable from v3, since below v3 the type read fails first. ergots' SFunc data arm throws `SValueParseError('data-type-not-serializable')`, soft. The other types with no data form, codes 111 and below, stay hard, as the JVM's `SerializerException` is.
 
 **A `Coll`'s element type (`stypeToRType`, hard).** The soft 1009 above is faithful only with this check (spec review of §4a, C1). The JVM runs `Evaluation.stypeToRType(elem)` right after a `Coll`'s length is read, before any item, whenever the element type is neither Boolean nor Byte (`CoreDataSerializer.scala:152-166`). That includes an empty `Coll`. An element that is itself a tuple of other than two items is not checked (`:162-163`).
-- `stypeToRType` (`Evaluation.scala:22-55`) accepts every primitive and predefined type: Boolean through SigmaProp, String, Any, Unit, UnsignedBigInt, Box, Context, Global, Header, PreHeader and AvlTree.
+- `stypeToRType` (`Evaluation.scala:18-56`) accepts every primitive and predefined type: Boolean through SigmaProp, String, Any, Unit, UnsignedBigInt, Box, Context, Global, Header, PreHeader and AvlTree.
 - It recurses through a pair, any other tuple nested below the element, `Coll`, `Option`, and an SFunc of exactly one argument and no type parameters (its argument and result).
 - It throws a plain `RuntimeException` (`sys.error`), a hard reject, for anything else: an STypeVar anywhere, or an SFunc with other than one argument or with type parameters.
 - ergots' `Coll` data arm (`parse-svalue.ts`) makes the same check at the same point, with `SValueParseError('coll-elem-type-no-rtype')`, hard.
@@ -342,7 +342,7 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
      - `EQ`'s and `NEQ`'s operands, and the taken `If` branch.
    - The value-class comparison stays residual 7. The type reads of a `ValUse`, a lambda argument and a `ConstantPlaceholder` cannot throw, since their types are stored.
 
-`dispatchTreeBody` (`eval/evaluate.ts`) drops `validateBinOpTypes` and `validateMethodCallArity`. `validateV6Types` stays (B-full, residual 3). The two modules are deleted if nothing else uses them.
+`dispatchTreeBody` (`eval/evaluate.ts`) drops `validateBinOpTypes` and `validateMethodCallArity`. `validateV6Types` goes too, in §4a, since every type it walked now comes from a versioned read. The two modules are deleted if nothing else uses them.
 
 ### 6. Contracts, docs and fixtures
 
