@@ -165,7 +165,7 @@ These are the controller's calls, 2026-09-30.
 5. **The substitution follows Kiama and the JVM** in the class-cast swallow, the register read, the rebuild checks and the type comparison (§5). The default keeps `master`'s type check, except where the JVM's own behaviour is certain: a class cast while reading the default's type substitutes it untyped, as the JVM does.
 6. **`check2` and the v3 MethodCall arity check move to parse.** `validateBinOpTypes` and `validateMethodCallArity` leave `dispatchTreeBody`, as the JVM makes neither at eval.
 7. **A method call's type is fixed when the call is built** (review B1). The JVM's `MethodCall.tpe` is a `val` over the `SMethod` specialized at parse (`values.scala:1355`), and Kiama's `dup` passes the same `SMethod` to the rebuilt node, so a substitution never changes a call's type. ergots records it at parse and carries it through rebuilds (§1).
-8. **The untyped default, the spend root wrap and the JVM's eval-time type discipline are the next spec** (the controller's ruling after review 3). The JVM takes a default untyped, and then rejects a value that does not fit a type fixed at parse wherever that value is checked or stored: `checkType` at 17 sites, typed array stores, `stypeToRType`, all over the JVM's own value classes. Reviews 2 and 3 showed that the stores depend on the JVM's runtime collection representations (primitive arrays, pair collections stored component by component, `append`'s array-class check), so a faithful mirror is a design of its own. Until it lands, an untyped default would open over-accepts that `master` does not have. Keeping `master`'s default check, with its exact structural comparison (review R4-B1), the class-cast exception of Decision 5, and the JVM's type reads at the `checkType` sites (§5 item 5, review R4-B2), opens none, and it fixes the six regressions. The price is residual 7.
+8. **The untyped default, the spend root wrap and the JVM's eval-time type discipline are the next spec** (the controller's ruling after review 3). The JVM takes a default untyped, and then rejects a value that does not fit a type fixed at parse wherever that value is checked or stored: `checkType` at 17 sites, typed array stores, `stypeToRType`, all over the JVM's own value classes. Reviews 2 and 3 showed that the stores depend on the JVM's runtime collection representations (primitive arrays, pair collections stored component by component, `append`'s array-class check), so a faithful mirror is a design of its own. Until it lands, an untyped default would open over-accepts that `master` does not have. Keeping `master`'s default check, with its exact structural comparison (review R4-B1), the class-cast exception of Decision 5, and the JVM's type reads at the `checkType` sites (§5 item 5, review R4-B2), opens none once the builder's Upcast is re-checked at a rebuild (§5; the final review's C1 found the gap). It fixes the six regressions. The price is residual 7.
 9. **Before v3, a `ByIndex` index statically typed Byte or Short evaluates through the Upcast that the JVM's parse inserted** (review m5, §8). The widening is keyed on the index's static type, as the JVM's parse keys it, not on the value's kind (Task 6's review).
 10. **ergots raises the JVM's soft failures at a method lookup and a type read, at the JVM's byte** (§4a; the controller's ruling after Task 3's review, I1 and I2, and the audit that followed). The construction checks are hard, and a sized tree's verdict is its first failure in byte order. So a JVM soft failure that ergots does not raise turns any later hard check into a fork: the JVM degrades the tree, ergots rejects it. `master` made no construction check, so it did not have this fork. The two families are the June spec's "B-full" remainder.
 11. **A node the JVM does not evaluate is rejected when it is evaluated** (§9). This was the user's call on 2026-09-30: fold it into this branch. The over-accept predates the branch, and Task 6's re-review found it.
@@ -346,6 +346,22 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
      - `EQ`'s and `NEQ`'s operands, and the taken `If` branch.
    - The value-class comparison stays residual 7. The type reads of a `ValUse`, a lambda argument and a `ConstantPlaceholder` cannot throw, since their types are stored.
 
+**The builder's Upcast at a rebuild** (the final review, C1). Before v3, the JVM's builder wraps the narrower of two different numeric operands in an `Upcast` node (`applyUpcast`, `SigmaBuilder.scala:674-683`). It does so for a relation (`equalityOp`, `comparisonOp`) and for arithmetic (`arithOp`). The serializer wraps a Byte or Short `ByIndex` index the same way (`ByIndexSerializer.scala:29-33`).
+- **Where ergots misses it.** Kiama's `dup` rebuilds such an `Upcast` over a substituted child and re-runs its `require`, which reads the child's type (`trees.scala:398`). ergots holds no `Upcast` node.
+  - Arithmetic needs nothing new: its rebuild reads both operands anyway (`ArithOp.opType`).
+  - A relation's rebuild reads nothing, and a `ByIndex`'s reads only its own type.
+- **The record.** At parse, ergots records on a pre-v3 relation which operand the builder upcast: the narrower of two different JVM-numeric types. An operand typed as ergots' own SAny makes the record unknown (residual 1). `mapChildren` copies the record onto a rebuilt node, as it copies the `ByIndex` decision (§8) and the recorded call types.
+- **The check.** At `'rebuild'`, `checkBuild` reads the type of the recorded operand, and of a `ByIndex` index recorded "upcast". The type must be numeric, or ergots' own SAny; otherwise the check fails with `numeric-cast-input-not-numeric`. A class cast in the read propagates, and the rebuild fails (`deserialize-rebuild-failed`).
+- **The other operand.** A wider operand, which the builder did not wrap, is not read. The JVM accepts a substituted default there.
+- **Witnesses.** The final review probed seven, all rejected by the JVM (`InvocationTargetException` over `ClassCastException`). They include:
+  - v0 `dead(EQ(DR(R4, Int, Filter(BI)), 1L))`, with R4 absent;
+  - the LT and NEQ forms;
+  - a v1 GE of a Byte against an Int;
+  - the same under a `BlockValue`;
+  - a pre-v3 `ByIndex` with a Byte or Short index.
+  
+  Its controls: the DR as the wider operand, and a same-type EQ, both accepted; the v3 twin, accepted.
+
 `dispatchTreeBody` (`eval/evaluate.ts`) drops `validateBinOpTypes` and `validateMethodCallArity`. `validateV6Types` goes too, in §4a, since every type it walked now comes from a versioned read. The two modules are deleted if nothing else uses them.
 
 ### 6. Contracts, docs and fixtures
@@ -377,7 +393,7 @@ Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSe
 - **A statically Int index** takes an Int value only, as the JVM's `evalTo[Int]` does. A Byte value there is a `ClassCastException` in the JVM. It is reachable without any default, because the JVM checks a collection argument by its class only (`SType.scala:198-201`): `sigmaProp(((c: Coll[Int]) => Coll(5, 7)(c(0)))(Coll[Byte](1)) == 7)` at v0 rejects in the JVM, and so it must in ergots.
 - **An index typed as ergots' own SAny** keeps the value-kind rule (residual 1).
 - **The decision is made once, at parse, and kept.** The JVM's inserted `Upcast` is a node that Kiama's `dup` keeps through a substitution rebuild. ergots records the decision on the ByIndex node at parse, in a side table like the recorded call types, and `mapChildren` copies it onto a rebuilt node. A node built through the API has no record, and ergots computes the decision from `exprTpe(index)` with no catch.
-- **The node's own rebuild check** (Task 6's probe E1). The JVM re-runs the inserted `Upcast`'s constructor check when `dup` rebuilds it over a substituted index. ergots keeps a record, not a node, so it makes no such check. No verdict shows this while the default stays type-checked: it joins residual 7.
+- **The node's own rebuild check** (Task 6's probe E1; the final review, C1). The JVM re-runs the inserted `Upcast`'s constructor check, `require(input.tpe.isInstanceOf[SNumericType])` (`trees.scala:398`), when `dup` rebuilds it over a substituted child. That check reads the child's type. A class-cast default, which is substituted untyped, fails it: the JVM rejects the spend, even in a dead branch, and `master` rejected it too, through its typed default. ergots now makes the same check (§5, "The builder's Upcast at a rebuild").
 
 The JVM charges the 10 while it evaluates the index; ergots charges it when it widens. ergots charges ByIndex's own 30 before the children (Pattern A in `facts/ergoscript-eval.md`'s cost table), where the JVM charges it after the input and the index (`transformers.scala:257-278`). The totals are equal, and at a cost-limit trip both reject.
 
@@ -399,6 +415,8 @@ The ModQ family and TaggedVariable are in the same class, but ergots rejects the
 - Every BitOp and `BitInversion` rejects at eval with `EvalError('unsupported-eval-node')`, as `CreateAvlTree` and `TreeLookup` already do.
 - It charges no cost and evaluates no operand, since the JVM throws before either.
 - The v6 numeric methods (`bitwiseOr` and the rest, `shiftLeft` and the rest) are method calls with their own handlers, and they are unchanged.
+
+**`Apply` with other than one argument** (the final review, M2; the user's "fold it in" covers this kind of fix). The JVM's `Apply.eval` charges its cost, then throws "Function application must have 1 argument" before it evaluates the function or any argument (`values.scala:1262-1272`). ergots applied a two-argument lambda, an over-accept that `master` has. For example, `00d193dad902020403049a720272030204060408040e`, a two-argument lambda applied directly, is rejected by the JVM. ergots now makes the same check, at the same point.
 
 ## Behavior matrix (JVM = ergots after this change)
 
