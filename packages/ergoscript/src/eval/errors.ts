@@ -198,7 +198,11 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   /** Apply: func evaluated to non-Lambda SValue. */
   | 'apply-non-lambda'
-  /** Apply: argument count doesn't match lambda arity. */
+  /**
+   * Apply: other than one argument (the JVM's Apply.eval, values.scala:1262-1272; thrown after Apply's 30 and before the
+   * function or any argument is evaluated), or a one-argument application of a closure whose arity is not 1 (the JVM
+   * rejects that closure where it is created, values.scala:1084).
+   */
   | 'apply-arity-mismatch'
 
   // -------------------------------------------------------------------------
