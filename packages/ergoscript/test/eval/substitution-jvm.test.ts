@@ -231,6 +231,17 @@ const I5V = {
   ogeSomeV3: treeBytes(ogeSome, 0x0b),
 }
 const optionMap = (varId: number): M.MethodCall => MC(36, 7, GetVar(varId, T.Int), [lam(3, collBody())])
+/** `Int => (Int => Coll[Int])`. */
+const FT2: M.SType = { tag: 'SFunc', args: [T.Int], result: FT, tpeParams: [] }
+/**
+ * Map over a lambda parameter: `(f => SizeOf(Map(input, f)))(x => body)`. The mapper is a ValUse, whose type is stored,
+ * so neither the Map's build nor its rebuild reads the applied lambda's body, nor does the arm's own read of an inline
+ * mapper: the read after each application is the only one (values.scala:1080).
+ */
+const mapOverParameter = (body: M.Expr, input: M.Expr, size: number): M.Expr =>
+  sp(EQ(Apply(lam(5, SizeOf(MapColl(input, { tag: 'ValUse', valId: 5, tpe: FT2 })), FT2), [lam(3, body)]), int(size)))
+/** A live `DeserializeRegister(reg, Int, default 1) == 1`. */
+const liveWithDefault = (reg: number): Uint8Array => treeBytes(sp(EQ(DR(reg, T.Int, int(1)), int(1))), 0x00)
 const ARM = {
   map: treeBytes(sp(EQ(SizeOf(MapColl(one, lam(3, bad()))), int(1))), 0x0b),
   filter: treeBytes(sp(EQ(SizeOf(FilterBy(one, lam(3, bad()))), int(1))), 0x0b),
@@ -241,6 +252,9 @@ const ARM = {
   flatMapEmpty: treeBytes(sp(EQ(SizeOf(MC(12, 15, collIntEmpty, [lam(3, collBody())])), int(0))), 0x0b),
   optionMapSome: treeBytes(sp(EQ(SizeOf(OptionGet(optionMap(1))), int(0))), 0x0b),
   optionMapNone: treeBytes(sp(LogicalNot(OptionIsDefined(optionMap(9)))), 0x0b),
+  mapOverParameter: treeBytes(mapOverParameter(bad(), one, 1), 0x0b),
+  mapOverParameterGood: treeBytes(mapOverParameter(good, one, 1), 0x0b),
+  mapOverParameterEmpty: treeBytes(mapOverParameter(bad(), collIntEmpty, 0), 0x0b),
 }
 
 describe('the probed bytes', () => {
@@ -304,6 +318,13 @@ describe('the probed bytes', () => {
       [ARM.flatMapEmpty, '0b28d193b1dc0c0f100001d9010304d5041001d9010704b5b2860204000400040000d901010401010400'],
       [ARM.optionMapSome, '0b2ad193b1e4dc2407e3010401d9010304d5041001d9010704b5b2860204000400040000d901010401010400'],
       [ARM.optionMapNone, '0b27d1efe6dc2407e3090401d9010304d5041001d9010704b5b2860204000400040000d90101040101'],
+      [ARM.mapOverParameter, '0b3ad193dad90105700104700104100000b1ad100104720501d9010304d504700104100001d9010704b5b2860204000400040000d901010401010402'],
+      [ARM.mapOverParameterGood, '0b23d193dad90105700104700104100000b1ad100104720501d9010304d901080410000402'],
+      [ARM.mapOverParameterEmpty, '0b39d193dad90105700104700104100000b1ad1000720501d9010304d504700104100001d9010704b5b2860204000400040000d901010401010400'],
+      [liveWithDefault(0), '00d193d500040104020402'],
+      [liveWithDefault(2), '00d193d502040104020402'],
+      [liveWithDefault(3), '00d193d503040104020402'],
+      [liveWithDefault(5), '00d193d505040104020402'],
     ]
     for (const [bytes, probed] of trees) expect(hex(bytes)).toBe(probed)
     const scripts: [M.Expr, string][] = [
@@ -381,6 +402,16 @@ describe('the re-review table: rejected', () => {
     accepted(spend(S10B, { r4: script(Tuple(BI, int(1))) })))
   it('S16c: a decoded NoType in a context variable (the JVM: rule 1000)', () =>
     rejected(spend(S16, { var1: script(Apply(int(0), [int(0)])) }), 'deserialize-tpe-mismatch'))
+})
+
+describe("SELF's mandatory registers are always present (ErgoBox.get, ErgoBox.scala:75-82)", () => {
+  // R0 (a Long), R2 (the tokens) and R3 (a tuple) are present and not Coll[Byte]: `eba.value.toArray` is a class cast,
+  // swallowed, so the node stays and its default is never taken; live, it throws. R1 is covered by E1 and SANTA #16-#19.
+  for (const reg of [0, 2, 3]) {
+    it(`R${reg} with a default, live: the node stays and is evaluated (probe: "Should be overriden")`, () =>
+      rejected(spend(liveWithDefault(reg)), 'deserialize-not-substituted'))
+  }
+  it('the control, an absent R5: its default is taken (probe: TrueProp)', () => accepted(spend(liveWithDefault(5))))
 })
 
 describe('the re-review table: residual 7, still rejected (a wrong-typed default no rebuilt ancestor rejects)', () => {
@@ -463,16 +494,23 @@ describe("a lambda's body type, read at each application, per lambda-applying ar
   it('Exists (probe: ClassCastException)', () => typeReadAtEval(spend(ARM.exists)))
   it('ForAll (probe: ClassCastException)', () => typeReadAtEval(spend(ARM.forAll)))
   it('Fold (probe: ClassCastException)', () => typeReadAtEval(spend(ARM.fold)))
-  it("Map: the rebuilt MapCollection reads its mapper's type first (probe: InvocationTargetException <- ClassCastException)", () =>
+  it("Map over an inline lambda: the rebuilt MapCollection reads its mapper's type first (probe: InvocationTargetException <- ClassCastException)", () =>
     rebuildFailed(spend(ARM.map), 'filter-input-class-cast'))
+  it('Map over a lambda parameter: the read after each application is the only one that rejects (probe: ClassCastException)', () =>
+    typeReadAtEval(spend(ARM.mapOverParameter)))
+  it("Map over a lambda parameter, its controls: a good body, and the bad one over an empty collection, never applied (probe: TrueProp for both)", () => {
+    accepted(spend(ARM.mapOverParameterGood))
+    accepted(spend(ARM.mapOverParameterEmpty))
+  })
   it("flatMap, applied once (probe: InvocationTargetException <- ClassCastException, the method's reflective call)", () =>
     typeReadAtEval(spend(ARM.flatMap)))
   it('Option.map over Some (probe: InvocationTargetException <- ClassCastException)', () =>
     typeReadAtEval(spend(ARM.optionMapSome, { var1: intEntry(1) })))
-  // Found by this task, not closed by it: the JVM never applies the lambda, so it reads no body type and accepts (probe:
+  // Residual 7 (found 2026-09-30): the JVM never applies the lambda, so it reads no body type and accepts (probe:
   // TrueProp for both). ergots' flatMap and Option.map arms read the body's type before any application, for their
-  // output element type (eval/scoll-flat-map.ts, eval/soption-map.ts), and reject. Only a class-cast default reaches
-  // this; master rejected it earlier, at the default's type check. Pinned so a fix flips them knowingly.
+  // output element type (eval/scoll-flat-map.ts, eval/soption-map.ts), and reject; the JVM types the result from the
+  // call's type, which needs both methods in the catalog. Only a class-cast default reaches this; master rejected it
+  // earlier, at the default's type check. Pinned so a fix flips them knowingly.
   it('flatMap over an empty collection: ergots rejects where the JVM accepts (a known divergence)', () =>
     typeReadAtEval(spend(ARM.flatMapEmpty)))
   it('Option.map over None: ergots rejects where the JVM accepts (a known divergence)', () =>

@@ -429,6 +429,7 @@ The validator's own structural verdicts are `TxValidationError`. Errors from the
 - `EvalError` (from `@ergots/ergoscript`) — includes `EvalError('cost-limit-exceeded')` fired during per-input script evaluation when the running accumulator exceeds the JIT budget. This is NOT a `TxValidationError`; callers must catch both.
 - `VerifyError` (from `@ergots/ergoscript`) — sigma-proof verification failure at the cryptographic layer (malformed proof structure, group element decoding failure, etc.). Distinct from `script-reduced-false` (which is the logical `false` verdict from a well-formed proof).
 - `ReaderError` / `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` (from `@ergots/scorex` and `@ergots/ergoscript`) — malformed wire bytes when `boxTreeOf` parses an input's `ergoTreeBytes` on a cache miss (a box not produced by the ergoscript box parser; including `ErgoTreeParseError('box-context-required')` and `'trailing-bytes'`), or when a constructed box's tree is parsed for its re-encoding: an output candidate's (the size checks and the signing message), or an input or data-input box's that carries no retained bytes (its id and the rent fee, through `boxBytesOf`'s re-serialization). That re-encoding can also raise `serializeTree`'s classes: `ErgoTreeSerializeError`, `ExprSerializeError`, `STypeSerializeError`, `SValueSerializeError`, `SigmaBooleanSerializeError`. The output trees of a transaction `parseTransaction` returned cannot raise any of these at the write sites: the parse rejected any tree that does not re-encode (`TxParseError('output-tree-not-reencodable')`). Its register and context-extension values are not forced at parse. So one whose type or data cannot be written, or a Box constant in one whose own tree does not re-encode, raises `STypeSerializeError` / `SValueSerializeError` or the tree writer's classes here: a register at the output size checks (`checkStructural`'s `serializeBox`), an extension value when the signing message is built. The transaction is rejected, as the JVM rejects it at parse (see `parseTransaction`'s success postcondition; the parse-time check is a recorded follow-up).
+- `ExprTpeError` at evaluation (since 2026-09-30) — a deliberate reject of a well-formed spend, not a sign of malformed bytes. The evaluator reads a node's type wherever the JVM's eval-time `checkType` reads it ([`facts/ergoscript-eval.md`](./ergoscript-eval.md), "The Deserialize substitution", item 5), and a read that throws rejects the spend, as the JVM's `ClassCastException` does: a class-cast default that the Deserialize substitution put in untyped is the case. It propagates unwrapped from `evaluateWith` (`validate/stateful.ts:198`).
 
 **Summary of what to catch:**
 
@@ -439,7 +440,7 @@ try {
   if (e instanceof TxValidationError) { /* our structural verdict */ }
   else if (e instanceof EvalError)    { /* ergoscript eval failure, incl. cost-limit-exceeded */ }
   else if (e instanceof VerifyError)  { /* sigma proof structure error */ }
-  else                                { /* ReaderError / parse error from wire bytes */ }
+  else                                { /* ReaderError / parse error from wire bytes, or an eval-time ExprTpeError (above) */ }
 }
 ```
 
