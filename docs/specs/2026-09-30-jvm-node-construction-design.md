@@ -168,6 +168,7 @@ These are the controller's calls, 2026-09-30.
 8. **The untyped default, the spend root wrap and the JVM's eval-time type discipline are the next spec** (the controller's ruling after review 3). The JVM takes a default untyped, and then rejects a value that does not fit a type fixed at parse wherever that value is checked or stored: `checkType` at 17 sites, typed array stores, `stypeToRType`, all over the JVM's own value classes. Reviews 2 and 3 showed that the stores depend on the JVM's runtime collection representations (primitive arrays, pair collections stored component by component, `append`'s array-class check), so a faithful mirror is a design of its own. Until it lands, an untyped default would open over-accepts that `master` does not have. Keeping `master`'s default check, with its exact structural comparison (review R4-B1), the class-cast exception of Decision 5, and the JVM's type reads at the `checkType` sites (§5 item 5, review R4-B2), opens none, and it fixes the six regressions. The price is residual 7.
 9. **Before v3, a `ByIndex` index statically typed Byte or Short evaluates through the Upcast that the JVM's parse inserted** (review m5, §8). The widening is keyed on the index's static type, as the JVM's parse keys it, not on the value's kind (Task 6's review).
 10. **ergots raises the JVM's soft failures at a method lookup and a type read, at the JVM's byte** (§4a; the controller's ruling after Task 3's review, I1 and I2, and the audit that followed). The construction checks are hard, and a sized tree's verdict is its first failure in byte order. So a JVM soft failure that ergots does not raise turns any later hard check into a fork: the JVM degrades the tree, ergots rejects it. `master` made no construction check, so it did not have this fork. The two families are the June spec's "B-full" remainder.
+11. **A node the JVM does not evaluate is rejected when it is evaluated** (§9). This was the user's call on 2026-09-30: fold it into this branch. The over-accept predates the branch, and Task 6's re-review found it.
 
 Rejected alternatives:
 - **Keep the default check with 9c87a5a's typing (option b):** fixes S1 and G1 only.
@@ -378,6 +379,25 @@ Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSe
 - **An index whose type read throws at eval** also keeps the value-kind rule. This is a class-cast default substituted untyped. The JVM keyed its Upcast on the declared type of the Deserialize node it replaced, which the substitution erases in ergots (residual 3).
 
 The JVM charges the 10 while it evaluates the index; ergots charges it when it widens. ergots charges ByIndex's own 30 before the children (Pattern A in `facts/ergoscript-eval.md`'s cost table), where the JVM charges it after the input and the index (`transformers.scala:257-278`). The totals are equal, and at a cost-limit trip both reject.
+
+### 9. Nodes the JVM does not evaluate (`eval/bin-op/bit.ts`, `eval/bit-inversion.ts`)
+
+The JVM 6.0.6 gives some deserializable nodes no `eval`. The default `Value.eval` throws `sys.error("Should be overriden …")` (`values.scala:102`). So a spend that evaluates such a node is rejected, while a tree that holds one only in a branch never evaluated stays valid.
+
+The probe's spend mode confirmed each of these at v0 and at v3:
+- the six BitOps: `BitOr`, `BitAnd`, `BitXor`, `BitShiftLeft`, `BitShiftRight` and `BitShiftRightZeroed`;
+- `BitInversion`, `SigmaPropIsProven`, `CreateAvlTree` and `TreeLookup`.
+
+The ModQ family and TaggedVariable are in the same class, but ergots rejects them at parse (residual 5). The substitution replaces the Deserialize nodes before any eval.
+
+**What ergots did before this branch.**
+- It already rejects `SigmaPropIsProven`, `CreateAvlTree`, `TreeLookup` and the three shifts.
+- It evaluates `BitOr`, `BitAnd`, `BitXor` and `BitInversion`, following sigma-rust. This is an over-accept that `master` has: for example, v0 `sigmaProp(BitOr(1, 2) == 3)` reduces to true in ergots and is rejected by the JVM.
+
+**The change.**
+- Every BitOp and `BitInversion` rejects at eval with `EvalError('unsupported-eval-node')`, as `CreateAvlTree` and `TreeLookup` already do.
+- It charges no cost and evaluates no operand, since the JVM throws before either.
+- The v6 numeric methods (`bitwiseOr` and the rest, `shiftLeft` and the rest) are method calls with their own handlers, and they are unchanged.
 
 ## Behavior matrix (JVM = ergots after this change)
 
