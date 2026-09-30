@@ -1,7 +1,7 @@
 // A script decoded at spend whose own construction throws (spec
 // docs/specs/2026-09-30-jvm-node-construction-design.md §5 item 2, the decode). The JVM decodes a
 // DeserializeContext or DeserializeRegister script with ValueSerializer.deserialize inside
-// substDeserialize (Interpreter.scala:79-87, 110-129; ErgoLikeInterpreter.scala:17-37), under Kiama's
+// substDeserialize (Interpreter.scala:99-107, 110-129; ErgoLikeInterpreter.scala:17-37), under Kiama's
 // strategy, which swallows a ClassCastException and leaves the node in place
 // (core/.../sigma/kiama/rewriting/Rewriter.scala:180-191). So a dead node accepts and a live one
 // rejects when it is evaluated. Any other decode failure propagates: the spend rejects, dead or live.

@@ -35,6 +35,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems } from './_coll-helpers'
+import { readCheckedType } from './_check-type'
 
 // Cost source: sigma-rust eval/coll_by_index.rs:18
 //   ctx.add_jit_cost(30)?;
@@ -75,17 +76,22 @@ export function evalByIndex(e: ByIndex, env: Env, ctx: EvalContext): SValue {
   const inBounds = idx >= 0 && idx < inputColl.items.length
 
   if (e.default !== null) {
+    // ByIndex.eval (transformers.scala:256-273): checkType reads the default's type right after the default is
+    // evaluated, from v3 only when it is taken, before v3 always (spec §5 item 5).
     if (treeVersion >= LAZY_DEFAULT_MIN_VERSION) {
       // V3+: lazy — default only evaluated on OOB.
       // Mirrors: `val.map(Ok).unwrap_or_else(default_v)` (line 34)
       if (inBounds) {
         return inputColl.items[idx]!
       }
-      return evalExpr(e.default, env, ctx)
+      const defaultVal = evalExpr(e.default, env, ctx)
+      readCheckedType(e.default, ctx)
+      return defaultVal
     } else {
       // V0/V1/V2: eager — default always evaluated.
       // Mirrors: `Ok(val.unwrap_or(default_v()?)` (line 36)
       const defaultVal = evalExpr(e.default, env, ctx)
+      readCheckedType(e.default, ctx)
       if (inBounds) {
         return inputColl.items[idx]!
       }

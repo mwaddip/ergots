@@ -16,6 +16,11 @@
  *       path.
  *   (b) The node lives inside an already-substituted inner Expr (recursive
  *       Deserialize) — `try_rewrite_bu` does NOT re-walk substituted children.
+ *   (c) Since 2026-09-30: SELF's register is present but not a `Coll[Byte]`, or
+ *       its script's decode or type read failed with a class cast. The JVM's
+ *       Kiama `strategy` swallows that ClassCastException and leaves the node
+ *       (ErgoLikeInterpreter.scala:17-37; Rewriter.scala:180-191), which throws
+ *       only if it is evaluated ("Should be overriden").
  *
  * No eval of e.default (it would have been evaluated by the substitute pass
  * if needed). No cost charged.
@@ -32,7 +37,8 @@ export function evalDeserializeRegister(
 ): never {
   throw new EvalError(
     `DeserializeRegister: node reached eval — substitute pass did not rewrite ` +
-      `(register absent + no default, OR nested in inner-Expr). reg=${e.reg} tpe=${e.tpe.tag}`,
+      `(register absent with no default, a register that is not Coll[Byte], a class cast while its script ` +
+      `was decoded or typed, OR nested in a substituted script). reg=${e.reg} tpe=${e.tpe.tag}`,
     'deserialize-not-substituted',
   )
 }

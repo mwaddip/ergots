@@ -31,8 +31,9 @@
  *     + B-core soft-fork preservation (+'unparsed-ergotree', 2026-06-17: an
  *       UnparsedErgoTree handed to evaluate; net 85 → 86)
  *     + the JVM's node construction (2026-09-30: −'method-call-empty-args', moved to
- *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84) —
- *       current total: 84, as the union below counts
+ *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84;
+ *       then +'deserialize-rebuild-failed', the substitution's rebuild check; 84 → 85) —
+ *       current total: 85, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -112,6 +113,9 @@
  *        The union held 86 before this step, two more than this chain records, and holds 85 after.
  *    − 1 code removed on 2026-09-30 ('v6-type-in-pre-v3-tree': its pre-eval pass is gone, since
  *        every type is read at the JVM's version at parse; the same spec, §4a) → 84.
+ *    + 1 code added on 2026-09-30 ('deserialize-rebuild-failed': an ancestor the Deserialize
+ *        rewrite rebuilds fails the constructor's checks, as Kiama's dup runs them; the same
+ *        spec, §5) → 85.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -645,13 +649,12 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2i-c — Deserialize family (originally 5 new codes; 59 → 64; F1 removed
-  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63). Substitute-pre-pass
-  // architecture mirroring sigma-rust eni eval.rs:203-250 + mir/expr.rs:442-496.
-  // Codes 1-3 are thrown by substituteDeserialize; code 4 is the defensive
-  // eval-time throw on the Deserialize* arms (reached when substitute pass
-  // does NOT rewrite — DR with register absent + default null, a recursive
-  // Deserialize inside a substituted inner Expr, OR — post-F1 — a LIVE DC over
-  // an absent/wrong-typed var).
+  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63; 2026-09-30 added
+  // 'deserialize-rebuild-failed' → 5 codes). Substitute-pre-pass architecture,
+  // since 2026-09-30 the JVM's Kiama rewrite (eval/_substitute-deserialize.ts).
+  // All but 'deserialize-not-substituted' are thrown by substituteDeserialize;
+  // that one is the defensive eval-time throw on the Deserialize* arms (reached
+  // when the substitution leaves a node in place and a live branch evaluates it).
   // -------------------------------------------------------------------------
   // NOTE: 'deserialize-context-key-not-found' was REMOVED in F1 — an absent
   // DeserializeContext var now LEAVES the node unchanged (JVM `substDeserialize`
@@ -659,15 +662,14 @@ export type EvalErrorCode =
   // errors at eval via 'deserialize-not-substituted' (below); a DEAD branch is
   // evaluable. See _substitute-deserialize.ts:substituteDeserializeContext.
   /**
-   * Raised by: (1) `DeserializeRegister` substitute pass when the register
-   * entry is present but NOT a Coll[Byte] (eager throw — DR rejects at
-   * substitution, unlike DC which leaves the node post-F1); (2) the downstream
-   * `collByteToUint8Array` value-shape check on a present Coll[Byte]-typed entry
-   * whose items contain non-Byte elements (both DC and DR). Mirrors sigma-rust
-   * eni `try_extract_into::<Vec<u8>>()` failure.
-   *
-   * Source (eni): DR `try_extract` at mir/expr.rs:482 (.transpose()? :492).
-   * (Post-F1 the DC tpe path at :459-462 LEAVES the node — no longer this code.)
+   * Raised by the `collByteToUint8Array` value-shape check on a context variable
+   * or register TYPED `Coll[Byte]` whose value is not a `Coll` of Byte items
+   * (both DC and DR; a defensive check, unreachable from parsed data). A
+   * variable or register whose TYPE is not `Coll[Byte]` leaves the node
+   * instead: the JVM's `substDeserialize` gives `None` for the variable
+   * (Interpreter.scala:110-129), and its `strategy` swallows the register's
+   * `ClassCastException` from `eba.value.toArray` (ErgoLikeInterpreter.scala:17-37;
+   * the DR eager throw before 2026-09-30 was sigma-rust's, not the JVM's).
    */
   | 'deserialize-input-not-byte-array'
   /**
@@ -695,6 +697,17 @@ export type EvalErrorCode =
    * Source: ergotree-ir/src/mir/expr.rs:486-491
    */
   | 'deserialize-tpe-mismatch'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` substitute pass (2026-09-30): an
+   * ancestor that the rewrite rebuilds around a substituted node fails
+   * `checkBuild(node, 'rebuild', v)`, the constructor's checks that Kiama's `dup`
+   * runs by reflection (core/.../sigma/kiama/rewriting/Rewriter.scala:236-320,
+   * 446-471). Nothing catches a constructor's throw inside `dup`, so a class
+   * cast rejects here too. The check's own error is the `cause`.
+   *
+   * Source: spec docs/specs/2026-09-30-jvm-node-construction-design.md §5 item 1
+   */
+  | 'deserialize-rebuild-failed'
   /**
    * `DeserializeContext` / `DeserializeRegister` eval-time defensive throw.
    * Reached when the substitute pass did NOT rewrite this node:

@@ -53,6 +53,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
@@ -160,6 +161,8 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     // Eval body (sigma-rust coll_map.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
+    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+    readCheckedType(closure.body, ctx)
     // Result-type check: if outElemTpe is known AND not SAny, verify itemRes matches.
     // SAny is the "any type" placeholder used when the mapper's static return
     // type isn't constrainable (e.g. polymorphic lambdas, mappers whose result

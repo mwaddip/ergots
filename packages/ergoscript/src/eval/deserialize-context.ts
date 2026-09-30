@@ -21,7 +21,9 @@
  *       substitution — JVM `substDeserialize` returns None; F1), so a LIVE such
  *       node reaches this throw while a DEAD-branch one never does. This is the
  *       eval-time half of the h=111927 testnet-wedge fix: dead branches stay
- *       evaluable, live reaches still error.
+ *       evaluable, live reaches still error. Since 2026-09-30 also a decode or
+ *       type read of the variable's script that failed with a class cast, which
+ *       the JVM's Kiama `strategy` swallows (Rewriter.scala:180-191).
  *
  * No eval of e.input (there is no input field — the arm's payload is just
  * the SType + var id). No cost charged.

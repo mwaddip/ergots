@@ -33,6 +33,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 
 const APPLY_COST = 30
 
@@ -74,5 +75,8 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust apply.rs (mirrors block.rs:30 / block-value.ts:31)
     bodyEnv = bodyEnv.extend(closure.argIds[i]!, argValues[i]!)
   }
-  return evalExpr(closure.body, bodyEnv, ctx)
+  const result = evalExpr(closure.body, bodyEnv, ctx)
+  // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+  readCheckedType(closure.body, ctx)
+  return result
 }

@@ -42,11 +42,24 @@
  * accepts), and a wrong-arg-count Apply rejects via apply.ts's own structural
  * arity guard ('apply-arity-mismatch') — no closure-path hook needed.
  *
+ * `readCheckedType(node, ctx)` is the type READ each JVM `checkType` site makes
+ * first (`val tpe = node.tpe`), before it compares the value's class (spec
+ * docs/specs/2026-09-30-jvm-node-construction-design.md §5 item 5). A read that
+ * throws rejects there, even where the value is fine: a class-cast default that
+ * the Deserialize substitution put in untyped is the case. The sites that make
+ * only this read, without `assertValueTypeSupported`: EQ's and NEQ's operands
+ * (bin-op/relation.ts), the taken If branch (if.ts), Fold's zero (coll-fold.ts),
+ * ByIndex's and OptionGetOrElse's defaults (coll-by-index.ts,
+ * option-get-or-else.ts), and a lambda's body at each application (apply.ts and
+ * the HOF arms). The comparison of the value's class there is residual 7.
+ *
  * Source: JVM SType.scala:200-205, values.scala:251-254.
  */
 
-import type { SType } from '../mir/types'
+import type { Expr, SType } from '../mir/types'
+import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { exprTpe } from '../mir/expr-tpe'
 
 /**
  * Throw `EvalError('unsupported-value-type', …)` iff `tpe` is a declared type
@@ -69,4 +82,12 @@ export function assertValueTypeSupported(tpe: SType): void {
       'unsupported-value-type'
     )
   }
+}
+
+/**
+ * The type read of the JVM's `Value.checkType(node, value)` (values.scala:251-254): `node.tpe`, at the evaluation's
+ * version. Its `ExprTpeError` propagates. Call it where the JVM's `checkType` runs, right after `node` is evaluated.
+ */
+export function readCheckedType(node: Expr, ctx: EvalContext): SType {
+  return exprTpe(node, ctx.treeVersion ?? 0)
 }

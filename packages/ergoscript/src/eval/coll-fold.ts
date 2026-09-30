@@ -65,6 +65,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_fold.rs:48
@@ -90,6 +91,9 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
   // Sigma-rust coll_fold.rs:18-20: input_v, zero_v, fold_op_v in order.
   const inputVal = evalExpr(e.input, env, ctx)
   const zeroVal = evalExpr(e.zero, env, ctx)
+  // Fold.eval (transformers.scala:226-227): checkType reads the zero's type right after the zero is evaluated
+  // (spec §5 item 5).
+  readCheckedType(e.zero, ctx)
   const foldOpVal = evalExpr(e.foldOp, env, ctx)
 
   // Guard: input must be Coll.
@@ -143,6 +147,8 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
 
     // Eval body (sigma-rust coll_fold.rs:31: func_value.body.eval(env, ctx)).
     const newAcc = evalExpr(closure.body, itemEnv, ctx)
+    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+    readCheckedType(closure.body, ctx)
 
     // Result-type check: acc kind must remain consistent across iterations.
     // Sigma-rust: type system prevents kind mismatch statically; TS does it dynamically.

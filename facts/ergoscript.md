@@ -53,7 +53,7 @@ No `Buffer`, no `node:*` outside test files, no WASM.
 The package exports multiple typed error classes, one per surface, each carrying a structural `code: string` for programmatic dispatch:
 
 - **Wire layer** (see [`ergoscript-wire.md`](./ergoscript-wire.md) for full taxonomy): `ErgoTreeParseError`, `ErgoTreeSerializeError`, `ExprParseError`, `ExprSerializeError`, `STypeParseError`, `STypeSerializeError`, `SValueParseError`, `SValueSerializeError`, `SigmaBooleanParseError`, `SigmaBooleanSerializeError`, `ExprTpeError`, `ReaderError`, `AddressDecodeError`.
-- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 86 codes): `EvalError`.
+- **Evaluator layer** (see [`ergoscript-eval.md`](./ergoscript-eval.md) for full taxonomy of 85 codes): `EvalError`.
 - **Sigma-protocol verifier** (see [`ergoscript-sigma.md`](./ergoscript-sigma.md) for full taxonomy of 9 codes): `VerifyError`.
 
 Common discipline: `.message` is human-readable; `.code` matches a fixed enum of structural reason strings for programmatic handling. No other error classes are exported. Internal panics (e.g., a bug in `@noble/hashes` or `@noble/curves`) bubble up as plain `Error` — those represent contract violations *inside* the package and are bugs, not input-shape issues.
