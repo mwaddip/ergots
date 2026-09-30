@@ -375,6 +375,7 @@ Before tree v3, the JVM's parse upcasts a Byte or Short index to Int (`ByIndexSe
 - **A statically Byte or Short index.** The JVM evaluated the inserted `Upcast`. ergots charges its `NumericCastCostKind` of 10 for an SInt target (`CostKind.scala:60-66`) and accepts a Byte, Short or Int value, as `SInt.upcast` does (`SType.scala:465-470`).
 - **A statically Int index** takes an Int value only, as the JVM's `evalTo[Int]` does. A Byte value there is a `ClassCastException` in the JVM. It is reachable without any default, because the JVM checks a collection argument by its class only (`SType.scala:198-201`): `sigmaProp(((c: Coll[Int]) => Coll(5, 7)(c(0)))(Coll[Byte](1)) == 7)` at v0 rejects in the JVM, and so it must in ergots.
 - **An index typed as ergots' own SAny** keeps the value-kind rule (residual 1).
+- **An index whose type read throws at eval** also keeps the value-kind rule. This is a class-cast default substituted untyped. The JVM keyed its Upcast on the declared type of the Deserialize node it replaced, which the substitution erases in ergots (residual 3).
 
 The JVM charges the 10 while it evaluates the index; ergots charges it when it widens. ergots charges ByIndex's own 30 before the children (Pattern A in `facts/ergoscript-eval.md`'s cost table), where the JVM charges it after the input and the index (`transformers.scala:257-278`). The totals are equal, and at a cost-limit trip both reject.
 
