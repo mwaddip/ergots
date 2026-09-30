@@ -258,10 +258,10 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
 | A nested box's own tree | its own header version |
 | A script decoded at spend | the spent tree's version (`Interpreter.scala:207, 245`) |
 | A SubstConstants template's constants, at eval | the spent tree's version |
-| Top-level box registers and the context extension | 3: the ergo node parses a block's transactions at (3, 3) since 6.0. This cannot change a verdict: every version-dependent kind rejects there under (1, 1) and (3, 3) alike (`W:111-115`) |
+| Top-level box registers and the context extension | 3: the ergo node parses a block's transactions, and the mempool's, at (3, 3) since 6.0. The version does change some verdicts here: an R4 holding an empty `Coll[Int => Int]` is accepted at (3, 3), and rejected at (1, 1) (rule 1008) and at (3, 0) (rule 1018), since `CheckV6Type` does not flag SFunc. 3 is still exact: a block from before activation could not carry such a value, since the nodes of its time rejected it |
 
 **Type reads (rules 1017 and 1018).** `parseSType(r, treeVersion)` and `parseSTypeWithFirstByte(c, r, treeVersion)` take the version, and pass it down the recursion. Each failure is raised at the byte where the JVM checks (`TypeSerializer.scala:16-25, 132-233`):
-- **Rule 1017.** An embeddable primitive id outside 1..8, or 9 below v3, is `STypeParseError('type-code-primitive-unknown')`.
+- **Rule 1017.** An embeddable primitive id of 10 or 11 at any version, or of 9 below v3 (UnsignedBigInt from v3), is `STypeParseError('type-code-primitive-unknown')`.
   - This includes an id embedded in a container code (21–23, 33–35, …, 93–95).
   - A Pair1 or Pair2 primitive id is checked before the next type is read (`TypeSerializer.scala:160, 170-171`).
 - **Rule 1018.** A code the JVM does not match (107–111, 113–255, and 112 below v3) is `STypeParseError('type-code-unknown')`.
@@ -269,6 +269,19 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
 - **The map** of all 256 first bytes at v0 and v3 is the audit's §2. 83 codes agree today; 173 diverge at v0 and 164 at v3.
 
 **SFunc data (rule 1009).** Data of an SFunc type is `CheckSerializableTypeCode`'s soft failure (`CoreDataSerializer.scala:144-146`: code 112 is above `LastDataType`, 111). That covers a constant or a register value. It is reachable from v3, since below v3 the type read fails first. ergots' SFunc data arm throws `SValueParseError('data-type-not-serializable')`, soft. The other types with no data form, codes 111 and below, stay hard, as the JVM's `SerializerException` is.
+
+**A `Coll`'s element type (`stypeToRType`, hard).** The soft 1009 above is faithful only with this check (spec review of §4a, C1). The JVM runs `Evaluation.stypeToRType(elem)` right after a `Coll`'s length is read, before any item, whenever the element type is neither Boolean nor Byte (`CoreDataSerializer.scala:152-166`). That includes an empty `Coll`. An element that is itself a tuple of other than two items is not checked (`:162-163`).
+- `stypeToRType` (`Evaluation.scala:22-55`) accepts every primitive and predefined type: Boolean through SigmaProp, String, Any, Unit, UnsignedBigInt, Box, Context, Global, Header, PreHeader and AvlTree.
+- It recurses through a pair, any other tuple nested below the element, `Coll`, `Option`, and an SFunc of exactly one argument and no type parameters (its argument and result).
+- It throws a plain `RuntimeException` (`sys.error`), a hard reject, for anything else: an STypeVar anywhere, or an SFunc with other than one argument or with type parameters.
+- ergots' `Coll` data arm (`parse-svalue.ts`) makes the same check at the same point, with `SValueParseError('coll-elem-type-no-rtype')`, hard.
+- **Probed** (review of §4a, `review1`–`review7`):
+  - a sized v3 `Coll[(Int, Int) => Int]` with one item is rejected by the JVM. With a soft 1009 alone, ergots would degrade it and accept the box: that is the over-accept this check prevents;
+  - the same for `Coll[Int => T]`, `Coll[[T](Int) => Int]`, `Coll[((Int, Int) => Int, Int)]` and `Coll[Option[(Int, Int) => Int]]`;
+  - a one-argument SFunc element, a three-item tuple element and an `Option[SFunc]` outside a `Coll` reach 1009, soft.
+- **It also closes two over-accepts that predate this branch:**
+  - a sized v0 `Coll[Option[T]]` or `Coll[(Option[Int], T)]` degrades in ergots through its Option gate, where the JVM rejects;
+  - an empty `Coll[T]` or `Coll[(Int, Int) => Int]` parses in ergots, where the JVM rejects.
 
 **Method lookups (rules 1010 and 1016).** `SMethod.fromIds` (`SMethod.scala:344-349`) runs `CheckTypeWithMethods` (1010: the typeId has no methods container), then `CheckAndGetMethodV6` (1016: an unknown method id). Each runs against its version class's table.
 - **The table** is the JVM's own, dumped with the probe's `methods` mode over every (typeId, methodId).
@@ -288,6 +301,10 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
 - A soft failure in a SubstConstants template at eval rejects the spend (`W:138`).
 
 **`validate-v6-types.ts` is deleted.** Every type it walked now comes from a versioned read, so it is dead for parsed input. A sized pre-v3 tree with a v6 type degrades, and its spend fails with `'unparsed-ergotree'`, as in the JVM (`W:123-124`). An unsized one rejects at parse (`W:25`). Its calls in `dispatchTreeBody` go, and its tests move to parse-level expectations.
+- **The API change.** `evaluate` on MIR a caller builds no longer rejects a v6 type in a pre-v3 tree, and `'v6-type-in-pre-v3-tree'` leaves the `EvalError` codes. `API.md` and `facts/ergoscript-eval.md` record both.
+- **The policy, as for `validateBinOpTypes` and `validateMethodCallArity` (Decision 6):**
+  - a pre-eval whole-tree pass that repeats a parse-time check goes, since the JVM has no such pass;
+  - an arm's own version guard stays, as a defensive check on built MIR. The method handlers' `minVersion` (`'tree-version-too-low'`) is one: it is unreachable for parsed input once the lookup of §4a runs at parse.
 
 **The public API.** The exported `parseSType` gains a required version argument. That is a breaking change for a 0.x minor release, and `API.md` records it.
 
@@ -481,7 +498,10 @@ The probe's reduction costs also include the deserialization charge the Follow-u
      - the nested-register versions (`W:126-129`);
      - the spend cases (`W:116-124, 138`);
      - the id case (`R:1`);
-   - the method table's fixture against the TS table.
+   - the method table's fixture against the TS table;
+   - §4a's `Coll` element check: the review's C1 witnesses (each JVM reject, and no degrade), its controls, and the two pre-branch over-accepts it closes;
+   - the top-level version: an R4, and a context-extension variable, holding an empty `Coll[Int => Int]`, accepted at 3;
+   - the Pair1 and Pair2 order: a primitive id is checked before the next type is read.
 4. **Mutation checks** on the hook call, each in-arm check, the rebuild check, the swallow, and the default's class-cast exception.
 5. **Existing expectations that change:**
    - `rule-1001-jvm-sany-arms.test.ts` (codes, not verdicts);
