@@ -352,10 +352,12 @@ describe('SelectField: the tuple cast, then the index (transformers.scala:294-29
     const b = probed('T4-sf-index-1-over-tuple-control', sp(EQ(SelectField(Tuple(int(1), int(2)), 1), int(1))), 0x00, '00d1938c860204020404010402')
     expectParsed(parseBox(b))
   })
-  describe("through an If whose branches differ, as in the JVM: the parse accepts, the eval rejects", () => {
-    // The JVM's If does not check its branch types, and is typed by its true branch
-    // (sigma/ast/trees.scala:1347-1350), so the parse checks the index against the true branch; the
-    // false branch's value reaches the eval. The probe parses both trees, and rejects both spends.
+  describe('through a node the JVM types from one child without checking another against it: the parse accepts, the eval rejects, as in the JVM', () => {
+    // The JVM types some nodes from one child and checks no other child against that type: If from its
+    // true branch, not its false one (sigma/ast/trees.scala:1348-1351); OptionGetOrElse and ByIndex from
+    // their input, not their default (sigma/ast/transformers.scala:622-626, 249-254). The parse checks the
+    // index against that type, and the other child's value reaches the eval. These are examples, not a
+    // closed list. The probe parses each tree, and rejects each spend.
     it('F1-sf-if-tuple3-tuple2-index3: SelectField(If(false, (1, 2, 3), (1, 2)), 3) (the JVM: Unknown fieldIndex 3)', () => {
       const body = sp(EQ(SelectField(If(bool(false), Tuple(int(1), int(2), int(3)), Tuple(int(1), int(2))), 3), int(0)))
       const b = probed('F1-sf-if-tuple3-tuple2-index3', body, 0x00, '00d1938c9501008603040204040406860204020404030400')
@@ -365,6 +367,28 @@ describe('SelectField: the tuple cast, then the index (transformers.scala:294-29
     it('F1-sf-if-pair-int-index1: SelectField(If(false, (1, 2), 5), 1) (the JVM: InterpreterException, Value.typeError)', () => {
       const body = sp(EQ(SelectField(If(bool(false), Tuple(int(1), int(2)), int(5)), 1), int(1)))
       const b = probed('F1-sf-if-pair-int-index1', body, 0x00, '00d1938c950100860204020404040a010402')
+      const tree = expectParsed(parseBox(b))
+      expect(captureEvalError(() => evaluate(tree)).code).toBe('select-field-input-not-tuple')
+    })
+    // Variable 1 is absent from an empty context extension, as in the probe's spend, so OptionGetOrElse
+    // gives its default.
+    const NO_VAR1: EvalOpts = { extension: { values: new Map() } }
+    const getOrElse = (varTpe: SType, def: Expr): Expr => ({ tag: 'OptionGetOrElse', input: GetVar(1, varTpe), default: def })
+    it('F2-sf-getorelse-triple-default-pair-index3: SelectField(getVar[(Int, Int, Int)](1).getOrElse((1, 2)), 3) (the JVM: Unknown fieldIndex 3)', () => {
+      const body = sp(EQ(SelectField(getOrElse(T.Tuple(T.Int, T.Int, T.Int), Tuple(int(1), int(2))), 3), int(0)))
+      const b = probed('F2-sf-getorelse-triple-default-pair-index3', body, 0x00, '00d1938ce5e30148040404860204020404030400')
+      const tree = expectParsed(parseBox(b))
+      expect(captureEvalError(() => evaluate(tree, NO_VAR1)).code).toBe('select-field-index-out-of-range')
+    })
+    it('F2-sf-getorelse-pair-default-int-index1: SelectField(getVar[(Int, Int)](1).getOrElse(5), 1) (the JVM: InterpreterException, Value.typeError)', () => {
+      const body = sp(EQ(SelectField(getOrElse(T.Tuple(T.Int, T.Int), int(5)), 1), int(1)))
+      const b = probed('F2-sf-getorelse-pair-default-int-index1', body, 0x00, '00d1938ce5e30158040a010402')
+      const tree = expectParsed(parseBox(b))
+      expect(captureEvalError(() => evaluate(tree, NO_VAR1)).code).toBe('select-field-input-not-tuple')
+    })
+    it('F2-sf-byindex-default-int-index1: SelectField(Coll((1, 2)).getOrElse(5, 7), 1) (the JVM: ClassCastException, Integer to Tuple2)', () => {
+      const body = sp(EQ(SelectField(ByIndex(Coll(T.Tuple(T.Int, T.Int), [Tuple(int(1), int(2))]), int(5), int(7)), 1), int(1)))
+      const b = probed('F2-sf-byindex-default-int-index1', body, 0x00, '00d1938cb2830158860204020404040a01040e010402')
       const tree = expectParsed(parseBox(b))
       expect(captureEvalError(() => evaluate(tree)).code).toBe('select-field-input-not-tuple')
     })
