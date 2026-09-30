@@ -7,9 +7,9 @@
  */
 import { describe, it, expect } from 'vitest'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { parseTree } from '../../src/wire/ergo-tree'
+import { ErgoTreeParseError, parseTree as parseTreeLenient } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes } from '../_helpers'
+import { atTreeVersion, hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 import { ByteReader, parseHeader } from '@ergots/scorex'
 import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
@@ -42,12 +42,14 @@ describe('SHeader.checkPow oracle (Phase 2h-c.2)', () => {
     // The header is provided as raw scorex-serialized bytes in headerHexBytes;
     // parseHeader decodes it into the runtime Header shape for makeContext().
     //
-    // We pass treeVersion: 3 explicitly so the dispatcher's minVersion gate (Task
-    // 7) allows CHECK_POW_METHOD (minVersion=3) to be dispatched. The tree itself
-    // was serialized with a V0 envelope by fixture-gen; treeVersion in makeContext
-    // overrides the envelope's version for evaluation purposes.
+    // The tree was serialized with a V0 envelope by fixture-gen, which put the
+    // version in the eval context instead. checkPow (104:16) is a v3 method, and
+    // the JVM looks it up at the tree's own version, so the scenario is the same
+    // body in a v3 tree (`atTreeVersion`; the V0 tree is rejected at parse, pinned
+    // below). The JVM parses the v3 tree (a local sigma-state 6.0.6 probe, tree
+    // mode, v3).
 
-    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    const tree = parseTree(atTreeVersion(hexToBytes(fixture.exprBytes), 3))
     const headerBytes = hexToBytes(fixture.headerHexBytes)
     const header = parseHeader(new ByteReader(headerBytes))
 
@@ -63,10 +65,29 @@ describe('SHeader.checkPow oracle (Phase 2h-c.2)', () => {
   })
 })
 
+describe("the fixture's own V0 tree: checkPow is a v3 method, so the method lookup fails at parse", () => {
+  it('rejected at parse (rule 1016 in an unsized tree)', () => {
+    // The JVM rejects it: SerializerException, "Cannot handle ValidationException, ErgoTree serialized
+    // without size bit.", over rule 1016 (a local sigma-state 6.0.6 probe, tree mode, lenient and under
+    // the box rules).
+    let err: unknown
+    try {
+      parseTreeLenient(hexToBytes(fixture.exprBytes))
+    } catch (x) {
+      err = x
+    }
+    expect(err).toBeInstanceOf(ErgoTreeParseError)
+    expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+    expect(((err as Error).cause as { code?: string }).code).toBe('method-unknown')
+  })
+})
+
 describe('SHeader.checkPow V<3 reject (parallel-pair cost correctness)', () => {
   // One parsed tree reused across all 4 runs — dispatcher reads ctx.treeVersion,
-  // NOT tree.header.version, so a single tree object is sufficient.
-  const tree = parseTree(hexToBytes(fixture.exprBytes))
+  // NOT tree.header.version, so a single tree object is sufficient. The tree is
+  // v3: a V<3 tree fails the method lookup at parse, so the dispatcher's gate,
+  // a defensive check, is reached only through a caller's lower eval version.
+  const tree = parseTree(atTreeVersion(hexToBytes(fixture.exprBytes), 3))
   const headerBytes = hexToBytes(fixture.headerHexBytes)
   const header = parseHeader(new ByteReader(headerBytes))
 
@@ -110,8 +131,8 @@ describe('SHeader.checkPow V1 header rejection', () => {
     const v1Header = parseHeader(new ByteReader(v1HeaderBytes))
     expect(v1Header.version).toBe(1)
 
-    // fixture.exprBytes is the sigma-serialized full ErgoTree, reused from the oracle test.
-    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    // fixture.exprBytes is the sigma-serialized full ErgoTree, reused from the oracle test, in a v3 tree.
+    const tree = parseTree(atTreeVersion(hexToBytes(fixture.exprBytes), 3))
 
     // Supply the V1 header via context; treeVersion: 3 gates the dispatcher to allow CHECK_POW_METHOD.
     const ctx = makeContext({
@@ -139,8 +160,8 @@ describe('SHeader.checkPow edge cases', () => {
     // SHeader.checkPow (104:16). checkPow is a ZERO-ARG method, so the
     // JVM-faithful encoding is the PropertyCall opcode (0xdb) — exactly how the
     // real fixture now serializes it. (A MethodCall-opcode (0xdc) empty-args node
-    // is rejected pre-eval by validateMethodCallArity at V3; see
-    // src/eval/validate-method-call-arity.ts.) PropertyCall and MethodCall share
+    // is rejected at parse at V3, as the JVM's MethodCallSerializer rejects it; see
+    // src/wire/mir/method-call.ts.) PropertyCall and MethodCall share
     // the same dispatch path for 104:16: the V3 gate passes (treeVersion=3); the
     // cost-700 charge runs; then assertHeaderObj throws because
     // obj.kind === 'Long' !== 'Header'.
@@ -184,8 +205,8 @@ describe('SHeader.checkPow edge cases', () => {
       },
     }
 
-    // Use parseTree (not parseExpr — parseExpr is not exported from ergo-tree.ts).
-    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    // Use parseTree (not parseExpr — parseExpr is not exported from ergo-tree.ts), on the v3 tree.
+    const tree = parseTree(atTreeVersion(hexToBytes(fixture.exprBytes), 3))
     const ctx = makeContext({ treeVersion: 3, headers: [mutatedHeader] })
 
     const result = evaluateWith(tree as any, ctx)
@@ -197,7 +218,7 @@ describe('SHeader.checkPow edge cases', () => {
   it('valid V2 header at chain tip returns Boolean(true) — fixture redundancy check', () => {
     // Mirror of the oracle test, here for organizational coherence with the
     // throw-path siblings.
-    const tree = parseTree(hexToBytes(fixture.exprBytes))
+    const tree = parseTree(atTreeVersion(hexToBytes(fixture.exprBytes), 3))
     const ctx = makeContext({ treeVersion: 3, headers: [header] })
 
     const result = evaluateWith(tree as any, ctx)

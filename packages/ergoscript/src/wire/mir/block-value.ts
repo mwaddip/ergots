@@ -13,11 +13,12 @@
  * VLQ on the wire (`sigma-ser/src/vlq_encode.rs:78` — calls `put_u64` with
  * `v as u64`).
  *
- * Each item is typed `Expr` on the AST side but in well-formed trees they
- * are `ValDef` nodes (let-bindings). Sigma-rust does NOT enforce this at
- * parse time — the items array accepts any Expr — so neither do we. The
- * compiler/prover invariant that items are ValDefs is preserved at the
- * higher (AST-shape) layer.
+ * Each item is typed `Expr` on the AST side, and the parse admits only a
+ * `ValDef` (a let-binding; a FunDef parses as one). The JVM casts each item to
+ * `BlockItem` as it is read (BlockValueSerializer.scala:38-40), a trait whose
+ * only subclass is `ValDef` (sigma/ast/values.scala:924, 945-948), so any other
+ * item is a ClassCastException there: `'block-value-item-not-val-def'`.
+ * Sigma-rust's parse accepts any Expr; ergots follows the JVM.
  *
  * An empty `items` list is wire-legal: `[count=0] [result Expr]`. Sigma-rust
  * accepts it (`Vec::sigma_parse` reads `count=0` and returns an empty Vec
@@ -37,6 +38,7 @@
 
 import type { BlockValue, Expr, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
+import { ExprParseError } from '../errors'
 // Forward import for recursive descent — see comment in val-def.ts.
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
@@ -60,7 +62,17 @@ export function parseBlockValue(
   const count = readArrayCount(r, 'BlockValue items count', 'block-too-many-items')
   const items: Expr[] = []
   for (let i = 0; i < count; i++) {
-    items.push(parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion))
+    const item = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+    // BlockValueSerializer.scala:39: r.getValue().asInstanceOf[BlockItem] right after each item is read,
+    // before the next; BlockItem's only subclass is ValDef (values.scala:924, 945-948). A
+    // ClassCastException, which the Deserialize substitution swallows (isJvmClassCast).
+    if (item.tag !== 'ValDef') {
+      throw new ExprParseError(
+        `BlockValue item ${i} is a ${item.tag}, not a ValDef (the JVM's BlockItem)`,
+        'block-value-item-not-val-def'
+      )
+    }
+    items.push(item)
   }
   const result = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
   return { tag: 'BlockValue', items, result }

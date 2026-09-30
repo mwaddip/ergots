@@ -12,14 +12,14 @@
  *
  * Using SAny as the declared arg type on the FuncValue causes evalMap to skip
  * the static elem-type check (mirrors the "SAny → skip" policy in coll-map.ts)
- * and also makes exprTpe(mapper) return SFunc{result:SUnsignedBigInt} — so
+ * and also makes exprTpe(mapper, v) return SFunc{result:SUnsignedBigInt} — so
  * outElemTpe carries SUnsignedBigInt. Because outElemTpe is concrete, evalMap
  * takes the "prefer outElemTpe" branch and skips inferSType entirely. To force
  * the inferSType path we must make outElemTpe=null (mapper is not FuncValue) OR
  * outElemTpe has SAny (so evalMap falls back to inferSType on the first item).
  *
  * Simplest forcing strategy: use a ValUse body whose tpe is SAny, making
- * exprTpe(FuncValue) return SFunc{result:SAny}. hasSAny(SAny)=true, so evalMap
+ * exprTpe(FuncValue, v) return SFunc{result:SAny}. hasSAny(SAny)=true, so evalMap
  * falls through to `inferSType(outItems[0])` — the path under test.
  */
 import { describe, it, expect } from 'vitest'
@@ -37,7 +37,7 @@ const ubi = (v: bigint): SValue => ({ kind: 'UnsignedBigInt', value: v })
  *
  * Mapper is FuncValue(args=[{id:1, tpe:SAny}], body=ValUse(1, SAny)).
  * - SAny arg type: elem-type check skipped (our SAny-tolerance policy).
- * - Body tpe SAny: exprTpe(FuncValue) → SFunc{result:SAny}; hasSAny(SAny)=true.
+ * - Body tpe SAny: exprTpe(FuncValue, v) → SFunc{result:SAny}; hasSAny(SAny)=true.
  *   evalMap therefore falls back to `inferSType(outItems[0])` to set outElem.
  *   That's the code path this test exercises.
  */

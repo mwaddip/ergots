@@ -7,6 +7,7 @@ import { describe, it, expect } from 'vitest'
 import { unifyTypes, unifyTypeLists, applySubst } from '../src/mir/type-unify'
 import type { STypeSubst } from '../src/mir/type-unify'
 import type { SType } from '../src/mir/types'
+import { SANY_JVM } from '../src/mir/types'
 
 const SBYTE: SType = { tag: 'SByte' }
 const SINT: SType = { tag: 'SInt' }
@@ -38,6 +39,9 @@ describe('type-unify — unifyTypes', () => {
   })
   it('Coll[T] vs STuple binds T→SAny (JVM collection-of-tuple case)', () => {
     expect(unifyTypes(coll(tv('T')), tup(SINT, SLONG))).toEqual(sub([['T', SANY]]))
+    // The JVM's own SAny (core/.../sigma/ast/package.scala:46-47), a known type, not ergots' own
+    // unresolved SAny, which every parse-time check would pass (residual 1).
+    expect(unifyTypes(coll(tv('T')), tup(SINT, SLONG))!.get('T')).toBe(SANY_JVM)
   })
   it('Option[T] vs Option[Int] binds T→Int', () => {
     expect(unifyTypes(opt(tv('T')), opt(SINT))).toEqual(sub([['T', SINT]]))

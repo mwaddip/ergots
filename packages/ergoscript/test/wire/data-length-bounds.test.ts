@@ -46,10 +46,10 @@ describe('SUnsignedBigInt length (toShort)', () => {
 
 describe('type code 0', () => {
   it('past the window, the checked read in the JVM error message wins', () => {
-    expect(codeOf(() => parseSType(reader([0x00, 0x01], 0)))).toBe('position-limit-exceeded')
+    expect(codeOf(() => parseSType(reader([0x00, 0x01], 0), 3))).toBe('position-limit-exceeded')
   })
-  it('inside the window it is invalid-type-code', () => {
-    expect(codeOf(() => parseSType(reader([0x00, 0x01])))).toBe('invalid-type-code')
+  it('inside the window it is type-prefix-invalid (the JVM InvalidTypePrefix)', () => {
+    expect(codeOf(() => parseSType(reader([0x00, 0x01]), 3))).toBe('type-prefix-invalid')
   })
 })
 

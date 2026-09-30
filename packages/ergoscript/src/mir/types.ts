@@ -63,27 +63,30 @@ export type SType =
  *     object;
  *   - a tuple's element type: `STuple` extends `SCollection[SAny]` with `elemType = SAny`
  *     (core/.../sigma/ast/SType.scala:838-841), so `exprTpe` types `ByIndex` over a tuple as this
- *     object (`ByIndex.tpe = input.tpe.elemType`, sigma/ast/transformers.scala:254).
+ *     object (`ByIndex.tpe = input.tpe.elemType`, sigma/ast/transformers.scala:254), and `unifyTypes`
+ *     binds a type variable to it when it matches a collection pattern with a tuple
+ *     (core/.../sigma/ast/package.scala:46-47; mir/type-unify.ts).
  * `exprTpe` mirrors the JVM node's `tpe`: it passes this object through, unchanged, where the JVM
- * types the node, and throws where the JVM casts it (a `ClassCastException`) or requires a numeric
- * type (`isNumTypeOrNoType`). It is told apart by identity from ergots' own `SAny`, a fresh object
- * that ergots' method typing makes (residual 1: an unregistered method's return, a result type
- * variable left unbound, a tuple's element type met by unification), which passes everywhere. Rule
- * 1001 fails a root typed as this object, as the JVM fails a root whose type is `SAny`
- * (`isSigmaProp`, core/.../sigma/ast/package.scala:121). Structurally it is `{ tag: 'SAny' }`, so
+ * types the node, and throws where the JVM casts it (a `ClassCastException`); where a constructor
+ * requires a numeric type (`isNumTypeOrNoType`), `checkBuild` rejects it (wire/check-build.ts). It is
+ * told apart by identity from ergots' own `SAny`, a fresh object that ergots' method typing makes
+ * (residual 1: an unregistered method's return, a result type variable left unbound), which passes
+ * everywhere. Rule 1001 fails a root typed as this object, as the JVM fails a root whose type is
+ * `SAny` (`isSigmaProp`, core/.../sigma/ast/package.scala:121). Structurally it is `{ tag: 'SAny' }`, so
  * equality checks and `serializeSType` treat it as any `SAny`.
  */
 export const SANY_JVM: SType = Object.freeze({ tag: 'SAny' })
 
 /**
- * The JVM's `NoType`, where it comes from the JVM's `SAny`: `exprTpe` types an `Apply` whose function
- * types as `SANY_JVM` (or as this object) as this object, as the JVM's `Apply.tpe` gives `NoType` for
- * a function type that is neither an `SFunc` nor a collection (sigma/ast/values.scala:1247-1251).
- * The JVM treats `NoType` like its `SAny` in two places: a cast of it throws, and rule 1001 fails it.
- * It differs in one: `isNumTypeOrNoType` (core/.../sigma/ast/package.scala:139) passes it, so
- * `Negation`, `BitInversion` and `BitOp` accept it where they reject `SAny`. An `Apply` of a function
- * of any other type throws `ExprTpeError('apply-func-no-type')` instead (residual 8). Structurally it
- * is `{ tag: 'SAny' }`, so every check by tag treats it as `SAny`, as it treated `SANY_JVM` there.
+ * The JVM's `NoType`: `exprTpe` types an `Apply` as this object when its function types as anything
+ * but an `SFunc`, a collection or ergots' own `SAny` (`SANY_JVM`, this object, an `STuple`, or any
+ * other type), as the JVM's `Apply.tpe` gives `NoType` for a function type that is neither an `SFunc`
+ * nor a collection (sigma/ast/values.scala:1247-1251). The JVM treats `NoType` like its `SAny` in two
+ * places: a cast of it throws, and rule 1001 fails it. It differs in two: `isNumTypeOrNoType`
+ * (core/.../sigma/ast/package.scala:139) passes it, so `Negation`, `BitInversion` and `BitOp` accept
+ * it where they reject `SAny`; and type equality tells the two apart (`NoType != SAny`,
+ * `jvmTypeEquals` and `scriptTypeEquals` in mir/jvm-types.ts). Structurally it is `{ tag: 'SAny' }`,
+ * so every check by tag treats it as `SAny`, as it treats `SANY_JVM`.
  */
 export const NOTYPE_JVM: SType = Object.freeze({ tag: 'SAny' })
 

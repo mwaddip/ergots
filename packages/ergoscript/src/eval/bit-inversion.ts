@@ -1,42 +1,37 @@
 /**
- * BitInversion arm — bitwise complement (`~x`) on numeric SValues.
+ * BitInversion arm — unconditional eval-reject.
  *
- * Result kind equals input kind. No overflow path: `~` is a self-inverse on
- * the bit pattern; `maskToKind` brings the unmasked bigint result back into
- * the kind's signed range.
+ * The JVM 6.0.6 has NO eval for BitInversion. The class (trees.scala:899-903,
+ * marked "Not implemented in v4.x" at :898) overrides no `eval`, and its companion
+ * has `costKind = Value.notSupportedError(this, "costKind")` (trees.scala:906), so
+ * the default `Value.eval` runs and throws `sys.error("Should be overriden in
+ * ...")` (values.scala:101-102). EVERY evaluation throws JVM-side, at tree v0 and
+ * at v3, whatever the operand's kind: a local sigma-state 6.0.6 probe (spend mode)
+ * rejects it at reduce, and accepts the same node in a branch that is never
+ * evaluated. The node still PARSES (the JVM builds it; its `require` is a
+ * wire-layer check, wire/check-build.ts).
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/bit_inversion.rs:15
- *   ctx.add_jit_cost(1)?;                       // BitOp = Fixed(1)
- *   let input_v = self.input.eval(env, ctx)?;   // eval child after cost
- *   match input_v { Byte(v)/Short/Int/Long/BigInt => Ok(...(!v)), ... }
+ * Cost: NOTHING is charged before the throw (there is no cost site to reach), and
+ * the operand is not evaluated: an operand that would throw differently is never
+ * reached. Spec: docs/specs/2026-09-30-jvm-node-construction-design.md §9.
  *
- * Cost-charging order: envelope BEFORE eval-child (matches sigma-rust line
- * 15 → 16; same posture as LogicalNot).
+ * The v6 `X.bitwiseInverse` method (method id 8, a property call;
+ * eval/_numeric-v6.ts) is the evaluated form: the JVM evaluates it. It shares no
+ * code with this arm and is unchanged.
  *
- * Non-numeric input: sigma-rust returns `EvalError::UnexpectedValue`
- * (bit_inversion.rs:23). We surface this as `'bin-op-not-numeric'` to
- * match the precedent set by 2c's `LogicalNot` reusing
- * `'bin-op-not-boolean'`.
+ * History: until 2026-09-30 this arm followed sigma-rust (bit_inversion.rs:15): a
+ * Fixed(1) envelope, then the operand, then the bitwise complement masked to the
+ * operand's kind, which is an over-accept against the JVM.
  */
 
-import type { BitInversion, SValue } from '../mir/types'
+import type { BitInversion } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-import { evalExpr } from './eval'
-import { bigIntToValue, isNumeric, maskToKind, valueToBigInt } from './bin-op/_numeric'
 
-const BIT_INVERSION_COST = 1
-
-export function evalBitInversion(e: BitInversion, env: Env, ctx: EvalContext): SValue {
-  ctx.addCost(BIT_INVERSION_COST)
-  const input = evalExpr(e.input, env, ctx)
-  if (!isNumeric(input.kind)) {
-    throw new EvalError(
-      `BitInversion: operand kind must be numeric, got '${input.kind}'`,
-      'bin-op-not-numeric'
-    )
-  }
-  const inverted = ~valueToBigInt(input)
-  return bigIntToValue(input.kind, maskToKind(inverted, input.kind))
+export function evalBitInversion(_e: BitInversion, _env: Env, _ctx: EvalContext): never {
+  // JVM: no eval override (trees.scala:899-903), so `Value.eval` throws
+  // (values.scala:101-102). Charge nothing, evaluate no operand: the JVM
+  // throws before either.
+  throw new EvalError('BitInversion has no JVM eval', 'unsupported-eval-node')
 }

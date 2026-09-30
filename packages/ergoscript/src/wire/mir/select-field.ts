@@ -5,21 +5,22 @@
  *
  *   [OP_SELECT_FIELD opcode = 0x8c]
  *   [input: Expr]              -- the tuple to index (post-eval type: STuple)
- *   [field_index: u8]          -- 1-based field index, valid range 1..=255
+ *   [field_index: u8]          -- 1-based field index (the JVM's signed Byte)
  *
  * SelectField projects one field of a tuple value. The `field_index` is a
- * single raw u8 with sigma-rust's `TupleFieldIndex` newtype enforcing
- * `>= 1` (`mir/select_field.rs:30-37`); the zero-based index used at
- * eval time is `fieldIndex - 1`.
+ * single raw byte; the zero-based index used at eval time is
+ * `fieldIndex - 1`.
  *
- * Sigma-rust's `SelectField::new` additionally enforces that the input is
- * an STuple of sufficient arity (`mir/select_field.rs:74-95`). We do NOT
- * enforce that at the wire layer — type-shape checks belong to a later
- * pass. We DO enforce the `>= 1` field-index bound at the wire layer,
- * because sigma-rust's parser does (`TupleFieldIndex::sigma_parse` at
- * `mir/select_field.rs:53-60`); a `field_index == 0` is structurally
- * invalid and must be rejected by the parser to match sigma-rust's
- * `ValueOutOfBounds` taxonomy.
+ * ergots follows the JVM, not sigma-rust, whose parser rejects index 0 at
+ * its byte (`TupleFieldIndex::sigma_parse`, `mir/select_field.rs:53-60`).
+ * The JVM reads the index as a signed Byte with no check
+ * (SelectFieldSerializer.scala:20-24), and the constructor casts the input's
+ * type to STuple before it indexes it (transformers.scala:294-295). So over a
+ * non-tuple an index of 0 is the cast's ClassCastException, which the
+ * Deserialize substitution swallows, not an index error. The parse hook
+ * (`checkBuild`) makes both checks, in that order, through `exprTpe`
+ * (facts/ergoscript-wire.md, "Node construction"). The writer still refuses
+ * an index outside 1..255.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/select_field.rs
@@ -28,17 +29,14 @@
 
 import type { SelectField, SType, SValue } from '../../mir/types'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { ExprParseError, ExprSerializeError } from '../errors'
+import { ExprSerializeError } from '../errors'
 import { parseExpr } from '../parse'
 import { serializeExpr } from '../serialize'
 
 /**
  * Parse a `SelectField` payload (the OP_SELECT_FIELD opcode byte was
  * consumed by the dispatcher). Reads the input Expr, then the one-byte
- * field index.
- *
- * Mirrors sigma-rust's `<SelectField as SigmaSerializable>::sigma_parse`
- * (`mir/select_field.rs:117-122`) and the bounded `TupleFieldIndex` newtype.
+ * field index, which the JVM's parse does not check (SelectFieldSerializer.scala:20-24).
  */
 export function parseSelectField(
   r: ByteReader,
@@ -48,13 +46,11 @@ export function parseSelectField(
   treeVersion: number
 ): SelectField {
   const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  // SelectFieldSerializer.scala:20-24: the index byte is read with no check. The constructor casts the
+  // input's type to STuple, then indexes it (transformers.scala:294-295), which the parse hook's type
+  // read mirrors: a non-tuple is a class cast whatever the index, and an index of 0, of 128 and more
+  // (a negative Byte) or past the arity is out of range (exprTpe's SelectField arm).
   const fieldIndex = r.readU8()
-  if (fieldIndex < 1) {
-    throw new ExprParseError(
-      `SelectField.fieldIndex must be >= 1, got ${fieldIndex}`,
-      'select-field-index-out-of-range'
-    )
-  }
   return { tag: 'SelectField', input, fieldIndex }
 }
 

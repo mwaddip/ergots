@@ -61,13 +61,13 @@ describe('the 0x85 lookahead belongs to Relation2 only', () => {
     expect(e.left.tag).toBe('Collection')
     expect(r.position).toBe(6)
   })
-  it('BitXor then 0x85 reads a whole Coll[Boolean] operand', () => {
-    // f5 BitXor | 85 02 03 (Coll[Boolean] of 2: true, true) | 04 02 (Int 1)
+  it('BitXor then 0x85 reads a whole Coll[Boolean] operand, then fails its require', () => {
+    // f5 BitXor | 85 02 03 (Coll[Boolean] of 2: true, true) | 04 02 (Int 1). Both operands are read,
+    // then the node is built and BitOp's require fails on the collection (trees.scala:913; a local
+    // sigma-state 6.0.6 probe, decode mode: IllegalArgumentException "invalid types
+    // left:Coll[SBoolean], right:SInt$").
     const r = new ByteReader(hex('f58502030402'))
-    const e = expr(r) as unknown as { tag: string; op: { kind: string }; left: { tag: string } }
-    expect(e.tag).toBe('BinOp')
-    expect(e.op.kind).toBe('Bit')
-    expect(e.left.tag).toBe('Collection')
+    expect(codeOf(() => expr(r))).toBe('bit-op-operand-not-numeric')
     expect(r.position).toBe(6)
   })
   it('Eq then 0x85 still reads the packed pair', () => {

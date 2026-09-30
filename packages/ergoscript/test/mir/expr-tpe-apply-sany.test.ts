@@ -1,9 +1,9 @@
 /**
- * exprTpe(Apply) — SAny func relaxation (v6 P6 Task 5).
+ * exprTpe(Apply, v) — SAny func relaxation (v6 P6 Task 5).
  *
  * An Apply whose func expression types to SAny (because the func itself is an
  * unresolved PropertyCall/MethodCall, which the A3 fallback returns SAny for)
- * must return SAny instead of throwing `apply-func-no-type`. This mirrors
+ * must return that SAny, not the JVM's NoType (NOTYPE_JVM). This mirrors
  * the ByIndex, OptionGet, SelectField, and Map arms which all carry the same
  * "SAny cascades through" convention: the JVM holds the concrete SFunc at
  * runtime but our static exprTpe can only say SAny; rejecting the tree would
@@ -41,11 +41,11 @@ const applyOfSAny: Expr = {
   args: [{ tag: 'Const', tpe: { tag: 'SInt' }, value: { kind: 'Int', value: 1 } }],
 }
 
-describe('exprTpe(Apply) — SAny func relaxation', () => {
+describe('exprTpe(Apply, v) — SAny func relaxation', () => {
   it('sanity: the func expr itself types to SAny', () => {
-    expect(exprTpe(funcExpr)).toEqual({ tag: 'SAny' })
+    expect(exprTpe(funcExpr, 0)).toEqual({ tag: 'SAny' })
   })
   it('Apply of an SAny-typed func returns SAny (no throw), mirroring ByIndex/OptionGet', () => {
-    expect(exprTpe(applyOfSAny)).toEqual({ tag: 'SAny' })
+    expect(exprTpe(applyOfSAny, 0)).toEqual({ tag: 'SAny' })
   })
 })

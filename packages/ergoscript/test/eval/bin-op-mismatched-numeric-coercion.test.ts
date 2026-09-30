@@ -176,10 +176,11 @@ describe('BinOp.Relation equality mismatched-numeric coercion (pre-V3)', () => {
   })
 })
 
-describe('BinOp.Relation equality mismatched-numeric — V3+ residual (deferred mechanism #2)', () => {
+describe('BinOp.Relation equality mismatched-numeric — V3+ eval arm (NOT coerced)', () => {
   it('EQ(Int 5, Long 5) at treeVersion 3 → Boolean false, cost 13 (current behavior, NOT coerced)', () => {
-    // V3+ JVM rejects this at deserialize (SameType check); ergots still returns
-    // cross-kind false. Closing that is deferred mechanism #2 (parser strictness).
+    // V3+ JVM rejects this at deserialize (SameType check), and since 2026-09-30 so
+    // does ergots' parse (wire/check-build.ts; test/eval/bin-op-sametype-strictness.test.ts).
+    // The eval arm's cross-kind false remains for a node that check never saw.
     // 5 + 5 + 3 (EQ_PRIM cross-kind) = 13.
     const ctx = makeContext({ treeVersion: 3 })
     const value = evalExpr(rel('Eq', intConst(5), longConst(5n)), Env.empty(), ctx) as SValue

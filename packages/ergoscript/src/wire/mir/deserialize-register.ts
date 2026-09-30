@@ -71,7 +71,7 @@ export function parseDeserializeRegister(
       'deserialize-register-id-out-of-range'
     )
   }
-  const tpe = parseSType(r)
+  const tpe = parseSType(r, treeVersion)
   const tag = r.readU8()
   let defaultExpr = null
   if (tag !== 0) {

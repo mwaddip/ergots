@@ -24,8 +24,12 @@
  * whose extension is non-ascending. See
  * `docs/specs/2026-06-16-context-extension-order-preservation.md`.
  *
- * ContextExtension Constants are serialized version-agnostic: treeVersion 0 is
- * passed to parseSValue/serializeSValue, matching the harness's validate-tx.ts.
+ * ContextExtension Constants are read at tree version 3, types and data, as the
+ * ergo node reads a transaction since 6.0 (spec
+ * docs/specs/2026-09-30-jvm-node-construction-design.md §4a): an empty
+ * Coll[Int => Int] variable parses at 3 and fails its type read below 3 (rule
+ * 1018). They are written at version 0, which gates only SOption and SHeader
+ * data, neither of which rule 1019 lets into an extension.
  */
 
 import { ByteReader, ByteWriter } from '@ergots/scorex';
@@ -55,7 +59,7 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
     // as the JVM's `r.level - 1` is: a Box value whose tree degrades leaves its levels behind.
     r.enterDepth();
     r.peekU8(); // ValueSerializer.scala:399: the depth, then the unchecked peek
-    const tpe = parseSType(r);
+    const tpe = parseSType(r, 3);
     // :62 rule-1019 CheckV6Type, on the declared type before the data is read, where the JVM checks the
     // whole value after `r.getValue()`. Outside a tree no degrade can intervene, so both orders reject
     // the same extensions; the register leg, which a sized tree can degrade, follows the JVM's order.
@@ -63,7 +67,7 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
       throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
     }
     // :65 `toMap` — a repeated id keeps its first position and takes the last value.
-    values.set(varId, { tpe, value: parseSValue(tpe, 0, r) });
+    values.set(varId, { tpe, value: parseSValue(tpe, 3, r) });
     r.exitDepth();
   }
   return { values };

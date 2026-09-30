@@ -18,7 +18,7 @@
  *   (a) Elem-type check uses MIR-node lambda's static arg type — skipped when
  *       the lambda Expr is not an inline FuncValue (Closure SValue has no
  *       argTpes). Mirrors coll-map.ts:94-108 convention.
- *   (b) Output elem type from exprTpe(closure.body) — returns SAny for
+ *   (b) Output elem type from exprTpe(closure.body, ctx.treeVersion ?? 0) — returns SAny for
  *       PropertyCall/MethodCall body (SMethod resolver not yet online).
  *       Handler tolerates SAny pre-loop, refines from itemRes.elem on first
  *       iter. Empty input returns Coll[SAny].
@@ -31,6 +31,7 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals } from '../mir/stype-helpers'
 
@@ -49,7 +50,7 @@ const FLATMAP_OUTER_CHUNK_SIZE = 8
  *         restriction fires (MethodCall body with non-empty args).
  * @throws EvalError `'coll-elem-tpe-mismatch'` if mc.args[0] is FuncValue and
  *         its arg tpe differs from input.elem (R3(a) skip otherwise).
- * @throws EvalError `'lambda-result-type-mismatch'` if exprTpe(closure.body)
+ * @throws EvalError `'lambda-result-type-mismatch'` if exprTpe(closure.body, ctx.treeVersion ?? 0)
  *         is neither SColl nor SAny, or itemRes is not Coll, or sub-coll
  *         elem mismatch (when outElem is concrete post-refinement).
  * @throws EvalError `'cost-limit-exceeded'` if the outer cost charge trips it.
@@ -116,7 +117,7 @@ export function evalSCollFlatMap(
   //    - SColl body type → use bodyTpe.elem (concrete path)
   //    - SAny body type  → set outElem = SAny pre-loop; refine post-iter-1
   //    - other body type → defensive throw
-  const bodyTpe = exprTpe(closure.body)
+  const bodyTpe = exprTpe(closure.body, ctx.treeVersion ?? 0)
   let outElem: SType
   if (bodyTpe.tag === 'SColl') {
     outElem = bodyTpe.elem
@@ -152,6 +153,8 @@ export function evalSCollFlatMap(
     assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
+    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+    readCheckedType(closure.body, ctx)
     if (itemRes.kind !== 'Coll') {
       throw new EvalError(
         `SColl.flatMap: lambda body returned non-Coll; got '${itemRes.kind}'`,

@@ -253,20 +253,20 @@ export function validateHeader(bundle: BlockBundle, state: WalkerState): void {
  *
  * # `treeVersionFn` injection
  *
- * `parseSValue` takes a `treeVersion` parameter, which gates only register
- * data (SHeader, SOption). The value passed is verdict-neutral here. The JVM
- * reads a box's registers under the enclosing context, not the box tree's own
- * version: `VersionContext.withVersions` scopes only the tree's parse
+ * `parseSValue` takes a `treeVersion` parameter, the version the box's
+ * registers are read at, types and data. The JVM reads a box's registers under
+ * the enclosing context, not the box tree's own version:
+ * `VersionContext.withVersions` scopes only the tree's parse
  * (`ErgoTreeSerializer.scala:154`), and the registers are read after it
- * (`ErgoBoxCandidate.scala:226-234`). At top level any v6-typed register
- * rejects, through its data gate or through rule 1019 (`CheckV6Type`,
- * `ValidationRules.scala:165-205`, in both rule sets), at every version.
- * `main.ts` passes the box tree's own version (bits 0..2 of its header byte).
+ * (`ErgoBoxCandidate.scala:226-234`). For an output, that is the ergo node's
+ * (3, 3) since 6.0. The version decides the registers' type reads (below 3 an
+ * SFunc type code is no type, so an empty `Coll[Int => Int]` register would
+ * fail); their data's SHeader and SOption gates are moot at top level, where
+ * rule 1019 (`CheckV6Type`, `ValidationRules.scala:165-205`, in both rule
+ * sets) refuses those registers at every version. `main.ts` passes 3.
  *
- * The PLAN signature accepts a function rather than inlining the lookup so
- * that callers can swap the strategy: T11's `main.ts` passes a function
- * that locates the ErgoTree section within the canonical box bytes and
- * reads its header byte. The function is invoked once per output box.
+ * The PLAN signature accepts a function rather than a constant so that
+ * callers can swap the strategy. The function is invoked once per output box.
  *
  * The function MUST be deterministic and side-effect-free; it MUST return a
  * value in `0..7`. If it throws, `validateOutputRoundtrips` wraps the error

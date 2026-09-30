@@ -99,7 +99,8 @@ function reconstructErgoBox(bj: BoxJsonFields): ErgoBox {
   for (const reg of bj.registers) {
     const constBytes = hexToBytes(reg.constant_hex)
     const reader = new ByteReader(constBytes)
-    const tpe = parseSType(reader)
+    // A register's type, read at 3, as the node reads a transaction's registers since 6.0.
+    const tpe = parseSType(reader, 3)
     const regValue = parseSValue(tpe, 0, reader)
     registers[reg.id] = { tpe, value: regValue }
   }

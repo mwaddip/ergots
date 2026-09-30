@@ -78,6 +78,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
@@ -167,6 +168,8 @@ export function evalExists(e: Exists, env: Env, ctx: EvalContext): SValue {
 
     // Eval body (sigma-rust coll_exists.rs:31: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
+    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+    readCheckedType(closure.body, ctx)
 
     // Result-type check: Exists's predicate MUST return Boolean.
     // sigma-rust uses try_extract_into::<bool>() which also errors on non-Boolean.

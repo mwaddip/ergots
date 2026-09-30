@@ -59,7 +59,7 @@ export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValu
   // value). See eval/_check-type.ts.
   const items = e.items.map((item) => {
     const v = evalExpr(item, env, ctx)
-    assertValueTypeSupported(exprTpe(item))
+    assertValueTypeSupported(exprTpe(item, ctx.treeVersion ?? 0))
     return v
   })
   for (let i = 0; i < items.length; i++) {

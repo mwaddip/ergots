@@ -15,10 +15,11 @@
  * (`mir/downcast.rs:60-66`).
  *
  * Sigma-rust's `Downcast::new` rejects non-numeric source or target
- * types (`mir/downcast.rs:31-49`). We do NOT enforce that at the wire
- * layer — type-shape checks belong to a later pass. The wire-layer
- * parser is permissive (same convention as Upcast / Negation /
- * BitInversion / BoolToSigmaProp).
+ * types (`mir/downcast.rs:31-49`). The JVM checks a numeric target
+ * (`asNumType`, NumericCastSerializer.scala:22) and a numeric input
+ * (trees.scala:431) when it builds the node, and so does ergots, when
+ * `parseExpr` builds it (`checkBuild`, wire/check-build.ts). This arm only
+ * reads the bytes.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/downcast.rs
@@ -47,7 +48,7 @@ export function parseDowncast(
   treeVersion: number
 ): Downcast {
   const input = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
-  const tpe = parseSType(r)
+  const tpe = parseSType(r, treeVersion)
   return { tag: 'Downcast', input, tpe }
 }
 

@@ -81,20 +81,22 @@
  * Each `(varId, valueBytes)` entry's `valueBytes` is the shim's
  * `Constant::sigma_serialize` output = `SType || SValue` (no length
  * prefix). We mirror sigma-rust's
- * `Constant::sigma_parse`: read SType, then read SValue with that type
- * + the box-derived treeVersion.
+ * `Constant::sigma_parse`: read the SType, then the SValue of that type,
+ * both at tree version 3.
  *
  * # `treeVersion` per input
  *
  * Each input is evaluated under its spent box's own tree version
- * (`ergoTreeBytes[0] & 0x07`), which `makeContext` receives. The harness
- * also decodes the input's ContextExtension Constants under that version.
- * The JVM reads them at transaction parse instead, under the enclosing
- * context, and rejects any v6-typed value there through rule 1019
- * (`ContextExtension.scala:62`); the version gates only SHeader and SOption
- * data, so for the chain-accepted transactions the harness walks the choice
- * cannot matter. The spent box's registers are parsed at version 0, which is
- * verdict-neutral too (see `parseSpentBox`).
+ * (`ergoTreeBytes[0] & 0x07`), which `makeContext` receives. The JVM reads
+ * the input's ContextExtension Constants at transaction parse instead,
+ * under the ergo node's (3, 3) since 6.0, and rejects any v6-typed value
+ * there through rule 1019 (`ContextExtension.scala:62`). The harness reads
+ * each Constant at 3, type and data, as the node does. The version decides
+ * the type read: below 3 an SFunc type code is no type, so an empty
+ * `Coll[Int => Int]` would fail. The version passed for the data decides a
+ * nested Box's register type reads too, so a Box whose R4 is an empty
+ * `Coll[Int => Int]` would fail below 3 as well. The spent box's registers
+ * are parsed at 3 too (see `parseSpentBox`).
  *
  * # `jitCostLimit`
  *
@@ -315,8 +317,10 @@ function buildHeadersArray(preceding: readonly Header[]): Header[] | null {
 /**
  * Parse one `ContextExtension` `(varId, valueBytes)` blob. Each blob
  * is `Constant::sigma_serialize` = `SType || SValue` (mirrors
- * sigma-rust `Constant::sigma_parse`). The reader MUST consume the
- * whole blob — trailing bytes indicate a wire-shape disagreement.
+ * sigma-rust `Constant::sigma_parse`). Both reads are at tree version 3,
+ * the ergo node's version for a context extension, whatever the spent
+ * tree's version. The reader MUST consume the whole blob — trailing
+ * bytes indicate a wire-shape disagreement.
  *
  * Returns the `{tpe, value}` pair the harness drops into
  * `ContextExtension.values`. Throws a regular `Error` on failure;
@@ -324,11 +328,10 @@ function buildHeadersArray(preceding: readonly Header[]): Header[] | null {
  */
 function parseContextExtensionEntry(
     valueBytes: Uint8Array,
-    treeVersion: number,
 ): { tpe: SType; value: SValue } {
     const reader = new ByteReader(valueBytes);
-    const tpe = parseSType(reader);
-    const value = parseSValue(tpe, treeVersion, reader);
+    const tpe = parseSType(reader, 3);
+    const value = parseSValue(tpe, 3, reader);
     if (!reader.isExhausted) {
         throw new Error(
             `${reader.remaining} trailing byte(s) after Constant; ` +
@@ -346,17 +349,13 @@ function parseContextExtensionEntry(
  */
 function buildContextExtension(
     input: InputBundle,
-    treeVersion: number,
     txIndex: number,
     inputIndex: number,
 ): ContextExtension {
     const values: ContextExtension['values'] = new Map();
     for (const entry of input.contextExtension) {
         try {
-            values.set(entry.varId, parseContextExtensionEntry(
-                entry.valueBytes,
-                treeVersion,
-            ));
+            values.set(entry.varId, parseContextExtensionEntry(entry.valueBytes));
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
@@ -385,20 +384,20 @@ function parseSpentBox(
     txIndex: number,
     inputIndex: number,
 ): { box: ErgoBox; ergoTreeBytes: Uint8Array; treeVersion: number } {
-    // The box is parsed at treeVersion 0, which only its register data
-    // (SHeader, SOption) sees. That is verdict-neutral: the JVM reads a
-    // box's registers under the enclosing context, not the box tree's own
-    // version (VersionContext.withVersions scopes only the tree's parse,
+    // The box is parsed at treeVersion 3, the ergo node's since 6.0: the JVM
+    // reads a box's registers under the enclosing context, not the box tree's
+    // own version (VersionContext.withVersions scopes only the tree's parse,
     // ErgoTreeSerializer.scala:154; the registers are read after it,
-    // ErgoBoxCandidate.scala:226-234), and at top level any v6-typed
-    // register rejects, through its data gate or through rule 1019
-    // (CheckV6Type, ErgoBoxCandidate.scala:232, in both rule sets), at every
-    // version. The box's own tree version, read off the parsed
+    // ErgoBoxCandidate.scala:226-234), and a node reads a transaction under
+    // (3, 3). The version decides the registers' type reads (below 3 an SFunc
+    // type code is no type), and their data's SHeader and SOption gates, which
+    // rule 1019 (CheckV6Type, ErgoBoxCandidate.scala:232) makes moot at top
+    // level. The box's own tree version, read off the parsed
     // `ergoTreeBytes[0] & 0x07`, is what the spend evaluates under.
     let parsed: SValue;
     const reader = new ByteReader(spentBoxBytes);
     try {
-        parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+        parsed = parseSValue({ tag: 'SBox' }, 3, reader);
     } catch (err) {
         const message = err instanceof Error ? err.message : String(err);
         throw new HarnessError(
@@ -443,9 +442,9 @@ function parseSpentBox(
  * future caller that needs the same boxes. Throws `HarnessError` with
  * a precise location on first failure.
  *
- * Every box is parsed at treeVersion 0, which is verdict-neutral for a
- * top-level box (see `parseSpentBox`); each input also returns its tree's
- * own version, which its spend evaluates under.
+ * Every box is parsed at treeVersion 3, the ergo node's for a top-level box
+ * (see `parseSpentBox`); each input also returns its tree's own version,
+ * which its spend evaluates under.
  */
 function parseTxBoxes(tx: TxBundle, txIndex: number): {
     inputBoxes: ErgoBox[];
@@ -474,7 +473,7 @@ function parseTxBoxes(tx: TxBundle, txIndex: number): {
         const reader = new ByteReader(tx.outputs[i]!);
         let parsed: SValue;
         try {
-            parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+            parsed = parseSValue({ tag: 'SBox' }, 3, reader);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
@@ -500,7 +499,7 @@ function parseTxBoxes(tx: TxBundle, txIndex: number): {
         const reader = new ByteReader(tx.dataInputBoxes[i]!);
         let parsed: SValue;
         try {
-            parsed = parseSValue({ tag: 'SBox' }, 0, reader);
+            parsed = parseSValue({ tag: 'SBox' }, 3, reader);
         } catch (err) {
             const message = err instanceof Error ? err.message : String(err);
             throw new HarnessError(
@@ -576,8 +575,8 @@ function formatOurError(err: unknown): string {
  *   - `'tree-parse-failed'`
  *   - `'context-extension-parse-failed'`
  *   - `'evaluate-threw'` (any non-EvalError throw + both-error case)
- *   - `'evaluate-not-implemented'` (`EvalError.code === 'not-implemented-yet'`
- *      or any of the `'*-method-not-implemented'` codes; both-error case)
+ *   - `'evaluate-not-implemented'` (`EvalError.code` is `'not-implemented-yet'`
+ *      or `'method-not-implemented'`; both-error case)
  *   - `'evaluate-eval-error'` (any other `EvalError`; both-error case)
  *   - `'cost-overflow'` (phase `'evaluate-cost'`; oracleCost exceeded
  *      `Number.MAX_SAFE_INTEGER`)
@@ -667,12 +666,7 @@ export function validateTx(
         // 5a — build ContextExtension from per-input Constant blobs. Built
         // BEFORE the storage-rent check + tree parse: it needs no parsed tree,
         // and the storage-rent check (5b-bis) consumes it.
-        const extension = buildContextExtension(
-            input,
-            treeVersion,
-            txIndex,
-            inputIndex,
-        );
+        const extension = buildContextExtension(input, txIndex, inputIndex);
 
         // 5b-bis — storage-rent (expired-box) spend. Tried FIRST, mirroring
         // sigma-rust `try_spend_storage_rent`: only when the spending proof is
@@ -808,10 +802,16 @@ export function validateTx(
                 // Distinguish "library coverage gap" from "tree did
                 // something wrong" — operators triaging a not-yet-impl
                 // throw want to see it called out vs. burying it as a
-                // generic EvalError.
+                // generic EvalError. 'unsupported-eval-node' is not a
+                // gap: it is a node the JVM gives no eval (TreeLookup,
+                // CreateAvlTree and, since 2026-09-30, every raw BitOp,
+                // the three shifts included, and BitInversion), which
+                // the JVM rejects too, so it lands in
+                // 'evaluate-eval-error'. The gap codes are exactly these two
+                // of the EvalError union, compared whole.
                 const isNotImpl =
                     err.code === 'not-implemented-yet' ||
-                    err.code.endsWith('-method-not-implemented');
+                    err.code === 'method-not-implemented';
                 throw new HarnessError(
                     'evaluate',
                     isNotImpl ? 'evaluate-not-implemented' : 'evaluate-eval-error',

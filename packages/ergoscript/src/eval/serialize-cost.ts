@@ -535,16 +535,17 @@ function addRegisterExprCost(r: ByteReader, ctx: EvalContext): void {
   if (lead <= LAST_CONSTANT_CODE) {
     // Constant Expr: lead byte IS the SType lead byte. Recover (tpe, value) from
     // the wire to charge the data-form cost (putType + DataSerializer).
-    const tpe = parseSTypeWithFirstByte(lead, r)
-    const value = parseSValue(tpe, 0, r)
-    // treeVersion at the register-data walk: TWO version-gated DATA kinds exist
-    // (SHeader since 2h-c.1, SOption since F5 batch 1). Neither can ENTER a
-    // register: rule 1019 CheckV6Type rejects an Option/Header/UBI-typed register
-    // value once it is read (ErgoBoxCandidate.scala:231-232), which ergots mirrors
-    // in parseAdditionalRegisters ('register-v6-type'), so the v0 re-parse here
-    // never meets one in a box that was parsed. Only a hand-built box could carry
-    // one; its SValueParseError is then wrapped by global-serialize.ts as
+    // The re-read is at tree version 3, whose type table holds every type the
+    // register's own read took, at whatever version that read ran (the table of
+    // versions 0-2 is a subset of 3's). The version-gated DATA kinds (SHeader,
+    // SOption) cannot ENTER a register: rule 1019 CheckV6Type rejects an
+    // Option/Header/UBI-typed register value once it is read
+    // (ErgoBoxCandidate.scala:231-232), which ergots mirrors in
+    // parseAdditionalRegisters ('register-v6-type'). Only a hand-built box could
+    // carry one; its SValueParseError is then wrapped by global-serialize.ts as
     // EvalError('global-serialize-failed').
+    const tpe = parseSTypeWithFirstByte(lead, r, 3)
+    const value = parseSValue(tpe, 3, r)
     ctx.addCost(putTypeCost(tpe)) // putType(tpe)
     serializeCost(tpe, value, ctx) // DataSerializer.serialize(value)
     return

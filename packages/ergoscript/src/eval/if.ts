@@ -27,6 +27,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { readCheckedType } from './_check-type'
 
 export function evalIf(e: If, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(10)
@@ -37,5 +38,11 @@ export function evalIf(e: If, env: Env, ctx: EvalContext): SValue {
       'if-condition-not-boolean'
     )
   }
-  return cond.value ? evalExpr(e.trueBranch, env, ctx) : evalExpr(e.falseBranch, env, ctx)
+  // If.eval (trees.scala:1355-1366): the taken branch is evaluated, then checkType reads its type (spec §5 item 5).
+  // For a parsed tree the read cannot throw: building the If read all three children (Quadruple.opType, :1313), at
+  // parse and on every rebuild.
+  const branch = cond.value ? e.trueBranch : e.falseBranch
+  const result = evalExpr(branch, env, ctx)
+  readCheckedType(branch, ctx)
+  return result
 }

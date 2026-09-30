@@ -121,9 +121,12 @@ export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[]): Ergo
   // (ErgoBoxCandidate.scala:226-234): each value whole, then rule-1019
   // CheckV6Type on it; a seventh register rejects only when the loop reaches it,
   // after R4..R9 are read; a Tuple-Expr register keeps its opaqueBytes. The
-  // standalone box body is a v0 wire form (the JVM never lets v6-typed DATA
-  // into registers via CheckV6Type), so treeVersion 0 is passed.
-  const parsedRegisters = parseAdditionalRegisters(r, 0);
+  // registers are read at tree version 3, types and data: the ergo node parses a
+  // block's transactions, and the mempool's, under (3, 3) since 6.0 (spec
+  // docs/specs/2026-09-30-jvm-node-construction-design.md §4a). The version
+  // decides a verdict here: an R4 holding an empty Coll[Int => Int] parses at 3
+  // and fails its type read below 3 (rule 1018).
+  const parsedRegisters = parseAdditionalRegisters(r, 3);
 
   // Restore the enclosing window on the SUCCESS path only (the candidate span
   // ends here; anything after — the txId/index in a full ErgoBox, or the next

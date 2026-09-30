@@ -25,11 +25,12 @@
  * MethodCall path uses. Pairs with no registered names parse/serialize with
  * `explicitTypeArgs: {}` and consume/emit no extra bytes (backward-compatible).
  *
- * We still do NOT resolve the SMethod at the wire layer (no full method
- * registry yet — see `method-call.ts`): we accept any well-formed
- * (typeId, methodId) pair, read the type-arg count implied by the registry,
- * and pass everything through verbatim, leaving semantic method resolution to
- * a later interpreter pass.
+ * The pair is looked up after `obj`, as the JVM's `SMethod.fromIds` looks it
+ * up (PropertyCallSerializer.scala:34, `checkJvmMethod` in
+ * `../jvm-method-table`): a pair the JVM does not know at the tree's version
+ * fails with its soft rule 1010 or 1016, before any type argument is read. A
+ * known pair is not resolved further at the wire layer: its type-arg count
+ * comes from the registry, and its semantics from the interpreter.
  *
  * Cross-reference:
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/mir/property_call.rs
@@ -46,6 +47,7 @@ import { serializeExpr } from '../serialize'
 import { parseSType } from '../parse-stype'
 import { serializeSType } from '../serialize-stype'
 import { explicitTypeArgNames } from './explicit-type-args'
+import { checkJvmMethod } from '../jvm-method-table'
 
 /**
  * Parse a `PropertyCall` payload (the OP_PROPERTY_CALL opcode byte was
@@ -53,8 +55,9 @@ import { explicitTypeArgNames } from './explicit-type-args'
  *
  * Mirrors sigma-rust's `<PropertyCall as SigmaSerializable>::sigma_parse`
  * (`serialization/property_call.rs:23-30`) and the JVM `PropertyCallSerializer.parse`
- * (`:30-49`). Order: typeId, methodId, obj, then one SType per type-var name
- * the registry declares for `(typeId, methodId)` (zero for most pairs).
+ * (`:30-49`). Order: typeId, methodId, obj, the method lookup, then one SType
+ * per type-var name the registry declares for `(typeId, methodId)` (zero for
+ * most pairs).
  */
 export function parsePropertyCall(
   r: ByteReader,
@@ -66,9 +69,13 @@ export function parsePropertyCall(
   const typeId = r.readU8()
   const methodId = r.readU8()
   const obj = parseExpr(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  // PropertyCallSerializer.scala:34: SMethod.fromIds (SMethod.scala:344-349), after the object and before
+  // the explicit type arguments (:36-45): rule 1010, then 1016, both soft. The object's own soft failure,
+  // read before, comes first.
+  checkJvmMethod('PropertyCall', typeId, methodId, treeVersion)
   const explicitTypeArgs: Record<string, SType> = {}
   for (const name of explicitTypeArgNames(typeId, methodId)) {
-    explicitTypeArgs[name] = parseSType(r)
+    explicitTypeArgs[name] = parseSType(r, treeVersion)
   }
   return { tag: 'PropertyCall', obj, typeId, methodId, explicitTypeArgs }
 }

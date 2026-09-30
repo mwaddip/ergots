@@ -29,8 +29,11 @@
  *       key outside [0,127] — the JVM keys the extension by signed Byte, so
  *       toSigmaContext crashes on a negative key (wire >= 0x80); net 84 → 85)
  *     + B-core soft-fork preservation (+'unparsed-ergotree', 2026-06-17: an
- *       UnparsedErgoTree handed to evaluate; net 85 → 86) — current total: 86,
- *       as the union below counts
+ *       UnparsedErgoTree handed to evaluate; net 85 → 86)
+ *     + the JVM's node construction (2026-09-30: −'method-call-empty-args', moved to
+ *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84;
+ *       then +'deserialize-rebuild-failed', the substitution's rebuild check; 84 → 85) —
+ *       current total: 85, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -67,7 +70,7 @@
  *      removed 'deserialize-context-key-not-found', see note below):
  *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
  *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
- *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed) !== e.tpe)
+ *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed, treeVersion) !== e.tpe)
  *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
  *          for DR with register absent + default null OR recursive-Deserialize
  *          OR — post-F1 — a LIVE DC over an absent/wrong-typed var)
@@ -105,6 +108,14 @@
  *        ('coll-map-elem-type-infer-failed' — defensive default arm of the
  *        exhaustive SValue-kind switch in svalue-type.ts, originated phase 2f,
  *        tsc-provably unreachable) → 84
+ *    − 1 code moved to the wire layer on 2026-09-30 ('method-call-empty-args', now an
+ *        ExprParseError raised at parse; docs/specs/2026-09-30-jvm-node-construction-design.md).
+ *        The union held 86 before this step, two more than this chain records, and holds 85 after.
+ *    − 1 code removed on 2026-09-30 ('v6-type-in-pre-v3-tree': its pre-eval pass is gone, since
+ *        every type is read at the JVM's version at parse; the same spec, §4a) → 84.
+ *    + 1 code added on 2026-09-30 ('deserialize-rebuild-failed': an ancestor the Deserialize
+ *        rewrite rebuilds fails the constructor's checks, as Kiama's dup runs them; the same
+ *        spec, §5) → 85.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -187,7 +198,13 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   /** Apply: func evaluated to non-Lambda SValue. */
   | 'apply-non-lambda'
-  /** Apply: argument count doesn't match lambda arity. */
+  /**
+   * The JVM's two one-argument rules. An Apply with other than one argument (Apply.eval, values.scala:1262-1272; thrown
+   * after Apply's 30, before the function or any argument is evaluated), and a FuncValue with other than one parameter,
+   * wherever it is evaluated (FuncValue.eval, values.scala:1070-1085; thrown after its 5, before any closure is built).
+   * The Apply arm's structural check of a closure's arity throws it too; since no closure of another arity is built, that
+   * check is unreachable.
+   */
   | 'apply-arity-mismatch'
 
   // -------------------------------------------------------------------------
@@ -259,7 +276,14 @@ export type EvalErrorCode =
   | 'coll-elem-tpe-mismatch'
   /** ByIndex: index is OOB and no `default` branch was provided. */
   | 'coll-by-index-out-of-range'
-  /** ByIndex: index expression evaluated to a non-Int SValue (defensive). */
+  /**
+   * ByIndex: the index expression evaluated to a value the arm does not take. Before tree v3 the arm follows the
+   * decision the parse recorded on the node from the index's static type, as the JVM's parse decides it, and a
+   * substitution rebuild keeps (`recordIndexUpcast`): a statically Byte or Short index takes a Byte, Short or Int value
+   * and is charged the Upcast the parse inserts, and a statically Int one takes an Int value only
+   * (eval/coll-by-index.ts). From v3 the parse checks nothing, and any value but an Int fails here as it does in the JVM
+   * (a ClassCastException).
+   */
   | 'coll-by-index-index-not-int'
   /** Slice: `from` or `until` expression evaluated to a non-Int SValue. */
   | 'coll-slice-bound-not-int'
@@ -603,6 +627,13 @@ export type EvalErrorCode =
    * `prop.isProven` to this node; the AOT graph-IR rewrite removes the node
    * before evaluation. Sigma-rust mirrors with an unconditional
    * `Err(EvalError::Misc("SigmaPropIsProven has no interpreter eval ..."))`.
+   * The JVM 6.0.6 gives the node no eval either (transformers.scala:321-329,
+   * `costKind = Value.notSupportedError`; the default `Value.eval` throws,
+   * values.scala:101-102): a local sigma-state 6.0.6 probe rejects a spend that
+   * evaluates one, at tree v0 and v3, and accepts one in a branch that is never
+   * evaluated, so this reject is the JVM's. It is the same class of node as
+   * the ones `'unsupported-eval-node'` covers, and keeps its own code
+   * (docs/specs/2026-09-30-jvm-node-construction-design.md §9).
    *
    * Source: ergotree-interpreter/src/eval/sigma_prop_is_proven.rs:11-25
    */
@@ -638,13 +669,12 @@ export type EvalErrorCode =
 
   // -------------------------------------------------------------------------
   // Phase 2i-c — Deserialize family (originally 5 new codes; 59 → 64; F1 removed
-  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63). Substitute-pre-pass
-  // architecture mirroring sigma-rust eni eval.rs:203-250 + mir/expr.rs:442-496.
-  // Codes 1-3 are thrown by substituteDeserialize; code 4 is the defensive
-  // eval-time throw on the Deserialize* arms (reached when substitute pass
-  // does NOT rewrite — DR with register absent + default null, a recursive
-  // Deserialize inside a substituted inner Expr, OR — post-F1 — a LIVE DC over
-  // an absent/wrong-typed var).
+  // 'deserialize-context-key-not-found' → 4 codes, 59 → 63; 2026-09-30 added
+  // 'deserialize-rebuild-failed' → 5 codes). Substitute-pre-pass architecture,
+  // since 2026-09-30 the JVM's Kiama rewrite (eval/_substitute-deserialize.ts).
+  // All but 'deserialize-not-substituted' are thrown by substituteDeserialize;
+  // that one is the defensive eval-time throw on the Deserialize* arms (reached
+  // when the substitution leaves a node in place and a live branch evaluates it).
   // -------------------------------------------------------------------------
   // NOTE: 'deserialize-context-key-not-found' was REMOVED in F1 — an absent
   // DeserializeContext var now LEAVES the node unchanged (JVM `substDeserialize`
@@ -652,15 +682,14 @@ export type EvalErrorCode =
   // errors at eval via 'deserialize-not-substituted' (below); a DEAD branch is
   // evaluable. See _substitute-deserialize.ts:substituteDeserializeContext.
   /**
-   * Raised by: (1) `DeserializeRegister` substitute pass when the register
-   * entry is present but NOT a Coll[Byte] (eager throw — DR rejects at
-   * substitution, unlike DC which leaves the node post-F1); (2) the downstream
-   * `collByteToUint8Array` value-shape check on a present Coll[Byte]-typed entry
-   * whose items contain non-Byte elements (both DC and DR). Mirrors sigma-rust
-   * eni `try_extract_into::<Vec<u8>>()` failure.
-   *
-   * Source (eni): DR `try_extract` at mir/expr.rs:482 (.transpose()? :492).
-   * (Post-F1 the DC tpe path at :459-462 LEAVES the node — no longer this code.)
+   * Raised by the `collByteToUint8Array` value-shape check on a context variable
+   * or register TYPED `Coll[Byte]` whose value is not a `Coll` of Byte items
+   * (both DC and DR; a defensive check, unreachable from parsed data). A
+   * variable or register whose TYPE is not `Coll[Byte]` leaves the node
+   * instead: the JVM's `substDeserialize` gives `None` for the variable
+   * (Interpreter.scala:110-129), and its `strategy` swallows the register's
+   * `ClassCastException` from `eba.value.toArray` (ErgoLikeInterpreter.scala:17-37;
+   * the DR eager throw before 2026-09-30 was sigma-rust's, not the JVM's).
    */
   | 'deserialize-input-not-byte-array'
   /**
@@ -680,7 +709,7 @@ export type EvalErrorCode =
   | 'deserialize-parse-failed'
   /**
    * `DeserializeContext` / `DeserializeRegister` substitute pass: the parsed
-   * inner Expr's `exprTpe()` doesn't match the arm's declared `e.tpe`. The
+   * inner Expr's `exprTpe(inner, treeVersion)` doesn't match the arm's declared `e.tpe`. The
    * check runs on BOTH the register-decoded inner Expr AND the `default`
    * fallback Expr (per sigma-rust `expr.rs:486-491`). Mirrors
    * `SubstDeserializeError::ExprTpeError { expected, actual }` at line 727.
@@ -688,6 +717,17 @@ export type EvalErrorCode =
    * Source: ergotree-ir/src/mir/expr.rs:486-491
    */
   | 'deserialize-tpe-mismatch'
+  /**
+   * `DeserializeContext` / `DeserializeRegister` substitute pass (2026-09-30): an
+   * ancestor that the rewrite rebuilds around a substituted node fails
+   * `checkBuild(node, 'rebuild', v)`, the constructor's checks that Kiama's `dup`
+   * runs by reflection (core/.../sigma/kiama/rewriting/Rewriter.scala:236-320,
+   * 446-471). Nothing catches a constructor's throw inside `dup`, so a class
+   * cast rejects here too. The check's own error is the `cause`.
+   *
+   * Source: spec docs/specs/2026-09-30-jvm-node-construction-design.md §5 item 1
+   */
+  | 'deserialize-rebuild-failed'
   /**
    * `DeserializeContext` / `DeserializeRegister` eval-time defensive throw.
    * Reached when the substitute pass did NOT rewrite this node:
@@ -807,15 +847,10 @@ export type EvalErrorCode =
   // v6 P2 — SUnsignedBigInt + V3 type gating (4 new codes; 69 → 73)
   // Housekeeping (2026-06-03): these P2a/P2b/P2d-2 codes were used in the arms
   // but omitted from this union — `EvalError` takes `code: string`, so they
-  // compiled regardless; added here for taxonomy completeness.
+  // compiled regardless; added here for taxonomy completeness. The gate's own
+  // code, 'v6-type-in-pre-v3-tree', left on 2026-09-30: the type reads at parse
+  // gate the version (wire/parse-stype.ts).
   // -------------------------------------------------------------------------
-  /**
-   * `validateV6Types` pre-eval pass: an `SUnsignedBigInt` / `SFunc` type
-   * construct appears in a `treeVersion < 3` tree (checked over `constantTypes[]`
-   * + the post-substitution body's wire-serialized type annotations). Zero-cost
-   * reject. Source: `eval/validate-v6-types.ts` (v6 P2a).
-   */
-  | 'v6-type-in-pre-v3-tree'
   /**
    * A `UnsignedBigInt` SValue reached an operation with no JVM path. After P2c
    * this survives only in the UBI cast matrix (`eval/_cast-ubi.ts`): UBI↔BigInt
@@ -836,22 +871,9 @@ export type EvalErrorCode =
    */
   | 'unsigned-bigint-not-invertible'
 
-  // -------------------------------------------------------------------------
-  // v6 P4 — V3+ empty-args MethodCall reject (1 new code; 73 → 74)
-  // -------------------------------------------------------------------------
-  /**
-   * `validateMethodCallArity` pre-eval pass: a `MethodCall`-opcode node with
-   * empty args (`args.length === 0`) appears in a `treeVersion >= 3` tree.
-   * Mirrors the JVM `MethodCallSerializer.parse`
-   * `if (isV3OrLaterErgoTreeVersion) assert(args.nonEmpty)`
-   * (data/shared/.../serialization/MethodCallSerializer.scala:53-55). Honest
-   * trees never emit this (zero-arg calls use the PropertyCall opcode); it is an
-   * adversarial over-accept (any zero-arg method reached via the MethodCall
-   * opcode — `none` 106:10, `groupGenerator` 106:1 — would otherwise evaluate).
-   * Pre-V3 is grandfathered (the JVM does not assert there). Zero-cost reject.
-   * Source: `eval/validate-method-call-arity.ts` (v6 P4).
-   */
-  | 'method-call-empty-args'
+  // v6 P4's 'method-call-empty-args' (a V3+ MethodCall without arguments) moved to the wire layer on
+  // 2026-09-30: the parse raises it, as the JVM's MethodCallSerializer does (ExprParseError,
+  // wire/mir/method-call.ts; facts/ergoscript-eval.md, "Retired / non-emitted codes").
 
   // -------------------------------------------------------------------------
   // v6 P5a — Global.serialize / Global.deserializeTo (2 new codes; 74 → 76)
@@ -963,7 +985,9 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // F4 epilogue — TreeLookup + CreateAvlTree unconditional eval reject
   // (1 new code, and the same change REMOVED the orphaned
-  // 'create-avl-tree-shape-mismatch' above: net 80 → 80)
+  // 'create-avl-tree-shape-mismatch' above: net 80 → 80). The JVM's node
+  // construction branch (2026-09-30) gave the same reject to the six raw
+  // BinOp.Bit ops and BitInversion, with no change to the count.
   // -------------------------------------------------------------------------
   /**
    * The `TreeLookup` (opcode 0xb7) and `CreateAvlTree` (opcode 0xb6) MIR
@@ -981,17 +1005,42 @@ export type EvalErrorCode =
    * ports; sigma-rust (eni) convergently over-accepts both (routed to
    * sigma-rust via SANTA).
    *
+   * Also every raw `BinOp` of kind `Bit` (BitOr 0xf2, BitAnd 0xf3, BitXor
+   * 0xf5, BitShiftRight 0xf6, BitShiftLeft 0xf7, BitShiftRightZeroed 0xf8)
+   * and `BitInversion` (0xf1) — since 2026-09-30
+   * (docs/specs/2026-09-30-jvm-node-construction-design.md §9). The
+   * JVM's `BitOp` (trees.scala:911-917; its six companions,
+   * trees.scala:923-942, carry a `FixedCost(JitCost(1))` and no eval) and
+   * `BitInversion` (trees.scala:899-903, `costKind =
+   * Value.notSupportedError` at :906) override no `eval` either, so the
+   * default throws (values.scala:101-102). A local sigma-state 6.0.6
+   * probe (spend mode) rejects a spend that evaluates any of the seven,
+   * at tree v0 and v3, and accepts one in a branch that is never
+   * evaluated. Each arm throws this code before it charges anything or
+   * evaluates an operand, whatever the operand kinds or the tree
+   * version. ergots evaluated BitOr, BitAnd, BitXor and BitInversion
+   * before (a sigma-rust port: an over-accept) and threw
+   * 'not-implemented-yet' for the three shifts. The v6 method forms
+   * (`X.bitwiseOr` 9, `bitwiseAnd` 10, `bitwiseXor` 11, `shiftLeft` 12,
+   * `shiftRight` 13, `bitwiseInverse` 8) are method calls with their own
+   * handlers, which the JVM evaluates: unchanged. `SigmaPropIsProven`
+   * (no JVM eval either) is the same class of node, and keeps its own
+   * code, 'sigma-prop-is-proven-no-eval'.
+   *
    * Source: JVM-blessed vectors AvlTree.unsupported_eval_nodes.json
    * (tree_lookup @v2) + AvlTree.unsupported_eval_nodes_v6.json
    * (tree_lookup + create_avl_tree @v3), blessed_by jvm:sigma-state-6.0.3;
-   * trees.scala:79-91 + 1322-1338.
+   * trees.scala:79-91 + 1322-1338; for the bit nodes, the probe above
+   * (test/eval/jvm-no-eval-nodes.test.ts).
    *
    * ⚠ Grading coupling (load-bearing — do NOT rename to a not-impl code):
    * SANTA's dasher maps ONLY 'method-not-implemented' to its
    * not-implemented category (santa ts-runner/src/runner.ts:152); every
    * other EvalError grades as errored. These vectors EXPECT errored — a
    * distinct code is what makes the reject visible as a reject. The 4
-   * unit/mutation suites pin the exact code as a local tripwire.
+   * unit/mutation suites (TreeLookup, CreateAvlTree) and
+   * test/eval/jvm-no-eval-nodes.test.ts pin the exact code as a local
+   * tripwire.
    */
   | 'unsupported-eval-node'
 
@@ -1043,10 +1092,13 @@ export type EvalErrorCode =
    * pre-eval pass) ⇒ JVM-faithful laziness: a non-pair-tuple-typed const in a
    * DEAD branch is never evaluated, so it never rejects.
    *
-   * Adversarial-only (honest compilers never emit these). Residual: the
-   * FuncValue/Apply param+body SFunc arms (P6 closure path) are NOT hooked — no
-   * SFunc witness; tracked F5 item. The helper still rejects a non-unary SFunc
-   * VALUE flowing through a data seam.
+   * Adversarial-only (honest compilers never emit these). The FuncValue/Apply
+   * param+body SFunc arms (P6 closure path) are not hooked and need no hook: a
+   * FuncValue of other than one parameter rejects where it is evaluated, before
+   * any seam sees its value ('apply-arity-mismatch', eval/func-value.ts;
+   * values.scala:1070-1085). So the helper's SFunc branch is reached only
+   * through MIR built by the API, such as a Const declared with a non-unary
+   * SFunc type.
    *
    * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the Tuple EXPR
    * node's own arity≠2 gate (values.scala:797); this is the DECLARED-type

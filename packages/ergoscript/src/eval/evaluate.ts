@@ -19,9 +19,6 @@ import {
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
-import { validateBinOpTypes } from './validate-bin-op-types'
-import { validateMethodCallArity } from './validate-method-call-arity'
-import { validateV6Types } from './validate-v6-types'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -95,8 +92,9 @@ export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
 }
 
 export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
-  // Caller-supplied ctx is honored verbatim. If they want tree.constants
-  // resolution they must set it themselves before calling.
+  // Caller-supplied ctx is honored as given, except that an unset treeVersion
+  // becomes the tree's header version (dispatchTreeBody). If they want
+  // tree.constants resolution they must set it themselves before calling.
   rejectIfUnparsed(tree)
   return dispatchTreeBody(tree, ctx)
 }
@@ -132,6 +130,11 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
+  // One version per evaluation (spec docs/specs/2026-09-30-jvm-node-construction-design.md §1): the JVM reduces a
+  // tree under its own version (VersionContext.withVersions(activated, ergoTree.version), Interpreter.scala:203-238),
+  // so the substitution, exprTpe and every arm read that one version, and an arm's `ctx.treeVersion ?? 0` never meets
+  // an unset one. A version the caller set is kept.
+  if (ctx.treeVersion === undefined) ctx.treeVersion = tree.header.version
   // JVM-align (v6 batch-6, Ask 20): the SELF context extension is consumed by
   // `ErgoLikeContext.toSigmaContext` → `contextVars` (ErgoLikeContext.scala:140-147),
   // which builds `new Array(maxKey+1)` and assigns `res(key)` per `Map[Byte]` key. A
@@ -155,33 +158,20 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
       }
     }
   }
-  // JVM-align #2: mirror the deserializer's check2(SameType)/(OnlyNumeric) on
-  // comparison/equality — a WHOLE-TREE pre-eval pass run before any cost is
-  // charged, so a mismatched node (even in a never-evaluated branch) rejects the
-  // tree with zero JIT cost, matching the JVM's deserialize-time rejection. Runs
-  // on the post-substitution body so substituted-in Deserialize* subtrees are
-  // checked too. See eval/validate-bin-op-types.ts.
-  const treeVersion = ctx.treeVersion ?? 0
+  // The relations' check2 (SameType, OnlyNumeric) is made at parse, as the JVM's builder makes it
+  // when each node is built (wire/check-build.ts); a relation rebuilt around a substituted script is
+  // not checked by check2 again, as Kiama's dup bypasses the builder (the rebuild re-checks only the
+  // Upcast a pre-v3 builder put over its narrower operand). The v3 MethodCall arity assert is made at
+  // parse too, as the JVM's serializer makes it (wire/mir/method-call.ts, MethodCallSerializer.scala:52-55),
+  // a decoded script's included; the evaluator makes neither. So is the version of every type: each is
+  // read at the version in force at its read (wire/parse-stype.ts), a decoded script's at the spent
+  // tree's, and a v6 type below v3 fails there, as in the JVM.
   if (treeHasDeserialize(tree)) {
     const constSubstituted = tree.header.constantSegregation
-      ? substituteConstants(tree.body, tree.constants, tree.constantTypes)
+      ? substituteConstants(tree.body, tree.constants, tree.constantTypes, ctx.treeVersion)
       : tree.body
     const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
-    // JVM-align: reject v3+-only type constructs (SUnsignedBigInt/SFunc) in a
-    // pre-V3 tree (constantTypes[] + the post-substitution body) before any
-    // eval/cost, matching the JVM's deserialize-time rejection. See
-    // eval/validate-v6-types.ts. Walks rewrittenBody so attacker-controlled
-    // Deserialize* sub-trees are covered.
-    validateV6Types(tree, rewrittenBody, treeVersion)
-    validateBinOpTypes(rewrittenBody, treeVersion)
-    // JVM-align: reject a V3+ MethodCall-opcode node with empty args (honest
-    // trees use PropertyCall for zero args). Closes the none/groupGenerator
-    // over-accept. Pre-V3 grandfathered. See eval/validate-method-call-arity.ts.
-    validateMethodCallArity(rewrittenBody, treeVersion)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
-  validateV6Types(tree, tree.body, treeVersion)
-  validateBinOpTypes(tree.body, treeVersion)
-  validateMethodCallArity(tree.body, treeVersion)
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)
 }

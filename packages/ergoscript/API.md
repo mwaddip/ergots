@@ -15,14 +15,14 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **86 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **85 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
 What this package is NOT:
 
 - **NOT a substitute for sigma-rust or a JVM node** on any binding decision. Use this package for tooling (parse / address derivation / simulators / dev frontends) and for unsigned-side prep / preview of script evaluation. For consensus-grade acceptance, combine with sigma-rust.
-- **NOT fully free of `'not-implemented-yet'` paths.** 3 defensive `EvalError` sites remain (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) — see the `evaluate` coverage caveat below. The wire layer no longer emits `'not-implemented-yet'`: 21 wire opcodes are reserved-but-parse-rejected (`ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject), including `FlatMap`/`TrivialPropFalse`/`TrivialPropTrue` (`LastBlockUtxoRootHash` left this group in F5 batch 4 — its bare `0xa6` op-form now parses and evaluates).
+- **NOT fully free of `'not-implemented-yet'` paths.** 2 defensive `EvalError` sites remain (`eval.ts:232`, `global-vars.ts:136`) — see the `evaluate` coverage caveat below. (The third, the raw BitOp shifts in `bin-op/bit.ts`, left on 2026-09-30: every raw BitOp now rejects with `'unsupported-eval-node'`, as the JVM gives the node no eval.) The wire layer no longer emits `'not-implemented-yet'`: 21 wire opcodes are reserved-but-parse-rejected (`ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject), including `FlatMap`/`TrivialPropFalse`/`TrivialPropTrue` (`LastBlockUtxoRootHash` left this group in F5 batch 4 — its bare `0xa6` op-form now parses and evaluates).
 
 A `evaluate(tree)` success means: the tree parses, the implemented arms hit by execution all returned the documented SValue, and `jitCost` stayed within `jitCostLimit` (if set). It does NOT mean "the script would be accepted by an Ergo full node."
 
@@ -69,8 +69,8 @@ Parse the ErgoTree wire format — header byte, optional VLQ-u32 body size, opti
 
 - **Precondition:** `1 ≤ bytes.length ≤ MAX_TREE_SIZE` (1 MB).
 - **Options:** `checkType` applies rule 1001 (the JVM's `CheckDeserializedScriptIsSigmaProp`). It is off by default, as in the JVM's lenient parse, which reads arbitrary-root trees; `{ checkType: true }` is the JVM's `ErgoTree.fromBytes`. Box ingest and address decoding set it.
-- **Returns:** A `ParsedErgoTree`, or, for a size-flagged tree whose constants, body or root check fails soft-forkably (the JVM's `ValidationException`, for example a reserved or unknown opcode, an Option in a pre-v3 tree, a read past the window, or rule 1001 with `checkType`), an `UnparsedErgoTree` holding the tree's declared span as received. Narrow with `isUnparsedTree`. For a canonically encoded tree, `serializeTree` gives the input back (see "Round-trip invariant" below). A tree whose declared size differs from its body parses its whole body and re-serializes with its true size. Bytes after the parse end are tolerated only within a size-flagged tree's declared span.
-- **Throws:** `ErgoTreeParseError` for the envelope (`'empty'`, `'oversized'`, `'trailing-bytes'`) and the tree parse (`'header-version-requires-size'`, `'body-size-overflow'`, `'too-many-constants'`, `'soft-fork-without-size-bit'`, `'nested-tree-truncated'`). Two of those wrap an earlier error, kept as `cause`: a soft-forkable failure in a tree without the size flag throws `'soft-fork-without-size-bit'` (it once surfaced as, for example, `ExprParseError('opcode-reserved')`), and a nested tree (a Box constant's tree) that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `'nested-tree-truncated'`. A nested tree reads its header and size before that, so a run-out there counts as a run-out of the enclosing tree, not of the nested one. Every other failure surfaces unwrapped from the layer that rejected the bytes: `ExprParseError`, `STypeParseError`, `SValueParseError`, `SigmaBooleanParseError`, `ExprTpeError` (a root type the JVM cannot build, with `checkType` only), or scorex's `ReaderError` (`'truncated'`, `'vlq-overflow'`, `'max-tree-depth-exceeded'`). A read past the 4096-byte window, or past a Box constant's candidate window (rule 1014, `'position-limit-exceeded'`), degrades a sized tree and is wrapped for an unsized one, so it never surfaces on its own. Full taxonomy: `facts/ergoscript-wire.md`.
+- **Returns:** A `ParsedErgoTree`, or, for a size-flagged tree whose constants, body or root check fails soft-forkably (the JVM's `ValidationException`, for example a reserved or unknown opcode, an Option in a pre-v3 tree, a read past the window, rule 1001 with `checkType`, and since 2026-09-30 a method or a type the JVM does not know at the tree's version, rules 1010, 1016, 1017 and 1018, or SFunc data, rule 1009), an `UnparsedErgoTree` holding the tree's declared span as received. Narrow with `isUnparsedTree`. For a canonically encoded tree, `serializeTree` gives the input back (see "Round-trip invariant" below). A tree whose declared size differs from its body parses its whole body and re-serializes with its true size. Bytes after the parse end are tolerated only within a size-flagged tree's declared span.
+- **Throws:** `ErgoTreeParseError` for the envelope (`'empty'`, `'oversized'`, `'trailing-bytes'`) and the tree parse (`'header-version-requires-size'`, `'body-size-overflow'`, `'too-many-constants'`, `'soft-fork-without-size-bit'`, `'nested-tree-truncated'`). Two of those wrap an earlier error, kept as `cause`: a soft-forkable failure in a tree without the size flag throws `'soft-fork-without-size-bit'` (it once surfaced as, for example, `ExprParseError('opcode-reserved')`), and a nested tree (a Box constant's tree) that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `'nested-tree-truncated'`. A nested tree reads its header and size before that, so a run-out there counts as a run-out of the enclosing tree, not of the nested one. Every other failure surfaces unwrapped from the layer that rejected the bytes: `ExprParseError`, `STypeParseError`, `SValueParseError`, `SigmaBooleanParseError`, `ExprTpeError`, or scorex's `ReaderError` (`'truncated'`, `'vlq-overflow'`, `'max-tree-depth-exceeded'`). **Node construction (2026-09-30):** every node is built as the JVM builds it, with its constructor's, its builder's and its serializer's checks, as soon as its own bytes are read. A failure is an `ExprParseError` construction code (see "`ExprParseError` codes" below) or the `ExprTpeError` of a type read the JVM makes there (a class cast, or `SelectField`'s index out of range), and it is a hard reject, in a size-flagged tree too, with or without `checkType`. Before, an `ExprTpeError` escaped only a root type read under `checkType`. A read past the 4096-byte window, or past a Box constant's candidate window (rule 1014, `'position-limit-exceeded'`), degrades a sized tree and is wrapped for an unsized one, so it never surfaces on its own. Full taxonomy: `facts/ergoscript-wire.md`.
 
 ```ts
 const tree = parseTree(treeBytes);
@@ -139,9 +139,11 @@ Base58 (Bitcoin alphabet) codec. Exposed primarily for testing and tooling; addr
 ```ts
 function parseSValue(tpe: SType, treeVersion: number, r: ByteReader): SValue;
 function serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void;
-function parseSType(r: ByteReader): SType;
+function parseSType(r: ByteReader, treeVersion: number): SType;
 function serializeSType(tpe: SType, w: ByteWriter): void;
 ```
+
+**Breaking (2026-09-30): `parseSType` takes a required `treeVersion`,** the tree version in force at the read, as the JVM's `TypeSerializer` reads a type under it (`docs/specs/2026-09-30-jvm-node-construction-design.md` §4a): a tree's header version for its own constants and body, the enclosing tree's for a nested box's registers, and 3 at the top level (the ergo node reads a transaction's registers and context extension at (3, 3) since 6.0). Below 3, type code 9 (UnsignedBigInt, as a primitive id anywhere in a type) fails the JVM's rule 1017 and code 112 (SFunc) rule 1018; primitive ids 10 and 11, and codes 107–111 and 113–255, fail at every version. These are `STypeParseError` `'type-code-primitive-unknown'` (1017) and `'type-code-unknown'` (1018), soft: a size-flagged tree degrades on them. Code 0 is `'type-prefix-invalid'` (the JVM's `InvalidTypePrefix`), hard. `'invalid-type-code'`, which covered all of these, is retired. `parseSValue`'s `treeVersion` is, in the same way, the version the data and a Box value's registers are read at, types included. Two data rules came with it: SFunc data throws the soft `SValueParseError('data-type-not-serializable')` (rule 1009), and a `Coll` whose element type the JVM's `stypeToRType` refuses (an `STypeVar`, or an SFunc of other than one argument or with type parameters, anywhere in it; a tuple element of other than two items is not checked) throws the hard `'coll-elem-type-no-rtype'` before any item, an empty `Coll` included.
 
 Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces as scorex `ReaderError('position-limit-exceeded')` from `parseSValue`; inside a tree (a Box constant) that is rule 1014, which degrades a sized tree and is wrapped as `'soft-fork-without-size-bit'` by an unsized one. An `SBox`'s tree is parsed under the box rules and its registers in the JVM's order (see `parseErgoTreeBytes` / `parseAdditionalRegisters` below), so their errors surface too, unwrapped: `ErgoTreeParseError`, `ExprParseError`, `ExprTpeError` and scorex `ReaderError` among them. A register whose data is malformed rejects with its data's error (for example `ReaderError('truncated')`), before rule 1019 (`'register-v6-type'`) runs on the complete value. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
 
@@ -156,7 +158,7 @@ type AdditionalRegisters = Record<number, { tpe: SType; value: SValue; opaqueByt
 Reader-based ErgoBox sub-structure readers, factored out of the `SBox` data parser and consumed by `@ergots/transaction`'s ErgoBoxCandidate codec so the box-body grammar lives in one place. Both advance the shared `ByteReader` in place.
 
 - **`parseErgoTreeBytes`** parses one ergoTree on the reader it arrives on, under the box rules: the parse of `parseTree(…, { checkType: true })`, as the JVM's box parser parses a box's tree, so rule 1001 applies here where the bare `parseTree` is lenient. It returns the tree's span as received, a detached copy, declared size included: a box's R1 and `propositionBytes`. It leaves the cursor where the JVM continues reading the box: the parse end for a tree that parses, whatever its declared size says, and the end of the declared span for a tree that degrades. It seeds the box-tree cache with the tree it parsed, so `boxTreeOf` and `reencodeTreeBytes` on the returned bytes reuse this parse. It throws what the tree parse throws, including `ExprTpeError`; an unsized tree whose root is not SigmaProp rejects with `ErgoTreeParseError('soft-fork-without-size-bit')`.
-- **`parseAdditionalRegisters`** reads the additional-registers section in the JVM's order: a raw `u8` count, then for each register R4.. its value read whole (a `Const` or `Tuple` Expr; the Tuple-Expr form keeps its bytes in `opaqueBytes`), then rule 1019 `CheckV6Type` on the complete value (`'register-v6-type'`). A seventh register rejects (`'sbox-registers-out-of-range'`) only when the loop reaches it, after R4–R9 were read, and a register Tuple's arity is read as a signed byte, so 128 or more rejects before any item (`'sbox-register-tuple-arity'`).
+- **`parseAdditionalRegisters`** reads the additional-registers section in the JVM's order: a raw `u8` count, then for each register R4.. its value read whole (a `Const` or `Tuple` Expr; the Tuple-Expr form keeps its bytes in `opaqueBytes`), then rule 1019 `CheckV6Type` on the complete value (`'register-v6-type'`). A seventh register rejects (`'sbox-registers-out-of-range'`) only when the loop reaches it, after R4–R9 were read, and a register Tuple's arity is read as a signed byte, so 128 or more rejects before any item (`'sbox-register-tuple-arity'`). `treeVersion` is the version the values are read at, types and data (see `parseSType`): the enclosing tree's for a Box constant's registers, 3 for a transaction's boxes.
 
 Full shape and failure surface in `facts/ergoscript-wire.md` § "ErgoBox sub-structure readers".
 
@@ -267,7 +269,7 @@ interface TreeHeader {
 type SType =
   | { tag: 'SBoolean' } | { tag: 'SByte' } | { tag: 'SShort' }
   | { tag: 'SInt' }     | { tag: 'SLong' } | { tag: 'SBigInt' }
-  | { tag: 'SUnsignedBigInt' }                     // v6 P2a — type code 9; permissive parse, pre-eval gate
+  | { tag: 'SUnsignedBigInt' }                     // v6 P2a — type code 9; read from tree v3 (rule 1017 below it)
   | { tag: 'SGroupElement' } | { tag: 'SSigmaProp' } | { tag: 'SBox' }
   | { tag: 'SAvlTree' } | { tag: 'SUnit' } | { tag: 'SAny' }
   | { tag: 'SHeader' }  | { tag: 'SPreHeader' } | { tag: 'SContext' }
@@ -279,7 +281,7 @@ type SType =
   | { tag: 'STypeVar';  name: string };
 ```
 
-Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs`. `SUnsignedBigInt` (v6 P2a, type code 9) is a first-class variant: the wire parser accepts it permissively (no version check), but the pre-eval `validateV6Types` pass rejects any tree containing it when `ctx.treeVersion < 3`, matching the JVM's gate at type deserialization.
+Closed discriminated union over the ErgoScript type system. Mirrors sigma-rust's `ergotree-ir/src/types/stype.rs`. `SUnsignedBigInt` (v6 P2a, type code 9) and `SFunc` (type code 112) are first-class variants, which the wire parser reads only at tree version 3 or later, as the JVM's type deserialization does (see `parseSType` above).
 
 ### `SValue`
 
@@ -347,7 +349,7 @@ class AddressDecodeError        extends Error { readonly code: string }
 class ExprTpeError              extends Error { readonly code: string }
 ```
 
-These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The tree parse wraps two failures in an `ErgoTreeParseError` whose `cause` is the original error: a soft-forkable failure in a tree without the size flag (`'soft-fork-without-size-bit'`) and a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end (`'nested-tree-truncated'`). The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
+These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The tree parse wraps two failures in an `ErgoTreeParseError` whose `cause` is the original error: a soft-forkable failure in a tree without the size flag (`'soft-fork-without-size-bit'`) and a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end (`'nested-tree-truncated'`). The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. Since 2026-09-30 it also escapes any parse, from a type read made while a node is built, and `evaluate` / `evaluateWith`, from a type read at one of the JVM's eval-time `checkType` sites (see `evaluate`). One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
@@ -373,6 +375,54 @@ These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serial
 | `'constants-arity-mismatch'` | `constantTypes.length !== constants.length` |
 | `'oversized'` | The serialized tree would exceed `MAX_TREE_SIZE` |
 | `'too-many-constants'` | More than 100000 constants, the parse bound |
+
+### `ExprParseError` codes: node construction and method lookups (2026-09-30)
+
+The full list is in `facts/ergoscript-wire.md` § "Error taxonomy"; these are the codes the JVM's node construction and method lookup added (`docs/specs/2026-09-30-jvm-node-construction-design.md` §§3, 4a). Each construction code is a hard reject, a size-flagged tree included, and stands for the JVM exception in parentheses; the two lookup codes are soft, so a size-flagged tree degrades on them.
+
+| Code | When thrown |
+|---|---|
+| `'numeric-cast-target-not-numeric'` | An `Upcast` or `Downcast` whose target type is not numeric (`asNumType`, a `ClassCastException`) |
+| `'numeric-cast-input-not-numeric'` | An `Upcast` or `Downcast` whose input is not numeric, the JVM's `NoType` included (`IllegalArgumentException`) |
+| `'negation-input-not-numeric'`, `'bit-inversion-input-not-numeric'` | A `Negation` or `BitInversion` input that is neither numeric nor the JVM's `NoType` (`IllegalArgumentException`) |
+| `'bit-op-operand-not-numeric'` | A `BitOp` operand that is neither numeric nor the JVM's `NoType`; the right operand's type is read even when the left fails (`IllegalArgumentException`) |
+| `'relation-operand-not-numeric'` | An `LT`, `LE`, `GT` or `GE` operand that is not numeric (`check2`, `ConstraintFailed`) |
+| `'relation-operand-type-mismatch'` | Relation operands of different types; before tree v3 two numeric types pass, as the builder upcasts them (`check2`, `ConstraintFailed`) |
+| `'collection-item-type-mismatch'` | A collection item whose type is not the element type, checked right after the item is read (`AssertionError`) |
+| `'block-value-item-not-val-def'` | A `BlockValue` item that is not a `ValDef` (`ClassCastException`) |
+| `'method-call-empty-args'` | A `MethodCall` without arguments in a tree of version 3 or later (`AssertionError`). An `EvalError` code, from a pre-eval pass, until 2026-09-30 |
+| `'by-index-index-not-int'` | Before tree v3, a `ByIndex` index whose type is not Byte, Short or Int (`AssertionError`) |
+| `'extract-register-as-id-out-of-range'` | An `ExtractRegisterAs` register id outside 0..9, checked before its type (`NoSuchElementException`) |
+| `'method-type-no-methods'` | Soft, rule 1010: a `MethodCall` or `PropertyCall` whose type id has no methods at the tree's version (UnsignedBigInt's, 9, below v3) |
+| `'method-unknown'` | Soft, rule 1016: a method id its type does not have at the tree's version (a v6-only method below v3, for one) |
+
+Retired on 2026-09-30: `'val-def-rhs-tpe'` (a ValDef right-hand side's type read now throws its own error, often an `ExprTpeError`) and `'select-field-index-out-of-range'` (the constructor's cast, then its index, decide: see `ExprTpeError`). Three `ExprParseError` codes are class casts (`'numeric-cast-target-not-numeric'`, `'block-value-item-not-val-def'` and `'fun-def-tpe-arg-not-type-var'`): inside a script decoded at spend, each leaves the Deserialize node in place, as the JVM's substitution swallows a `ClassCastException`, and so does every `ExprTpeError` code below but `'select-field-out-of-range'` and the two defensive ones.
+
+### `ExprTpeError` codes
+
+`ExprTpeError` is the JVM's exception while it reads a node's type: a `ClassCastException` where the node casts its input's type, or `SelectField`'s index error.
+
+| Code | When thrown |
+|---|---|
+| `'by-index-input-class-cast'`, `'option-get-input-class-cast'`, `'option-get-or-else-input-class-cast'`, `'select-field-input-class-cast'`, `'map-mapper-class-cast'`, `'filter-input-class-cast'`, `'slice-input-class-cast'`, `'append-input-class-cast'` | The node's input (for `Map`, its mapper) types as the JVM's `SAny` or `NoType`, which the JVM's cast refuses |
+| `'by-index-input-not-scoll'`, `'option-get-input-not-soption'`, `'option-get-or-else-input-not-soption'`, `'select-field-input-not-stuple'`, `'map-mapper-not-sfunc'` | The input has another type that is not the class the node casts to |
+| `'filter-input-not-scoll'`, `'slice-input-not-scoll'`, `'append-input-not-scoll'` | New on 2026-09-30: a `Filter`, `Slice` or `Append` input that is no collection or tuple (these passed any concrete type through before) |
+| `'select-field-out-of-range'` | A `SelectField` index of 0, of 128 or more, or past the tuple's arity (`IndexOutOfBoundsException`) |
+| `'bin-op-kind-unhandled'`, `'tpe-not-implemented'` | Defensive; unreachable for a parsed node |
+
+Retired on 2026-09-30: `'apply-func-no-type'` (an `Apply` of a function that is neither an `SFunc` nor a collection types as the JVM's `NoType`, as in the JVM) and `'negation-input-jvm-sany'`, `'bit-inversion-input-jvm-sany'`, `'bit-op-operand-jvm-sany'` (the constructor's `require`s are construction checks now, the `ExprParseError` codes above).
+
+### `STypeParseError` and `SValueParseError`: the 2026-09-30 codes
+
+| Class, code | When thrown |
+|---|---|
+| `STypeParseError('type-code-primitive-unknown')` | Soft, rule 1017: a primitive type id the tree version's table lacks (10 and 11 always; 9, UnsignedBigInt, below v3) |
+| `STypeParseError('type-code-unknown')` | Soft, rule 1018: a type code no version knows (107–111, 113–255), or 112 (SFunc) below v3 |
+| `STypeParseError('type-prefix-invalid')` | Hard: type code 0 (the JVM's `InvalidTypePrefix`) |
+| `SValueParseError('data-type-not-serializable')` | Soft, rule 1009: data of an SFunc type |
+| `SValueParseError('coll-elem-type-no-rtype')` | Hard: a `Coll` whose element type the JVM's `stypeToRType` refuses, before any item |
+
+Retired: `STypeParseError('invalid-type-code')`, which covered codes 0, 10, 11 and every unknown code as one hard reject. See `parseSType` above.
 
 ### `AddressDecodeError` codes
 
@@ -409,8 +459,15 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 86 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped.
-- **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer) for most of them. JVM 6.0.6 does parse `OpTrue`, `OpFalse` and the ModQ family (and `TaggedVariable` `0x71`); ergots rejecting them is a known residual (`facts/ergoscript-wire.md`, `'opcode-reserved'` entry). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 3 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`, `bin-op/bit.ts:58`) still throw at runtime.
+- **Postcondition (failure):** Throws `EvalError` with one of the 85 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
+- **Behaviour changes (2026-09-30; `docs/specs/2026-09-30-jvm-node-construction-design.md`):**
+  - **No pre-eval pass.** `evaluate` no longer runs `validateBinOpTypes`, `validateMethodCallArity` or `validateV6Types` over the tree before evaluating it. The JVM makes those checks only at parse, and so does `parseTree` now (see "`ExprParseError` codes"): a relation's operand types (`'relation-operand-not-numeric'`, `'relation-operand-type-mismatch'`, which were `EvalError`s `'bin-op-not-numeric'` and `'bin-op-kind-mismatch'` from the pass), a v3 `MethodCall` without arguments (`'method-call-empty-args'`, retired as an `EvalError` code) and a v6 type below v3 (see `parseSType`). So a relation rebuilt around a substituted script is not checked by `check2` again, as in the JVM. `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired: a parsed tree below v3 cannot carry one (a size-flagged tree degrades, and its spend fails `'unparsed-ergotree'`; an unsized one rejects). Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written, as it evaluates a relation or a method call it builds.
+  - **Nodes the JVM does not evaluate.** Every raw `BitOp` (`BitOr`, `BitAnd`, `BitXor` and the three shifts) and `BitInversion` rejects when evaluated, with `'unsupported-eval-node'`, charging nothing and evaluating no operand, as `TreeLookup` and `CreateAvlTree` already did. Before, `BitOr`, `BitAnd`, `BitXor` and `BitInversion` evaluated and the shifts threw `'not-implemented-yet'`. A tree that holds one only in a branch never evaluated still evaluates. The v6 methods (`bitwiseOr`, `shiftLeft` and the rest) are unchanged.
+  - **`Apply` takes exactly one argument, and a lambda exactly one parameter.** An `Apply` with none, or with two or more, rejects with `'apply-arity-mismatch'` after its 30 is charged, before the function or any argument is evaluated, as the JVM's `Apply.eval` does. Before, a lambda of the same arity was applied (a two-argument lambda to two arguments, a zero-argument one to none). A `FuncValue` with other than one parameter rejects with the same code wherever it is evaluated, after its 5 is charged and before any closure is built, as the JVM's `FuncValue.eval` does: passed to `map`, `exists`, `forall` or `filter`, compared with `==`, or bound. Before, it evaluated to a closure (and such a lambda passed to `map` or `exists`, say, was accepted). Either node in a branch never evaluated still evaluates.
+  - **The Deserialize substitution follows the JVM's.** A class cast while a script decoded at spend is parsed or typed leaves the node in place, as does a `DeserializeRegister` whose register is not a `Coll[Byte]` (no longer `'deserialize-input-not-byte-array'`), so a dead branch holding one accepts and a live one rejects `'deserialize-not-substituted'`. R0–R3 are always present. A node the rewrite rebuilds passes its constructor's checks, else `'deserialize-rebuild-failed'` (new). They include, before tree v3, the check of the `Upcast` the JVM's parse puts over a relation's narrower numeric operand or a Byte or Short `ByIndex` index, which reads the rebuilt operand's type: the parse records where that `Upcast` is. A decoded script typed as the JVM's `NoType` no longer matches a declared `SAny`. A register default is still type-checked, where the JVM takes it untyped (a documented residual), except that a default whose type read is a class cast is substituted untyped, as the JVM does.
+  - **The eval-time type reads.** At each JVM `checkType` site (`EQ`/`NEQ` operands, the taken `If` branch, `Tuple` and collection items, `BlockValue` right-hand sides and result, a lambda's body at each application, `Fold`'s zero, `ByIndex`'s and `OptionGetOrElse`'s defaults), the node's type is read, and a read that throws rejects with its `ExprTpeError`, as the JVM's `ClassCastException` does.
+  - **The pre-v3 `ByIndex` index.** Before tree v3, an index whose static type is Byte or Short evaluates through the `Upcast` the JVM's parse inserts, charged 10, where it threw `'coll-by-index-index-not-int'`; a statically Int index still takes an Int value only. The decision is made at parse, from the index's static type, and kept through a substitution rebuild.
+- **Coverage caveat:** 68 of 68 implementable `Expr` variants have implemented arms (F5 batch 4 added `LastBlockUtxoRootHash` — the bare `0xa6` op-form parses and evaluates; cost 15 vs the PropertyCall form's 20). 21 wire opcodes (ModQ family, `OpTrue`/`OpFalse`/`UnitConstant`, `Select1-5`, `CollShift`/`CollRotate`, `SomeValue`, `NoneValue`, `FlatMap`, `TrivialPropFalse`, `TrivialPropTrue`) are reserved in sigma-rust's `OpCode` enum and unconditionally parse-rejected — `ExprParseError 'opcode-reserved'`, mirroring the JVM `CheckValidOpCode` reject (no registered serializer) for most of them. JVM 6.0.6 does parse `OpTrue`, `OpFalse` and the ModQ family (and `TaggedVariable` `0x71`); ergots rejecting them is a known residual (`facts/ergoscript-wire.md`, `'opcode-reserved'` entry). `FunDef` (`0xd7`) was once in this group but is now parsed+evaluated as a `ValDef` from v6 P6. The bare `FlatMap`/`TrivialProp` opcodes joined the reserved set; their non-bare forms reach us elsewhere (`flatMap` as a method-call; the `TrivialProp` pair as a SigmaBoolean leaf inside a SigmaProp constant). Trees whose body reaches a not-yet-implemented method-call handler or one of 2 defensive `EvalError 'not-implemented-yet'` sites (`eval.ts:232`, `global-vars.ts:136`) still throw at runtime.
 
 ### `evaluateWith(tree, ctx)`
 
@@ -418,7 +475,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue;
 ```
 
-Same evaluation pipeline as `evaluate` using a caller-supplied `EvalContext`. The context is mutated in-place — inspect `ctx.jitCost` after the call to read total cost charged. Partial costs are NOT rolled back on failure; `ctx.jitCost` reflects cost up to and including the point of any throw.
+Same evaluation pipeline as `evaluate` using a caller-supplied `EvalContext`. The context is mutated in-place — inspect `ctx.jitCost` after the call to read total cost charged. When `ctx.treeVersion` is unset, it is set to `tree.header.version` before any substitution or eval (2026-09-30), as the JVM runs a tree under its own version; before, the arms read an unset version as 0. A version the caller set is kept. Partial costs are NOT rolled back on failure; `ctx.jitCost` reflects cost up to and including the point of any throw.
 
 ### `makeContext(opts?)`
 
@@ -434,7 +491,7 @@ Construct a fresh `EvalContext` from `EvalOpts`. Pure constructor — same opts 
 interface EvalOpts {
   jitCostLimit?: number          // undefined = unlimited
   constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
-  treeVersion?: number           // 0..7; auto-derived from tree.header.version in evaluate()
+  treeVersion?: number           // 0..7; when unset, evaluate() and evaluateWith() set it to tree.header.version
   // Chain-state fields:
   height?: number                // current block height
   selfBox?: ErgoBox              // spending box
@@ -464,13 +521,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 86 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 85 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 85 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -480,12 +537,12 @@ All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'arith-overflow'` | `BinOp.Arith` result outside signed range |
 | `'arith-divide-by-zero'` | `BinOp.Arith` divide or modulo by zero |
 | `'method-not-implemented'` | `MethodCall`/`PropertyCall` hit an unregistered `(typeId, methodId)` |
-| `'tree-version-too-low'` | A V3-gated method or type encountered in a `treeVersion < 3` tree |
-| `'v6-type-in-pre-v3-tree'` | `SUnsignedBigInt` or serialized `SFunc` annotation in a pre-V3 tree |
+| `'tree-version-too-low'` | A V3-gated method handler reached in a `treeVersion < 3` evaluation, or a BigInt → BigInt `Upcast` or a BigInt-source `Downcast` below v3. The method gate is defensive since 2026-09-30: a parsed tree below v3 fails the method lookup at parse first (rule 1016 or 1010) |
 | `'avl-tree-proof-failed'` | AvlTree proof verification failed where the JVM throws: `get`/`getMany` (≥1 key) on any failure, `insert` at treeVersion<3 with ≥1 op. `contains`→false, `update`/`remove`/`insertOrUpdate`→None instead (F4 JVM-canonical surface) |
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
-| `'unsupported-eval-node'` | Evaluating `TreeLookup` or `CreateAvlTree` — the JVM has no eval override for either node (both still parse); unconditional, nothing charged (F4 epilogue) |
+| `'unsupported-eval-node'` | Evaluating a node the JVM gives no eval (all still parse): `TreeLookup` or `CreateAvlTree` (F4 epilogue), and since 2026-09-30 any raw `BitOp` (`BitOr`, `BitAnd`, `BitXor`, the three shifts) or `BitInversion`; unconditional, nothing charged, no operand evaluated |
+| `'deserialize-rebuild-failed'` | New on 2026-09-30: a node the Deserialize substitution rebuilds, around a substituted script or default, fails its constructor's checks, as Kiama's `dup` runs them in the JVM (a class cast included); the check's error is the `cause` |
 | `'unsupported-value-type'` | A value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue, ValUse, ConstantPlaceholder) has a declared non-pair `STuple` (arity≠2) or non-unary `SFunc` (arity≠1) type — JVM `SType.isValueOfType` sys.error (F5 batch 3; adversarial-only) |
 | `'select-field-non-pair'` | `SelectField` input is a Tuple of arity≠2 — JVM `SelectField.eval` matches only `Tuple2` (F5 batch 3; adversarial-only) |
 | `'atleast-too-many-children'` | `Atleast` input collection holds >255 SigmaProps — JVM `CSigmaDslBuilder.atLeast` cap (`MaxChildrenCountForAtLeastOp = 255`); thrown after the per-item charge, before the degenerate-bound reductions (F5 batch 4; adversarial-only) |
@@ -495,7 +552,7 @@ All 86 `EvalError` codes and their semantics are documented in `facts/ergoscript
 
 ## V3 (ErgoTree v6) surface
 
-The following method handlers and types are **V3-gated** (require `tree.header.version >= 3`; pre-V3 trees throw `EvalError 'tree-version-too-low'` before the handler runs). All 134 registry entries are documented in full in `facts/ergoscript-eval.md`.
+The following method handlers and types are **V3-only** (they need `tree.header.version >= 3`). Since 2026-09-30 the parse decides it, as the JVM's does: below v3 such a method fails the method lookup (rule 1016, or 1010 for UnsignedBigInt's type, which has no methods there) and such a type fails its type read (rule 1017 or 1018), so a size-flagged tree degrades and an unsized one rejects. The handlers' own gate, `EvalError 'tree-version-too-low'` before the handler runs, stays as a defensive check on MIR a caller builds, or an evaluation version set below the tree's. All 134 registry entries are documented in full in `facts/ergoscript-eval.md`.
 
 ### Numeric methods (v6 P1) — 40 handlers
 
@@ -516,7 +573,7 @@ New `SType { tag: 'SUnsignedBigInt' }` and `SValue { kind: 'UnsignedBigInt'; val
 - **8 bitwise/shift methods** (methodIds 6–13, `FixedCost(5)`): same names as P1 but unsigned-codec variants for `toBytes`/`toBits`; unsigned-overflow guard on `shiftLeft` → `'unsigned-bigint-out-of-range'`.
 - **Modular arithmetic** (methodIds 14–18): `modInverse` (9:14, cost 150), `plusMod` (9:15, cost 30), `subtractMod` (9:16, cost 30), `multiplyMod` (9:17, cost 40), `mod` (9:18, cost 20), plus `BigInt.toUnsignedMod` (6:15, cost 15). Euclidean semantics.
 - **Bridge methods**: `BigInt.toUnsigned` (6:14, cost 5) — throws `'unsigned-bigint-out-of-range'` if receiver `< 0`; `UnsignedBigInt.toSigned` (9:19, cost 10) — throws `'bigint-result-out-of-range'` if `value >= 2^255`.
-- **BinOps** (v6 P2c): UBI operands supported in Arith (`Plus`/`Minus`/`Multiply`/`Divide`/`Modulo`/`Min`/`Max`), ordering (`Lt`/`Le`/`Gt`/`Ge`), and equality (`Eq`/`NEq`). UBI arith costs use the non-BigInt tier (lower than signed BigInt). Mixed UBI/signed operands in a V3 tree → `'bin-op-kind-mismatch'`.
+- **BinOps** (v6 P2c): UBI operands supported in Arith (`Plus`/`Minus`/`Multiply`/`Divide`/`Modulo`/`Min`/`Max`), ordering (`Lt`/`Le`/`Gt`/`Ge`), and equality (`Eq`/`NEq`). UBI arith costs use the non-BigInt tier (lower than signed BigInt). Mixed UBI/signed operands in a V3 tree: arithmetic → `'bin-op-kind-mismatch'` at eval; ordering and equality → `ExprParseError('relation-operand-type-mismatch')` at parse, as the JVM's `check2` rejects them (since 2026-09-30; before, the pre-eval `validateBinOpTypes` pass threw `'bin-op-kind-mismatch'`).
 
 ### Coll v6 methods (v6 P3) — 4 handlers, typeId 12
 

@@ -27,7 +27,7 @@ describe('serialize / deserializeTo — exprTpe (P0 resolver)', () => {
       args: [{ tag: 'Const', tpe: SBYTE, value: { kind: 'Byte', value: 0 } }],
       explicitTypeArgs: {},
     }
-    expect(exprTpe(mc)).toEqual(COLL_BYTE)
+    expect(exprTpe(mc, 3)).toEqual(COLL_BYTE)
   })
 
   it('deserializeTo[Int] (106:4) → Int (T from explicit type arg)', () => {
@@ -36,6 +36,6 @@ describe('serialize / deserializeTo — exprTpe (P0 resolver)', () => {
       args: [{ tag: 'Const', tpe: COLL_BYTE, value: { kind: 'Coll', elem: SBYTE, items: [] } }],
       explicitTypeArgs: { T: { tag: 'SInt' } },
     }
-    expect(exprTpe(mc)).toEqual({ tag: 'SInt' })
+    expect(exprTpe(mc, 3)).toEqual({ tag: 'SInt' })
   })
 })

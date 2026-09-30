@@ -33,13 +33,14 @@ import { serializeSType } from '../serialize-stype'
 
 /**
  * Parse a `DeserializeContext` payload (the OP_DESERIALIZE_CONTEXT opcode byte
- * was consumed by the dispatcher). Reads the SType then the one-byte var id.
+ * was consumed by the dispatcher). Reads the SType, under the tree's version,
+ * then the one-byte var id (JVM `DeserializeContextSerializer.scala:19-21`).
  *
  * Mirrors `DeserializeContext::sigma_parse`
  * (`mir/deserialize_context.rs:43-47`).
  */
-export function parseDeserializeContext(r: ByteReader): DeserializeContext {
-  const tpe = parseSType(r)
+export function parseDeserializeContext(r: ByteReader, treeVersion: number): DeserializeContext {
+  const tpe = parseSType(r, treeVersion)
   const id = r.readU8()
   return { tag: 'DeserializeContext', tpe, id }
 }

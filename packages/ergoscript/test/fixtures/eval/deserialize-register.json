@@ -128,8 +128,8 @@
       },
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error": "must be Coll[Byte]",
-      "expected_error_code": "deserialize-input-not-byte-array"
+      "expected_error": "substitute pass did not rewrite",
+      "expected_error_code": "deserialize-not-substituted"
     },
     {
       "name": "dr_throw_default_wrong_type",

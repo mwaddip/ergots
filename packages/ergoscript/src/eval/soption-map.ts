@@ -14,7 +14,7 @@
  * Some-path lambda invocation additionally charges ADD_TO_ENV_COST(5) before the
  * body eval (F3.5). None path uncharged — lambda is never invoked.
  *
- * Output Option elem type = `exprTpe(closure.body)` — same convention as flatMap.
+ * Output Option elem type = `exprTpe(closure.body, ctx.treeVersion ?? 0)` — same convention as flatMap.
  * The walker only checks cost (the oracle returns no value), so the elem only
  * matters for the offline byte-equality fixtures, which use BinOp bodies whose
  * exprTpe resolves concretely.
@@ -27,6 +27,7 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
+import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 
 /**
@@ -74,7 +75,7 @@ export function evalSOptionMap(
 
   // Output Option elem = static type of the lambda body (flatMap convention).
   // Computed statically, so it is valid for the None case too.
-  const outElem: SType = exprTpe(closure.body)
+  const outElem: SType = exprTpe(closure.body, ctx.treeVersion ?? 0)
 
   // None → None (lambda NOT invoked). Some(t) → Some(lambda(t)).
   if (obj.value === null) {
@@ -95,5 +96,7 @@ export function evalSOptionMap(
   // (no-op); differs only for out-of-scope-captured lambdas.
   const bodyEnv = closure.capturedEnv.extend(argId, obj.value)
   const result = evalExpr(closure.body, bodyEnv, ctx)
+  // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+  readCheckedType(closure.body, ctx)
   return { kind: 'Option', elem: outElem, value: result }
 }

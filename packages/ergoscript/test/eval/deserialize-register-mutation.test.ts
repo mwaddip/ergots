@@ -85,8 +85,11 @@
  *   `{ kind: 'Int', value: 1 }`, with no `items` array to iterate. We
  *   skip inner-Expr mutations for this entry (set membership in
  *   `NO_REGISTER_INNER_BYTES`). Tree mutations alone provide the kill
- *   surface: opcode/reg/tpe/default-tag flips all trip parse errors or
- *   substitution-error code shifts. 12/12 = 1.000.
+ *   surface: opcode/reg/tpe/default-tag flips trip parse errors or
+ *   substitution-error code shifts. Since 2026-09-30 a register that is not a
+ *   Coll[Byte] leaves the node, as an absent one does (the JVM swallows the
+ *   ClassCastException of `eba.value.toArray`), so the reg flip R4 → R5
+ *   survives: both throw 'deserialize-not-substituted' at eval. 11/12 = 0.917.
  *
  * **`dr_throw_no_register_no_default`** — empty registers, default=None.
  *   No inner-Expr mutations available (skipped via `NO_REGISTER_INNER_BYTES`).
@@ -140,13 +143,17 @@
  *
  * ── Aggregate threshold rationale (sub-90% escalation) ───────────────────
  *
- * Empirical aggregate: 121/141 = 0.858 (6 consensus-dead JVM getOption
+ * Empirical aggregate: 120/141 = 0.851 (6 consensus-dead JVM getOption
  * nonzero-tag mutations excluded from denominator; see SOME_DEFAULT_TAG_OFFSET).
+ * It was 121/141 = 0.858 until 2026-09-30, when a register that is not a
+ * Coll[Byte] began to leave the node as the JVM does (one more survivor below).
  * The DR fixture set is dominated by small-payload entries (5-9 tree bytes;
  * 2-4 inner bytes); the effective mutation surface (141 after exclusions) has
- * 20 survivors in legitimate equivalence classes:
+ * 21 survivors in legitimate equivalence classes:
  *
  *   - 5 reg-absent equivalences (R0..R9 absent → same default path)
+ *   - 1 reg-absent-like equivalence (R4 holding an Int and R5 absent both
+ *     leave the node, 'deserialize-not-substituted')
  *   - 4 Height-NEq mathematical equivalences (Height=999999 dominates
  *     small Const-SInt values; NEq returns `true` regardless of small
  *     payload mutations)
@@ -162,7 +169,7 @@
  *
  * Per OVERRIDES rule #2 ("Don't ship sub-90% kill rates without
  * investigation + documented rationale"): the structural ceiling for this
- * fixture composition is ~0.86 after correct exclusions; the 0.85 aggregate
+ * fixture composition is ~0.85 after correct exclusions; the 0.85 aggregate
  * threshold is the load-bearing safety net against regressions; per-entry
  * exemptions are the equivalence-class filter.
  *
@@ -452,7 +459,7 @@ describe('DeserializeRegister mutation testing (Layer C3.a)', () => {
   // Aggregate threshold lowered from DEFAULT_KILL_THRESHOLD (0.90) to 0.85
   // per OVERRIDES rule #2 with documented rationale. See top-of-file
   // preamble "Aggregate threshold rationale" — the DR fixture set's
-  // composition has a structural ceiling at ~0.86 (after consensus-dead
+  // composition has a structural ceiling at ~0.85 (after consensus-dead
   // JVM getOption tag-byte mutations are excluded from the denominator).
   // Surviving equivalence classes: reg-absent, Height-NEq, same-code throws.
   // Each reflects correct JVM behaviour; no drift to catch.

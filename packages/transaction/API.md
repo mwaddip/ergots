@@ -88,7 +88,7 @@ Each output's ergoTree is parsed under the box rules (`parseErgoTreeBytes` from 
 - `TxParseError('extension-v6-type')` — an input's context-extension value has a type containing `Option`, `Header` or `UnsignedBigInt` (see `SpendingProof`).
 - `TxParseError('output-tree-not-reencodable')` — an output tree parses but cannot be written back, for example one holding a 1-item tuple type or a FuncValue argument id of 2^31 or more; the write error is the `cause`. The JVM rejects such a transaction at parse. This check runs once every output is parsed, before the `'trailing-bytes'` check.
 - `ReaderError` (from `@ergots/scorex`) for truncated / malformed VLQ bytes, or `'max-tree-depth-exceeded'` for a context-extension value nested deeper than the JVM allows.
-- Inner ergoscript errors if a candidate's ergoTree or register bytes are malformed or fail the box rules, unwrapped: for example `ErgoTreeParseError('soft-fork-without-size-bit')` for an unsized output tree whose root is not SigmaProp, or `ExprTpeError` for a root type the JVM cannot build.
+- Inner ergoscript errors if a candidate's ergoTree or register bytes are malformed or fail the box rules, unwrapped: for example `ErgoTreeParseError('soft-fork-without-size-bit')` for an unsized output tree whose root is not SigmaProp, or `ExprTpeError` for a root type the JVM cannot build. Since 2026-09-30 every node of an output tree passes the JVM's construction checks as it is parsed, so an `ExprParseError` construction code or an `ExprTpeError` can come from any node, a hard reject in a size-flagged tree too (`@ergots/ergoscript`'s API.md, "`ExprParseError` codes").
 
 ---
 
@@ -192,7 +192,7 @@ interface StateContext {
 
 **Returns:** `undefined` on success.
 
-**Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun, or `'unparsed-ergotree'`); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse and serialize errors (malformed ergoTree bytes, or a value that cannot be written; see "Unwrapped errors").
+**Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun, or `'unparsed-ergotree'`); `ExprTpeError` (a type read at an eval-time `checkType` site, since 2026-09-30); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse and serialize errors (malformed ergoTree bytes, or a value that cannot be written; see "Unwrapped errors").
 
 ---
 
@@ -277,7 +277,8 @@ try {
     // Sigma proof structure error (distinct from script-reduced-false).
     console.error('sigma verify error:', e.code);
   } else {
-    // ReaderError / parse error from malformed ergoTree bytes.
+    // ReaderError / parse error from malformed ergoTree bytes, or an eval-time
+    // ExprTpeError (a type read at a JVM checkType site; see "Unwrapped errors").
     throw e;
   }
 }
@@ -481,6 +482,7 @@ type TxValidationErrorCode =
 | Error class | Source | When |
 |---|---|---|
 | `EvalError` | `@ergots/ergoscript` | Script evaluation failure; includes `'cost-limit-exceeded'` for per-input cost overrun, and `'unparsed-ergotree'` for an input box whose tree degraded |
+| `ExprTpeError` (at evaluation) | `@ergots/ergoscript` | Since 2026-09-30: a node's type read at one of the JVM's eval-time `checkType` sites throws, as the JVM's `ClassCastException` does there (a class-cast register default that the Deserialize substitution put in untyped is the case). A deliberate reject of a well-formed spend, not malformed bytes |
 | `VerifyError` | `@ergots/ergoscript` | Sigma proof structure error (distinct from `script-reduced-false`) |
 | `ReaderError` | `@ergots/scorex` | Truncated / malformed VLQ in ergoTree bytes |
 | `ErgoTreeParseError` / `ExprParseError` / `SValueParseError` / `ExprTpeError` | `@ergots/ergoscript` | Malformed ergoTree or register bytes in a box whose tree `boxTreeOf` parses on a cache miss (a box not parsed by `@ergots/ergoscript`), including `ErgoTreeParseError('box-context-required')` and `'trailing-bytes'` |

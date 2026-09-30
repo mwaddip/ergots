@@ -42,6 +42,7 @@ import * as OP from '../mir/opcodes'
 // below for backward compatibility with consumers that imported it from
 // `wire/parse`.
 import { ExprParseError } from './errors'
+import { checkBuild } from './check-build'
 import { parseConstFromByte } from './mir/const'
 import { parseConstantPlaceholder } from './mir/constant-placeholder'
 import { parseBlockValue } from './mir/block-value'
@@ -153,9 +154,19 @@ export function parseExpr(
   // `Constant` values, not opcodes (the JVM's `firstByte <= LastConstantCode` branch,
   // ValueSerializer.scala:400-403). `parseConstFromByte` re-uses the byte as the first byte of the
   // SType encoding before parsing the SValue payload.
-  const expr = opcode <= OP.LAST_CONSTANT_CODE
-    ? parseConstFromByte(opcode, treeVersion, r)
-    : exprParserFor(opcode)(r, constantTypes, constantValues, valDefTypes, treeVersion)
+  let expr: Expr
+  if (opcode <= OP.LAST_CONSTANT_CODE) {
+    // A constant's only construction check, ConstantNode's require (values.scala:342), holds for
+    // every parsed value.
+    expr = parseConstFromByte(opcode, treeVersion, r)
+  } else {
+    expr = exprParserFor(opcode)(r, constantTypes, constantValues, valDefTypes, treeVersion)
+    // The JVM builds the node as its serializer's parse returns, before the level is lowered
+    // (ValueSerializer.scala:404-409): the builder's, the serializer's and the constructor's checks,
+    // after the node's own children are read and before any later byte (facts/ergoscript-wire.md,
+    // "Node construction").
+    checkBuild(expr, 'parse', treeVersion)
+  }
   r.exitDepth()
   return expr
 }
@@ -318,7 +329,7 @@ export function exprParserFor(opcode: number): ExprParser {
     case OP.OP_BOOL_TO_SIGMA_PROP:
       return parseBoolToSigmaProp
     case OP.OP_DESERIALIZE_CONTEXT:
-      return parseDeserializeContext
+      return (r, _ct, _cv, _vd, tv) => parseDeserializeContext(r, tv)
     case OP.OP_DESERIALIZE_REGISTER:
       return parseDeserializeRegister
     case OP.OP_VAL_DEF:
@@ -336,7 +347,7 @@ export function exprParserFor(opcode: number): ExprParser {
     case OP.OP_GLOBAL:
       return parseGlobal
     case OP.OP_GET_VAR:
-      return parseGetVar
+      return (r, _ct, _cv, _vd, tv) => parseGetVar(r, tv)
     case OP.OP_OPTION_GET:
       return parseOptionGet
     case OP.OP_OPTION_GET_OR_ELSE:

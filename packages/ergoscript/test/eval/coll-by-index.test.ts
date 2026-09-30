@@ -29,7 +29,9 @@
  *   6.  coll_by_index_lazy_inbounds — [1,2,3][1] orElse (100+200), treeV3 → Int(2), low cost
  *   7.  coll_by_index_lazy_oob      — [1,2,3][5] orElse (100+200), treeV3 → Int(300), high cost
  *   8.  coll_by_index_cost_limit    — jitCostLimit=10 → 'cost-limit-exceeded'
- *   9.  coll_by_index_idx_not_int   — ByIndex(Coll, Bool, null) → 'coll-by-index-index-not-int'
+ *   9.  coll_by_index_idx_not_int   — ByIndex(Coll, Bool, null) at v0 → rejected at parse since
+ *       2026-09-30 ('by-index-index-not-int'); the eval arm's 'coll-by-index-index-not-int' guard is
+ *       tested below on a node built through the API
  *   10. coll_by_index_not_coll      — ByIndex(Int, idx, null) → 'coll-input-not-coll'
  */
 
@@ -38,7 +40,12 @@ import { readFileSync } from 'node:fs'
 import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
+import { ExprParseError } from '../../src/wire/errors'
+import { ExprTpeError } from '../../src/mir/expr-tpe'
+import type { Expr } from '../../src/mir/types'
 import { evaluateWith } from '../../src/eval/evaluate'
+import { evalExpr } from '../../src/eval/eval'
+import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts } from '../_helpers'
 
@@ -61,8 +68,34 @@ interface CollByIndexFixtureFile {
 const FIXTURE_PATH = join(__dirname, '../fixtures/eval/coll-by-index.json')
 const fixture: CollByIndexFixtureFile = JSON.parse(readFileSync(FIXTURE_PATH, 'utf-8'))
 
+// Entries whose tree the JVM rejects at parse, as ergots does since 2026-09-30. Their
+// expected_error_code is sigma-rust's, which evaluates the tree. Each verdict is a local
+// sigma-state 6.0.6 probe's, with and without checkType:
+// - coll_by_index_not_coll: ByIndex casts its input's type to SCollection as it is built
+//   (transformers.scala:254; wire/check-build.ts): ClassCastException.
+// - coll_by_index_idx_not_int: before v3 the index is upcast to Int as it is read
+//   (ByIndexSerializer.scala:29-33, syntax.scala:168-177), and a Boolean is not numeric: AssertionError.
+const PARSE_REJECTS: Record<string, { cls: typeof ExprTpeError | typeof ExprParseError; code: string }> = {
+  coll_by_index_not_coll: { cls: ExprTpeError, code: 'by-index-input-not-scoll' },
+  coll_by_index_idx_not_int: { cls: ExprParseError, code: 'by-index-index-not-int' },
+}
+
 describe('ByIndex eval (phase 2f Coll HOFs Task 4)', () => {
   for (const entry of fixture.entries) {
+    const atParse = PARSE_REJECTS[entry.name]
+    if (atParse !== undefined) {
+      it(`${entry.name}: ${atParse.code} at parse`, () => {
+        let err: unknown
+        try {
+          parseTree(hexToBytes(entry.tree_bytes_hex))
+        } catch (e) {
+          err = e
+        }
+        expect(err).toBeInstanceOf(atParse.cls)
+        expect((err as { code?: string }).code).toBe(atParse.code)
+      })
+      continue
+    }
     it(entry.name, () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const opts = rehydrateEvalOpts(entry.opts_json)
@@ -78,6 +111,18 @@ describe('ByIndex eval (phase 2f Coll HOFs Task 4)', () => {
       }
     })
   }
+
+  it("coll-by-index-index-not-int: the eval arm's guard, on a node built through the API", () => {
+    // A parsed tree cannot reach it with a Boolean index (coll_by_index_idx_not_int above rejects at parse).
+    const node: Expr = {
+      tag: 'ByIndex',
+      input: { tag: 'Const', tpe: { tag: 'SColl', elem: { tag: 'SInt' } }, value: { kind: 'Coll', elem: { tag: 'SInt' }, items: [{ kind: 'Int', value: 1 }] } },
+      index: { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } },
+      default: null,
+    }
+    const err = captureEvalError(() => evalExpr(node, Env.empty(), makeContext()))
+    expect(err.code).toBe('coll-by-index-index-not-int')
+  })
 
   it('laziness smoking-gun: in-bounds cost < OOB-with-default cost (treeVersion=3)', () => {
     const inboundsEntry = fixture.entries.find(e => e.name === 'coll_by_index_lazy_inbounds')!

@@ -77,7 +77,7 @@ describe('UBI.mod (9:18) — v6 P2d-1', () => {
     expectThrow(() => evalMethodCall(ubiMC(18, 24n, [10n]), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(ubiMC(18, 24n, [10n]) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(ubiMC(18, 24n, [10n]) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })
 
@@ -109,7 +109,7 @@ describe('UBI.plusMod (9:15) — v6 P2d-1 (JVM verifyCases :2740-2752)', () => {
     expectThrow(() => evalMethodCall(ubiMC(15, 24n, [24n, 10n]), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(ubiMC(15, 24n, [24n, 10n]) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(ubiMC(15, 24n, [24n, 10n]) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })
 
@@ -129,7 +129,7 @@ describe('UBI.subtractMod (9:16) — v6 P2d-1 (JVM verifyCases :2793-2802)', () 
     expectThrow(() => evalMethodCall(ubiMC(16, 24n, [10n, 0n]), Env.empty(), v3()), 'arith-divide-by-zero')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(ubiMC(16, 0n, [24n, 10n]) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(ubiMC(16, 0n, [24n, 10n]) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })
 
@@ -146,7 +146,7 @@ describe('UBI.multiplyMod (9:17) — v6 P2d-1 (JVM verifyCases :2843-2849)', () 
     expectThrow(() => evalMethodCall(ubiMC(17, 7n, [8n, 0n]), Env.empty(), v3()), 'arith-divide-by-zero')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(ubiMC(17, 7n, [8n, 10n]) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(ubiMC(17, 7n, [8n, 10n]) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })
 
@@ -175,7 +175,7 @@ describe('BigInt.toUnsignedMod (6:15) — v6 P2d-1 (JVM verifyCases :2466-2472)'
     expectThrow(() => evalMethodCall(toUnsignedModMC(50n, 10n), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(toUnsignedModMC(50n, 10n) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(toUnsignedModMC(50n, 10n) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })
 
@@ -223,6 +223,6 @@ describe('UBI.modInverse (9:14) — v6 P2d-2 (JVM verifyCases :2874-2880; BasicO
     expectThrow(() => evalMethodCall(ubiMC(14, 12n, [5n]), Env.empty(), makeContext({ treeVersion: 2 })), 'tree-version-too-low')
   })
   it('exprTpe → SUnsignedBigInt', () => {
-    expect(exprTpe(ubiMC(14, 12n, [5n]) as unknown as Expr)).toEqual(SUBI)
+    expect(exprTpe(ubiMC(14, 12n, [5n]) as unknown as Expr, 3)).toEqual(SUBI)
   })
 })

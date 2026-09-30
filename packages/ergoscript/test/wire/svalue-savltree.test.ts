@@ -42,11 +42,18 @@ import { fileURLToPath } from 'node:url'
 import { serializeTree } from '../../src/wire/ergo-tree'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ByteWriter } from '@ergots/scorex'
-import { hexToBytes, parseParsedTree as parseTree } from '../_helpers'
+import { atTreeVersion, hexToBytes, parseParsedTree as parseTree } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
 const FIXTURE_DIR = path.join(__dirname, '..', 'fixtures', 'eval')
+
+/**
+ * Fixture files whose trees call a v3 method under fixture-gen's v0 header: the JVM rejects those trees at
+ * parse (the method lookup, rule 1016), so the round trip runs on the same body in a v3 tree, the tree
+ * their eval tests run (`atTreeVersion`; test/eval/savltree-insert-or-update.test.ts pins the reject).
+ */
+const V3_METHOD_FILES: ReadonlySet<string> = new Set(['savltree-insert-or-update.json'])
 
 interface FixtureEntry {
   name: string
@@ -93,7 +100,8 @@ describe('SAvlTree wire format — Const(SAvlTree, AvlTreeData) round-trip', () 
     describe(`${filename}`, () => {
       for (const entry of fixture.entries) {
         it(`round-trip: ${entry.name}`, () => {
-          const bytes = hexToBytes(entry.tree_bytes_hex)
+          const raw = hexToBytes(entry.tree_bytes_hex)
+          const bytes = V3_METHOD_FILES.has(filename) ? atTreeVersion(raw, 3) : raw
 
           // Parse — must not throw 'not-implemented-phase-2a'.
           const tree = parseTree(bytes)

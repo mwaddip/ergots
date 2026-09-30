@@ -37,13 +37,14 @@ import { serializeSType } from '../serialize-stype'
 
 /**
  * Parse a `GetVar` payload (the OP_GET_VAR opcode byte was consumed by
- * the dispatcher). Reads the one-byte var id, then the SType.
+ * the dispatcher). Reads the one-byte var id, then the SType, under the
+ * tree's version (JVM `GetVarSerializer.scala:18-19`).
  *
  * Mirrors `GetVar::sigma_parse` (`mir/get_var.rs:40-44`).
  */
-export function parseGetVar(r: ByteReader): GetVar {
+export function parseGetVar(r: ByteReader, treeVersion: number): GetVar {
   const varId = r.readU8()
-  const varTpe = parseSType(r)
+  const varTpe = parseSType(r, treeVersion)
   return { tag: 'GetVar', varId, varTpe }
 }
 

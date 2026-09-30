@@ -60,23 +60,17 @@
       "name": "apply_multi_arg_first",
       "tree_bytes_hex": "00dad9020104020472010204140428",
       "opts_json": {},
-      "expected_value_json": {
-        "kind": "Int",
-        "value": 10
-      },
-      "expected_cost": 60,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "apply-arity-mismatch"
     },
     {
       "name": "apply_multi_arg_second",
       "tree_bytes_hex": "00dad9020104020472020204140428",
       "opts_json": {},
-      "expected_value_json": {
-        "kind": "Int",
-        "value": 20
-      },
-      "expected_cost": 60,
-      "expected_error_code": null
+      "expected_value_json": null,
+      "expected_cost": 0,
+      "expected_error_code": "apply-arity-mismatch"
     },
     {
       "name": "apply_free_variable",

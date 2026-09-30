@@ -24,16 +24,11 @@
  *
  * # On the `treeVersionFn` we inject into `validateBlock`
  *
- * We pass the low 3 bits of each output box's own ErgoTree header byte.
- * Per `validate-block.ts` `# treeVersionFn injection` doc, that choice is
- * verdict-neutral: the JVM reads a box's registers under the enclosing
- * context, not the box tree's version, and at top level any v6-typed
- * register rejects at every version. The ErgoTree section starts right
- * after the leading VLQ-encoded `value` field in the canonical box bytes.
- * We implement the derivation by skipping the leading VLQ then reading
- * one byte. Failures (truncated input, missing tree byte) are surfaced
- * to the operator via the wrapping `HarnessError` machinery in
- * `validateOutputRoundtrips`.
+ * We pass the ergo node's version, 3 (`topLevelTreeVersion`). Per
+ * `validate-block.ts` `# treeVersionFn injection` doc, the JVM reads a box's
+ * registers under the enclosing context, not the box tree's version, and a
+ * node reads a block's transactions under (3, 3) since 6.0; the version
+ * decides the registers' type reads.
  *
  * # Rolling-headers JSON propagation
  *
@@ -127,22 +122,13 @@ export const V2_ACTIVATION_HEIGHT_TESTNET = 0;
 const ROLLING_WINDOW_SIZE = 10;
 
 /**
- * Derive the `treeVersion` for an output box by reading the low 3 bits
- * of the box's ErgoTree header byte. The ErgoTree section starts
- * immediately after the leading VLQ-encoded `value` field in canonical
- * `ErgoBox::sigma_serialize` output.
- *
- * On any read failure (truncated input), throws a regular `Error`; the
- * caller (`validateOutputRoundtrips`) wraps it as a `HarnessError` with
- * code `'tree-version-derivation-failed'`.
+ * The `treeVersion` an output box's registers are read at: the ergo node's,
+ * which reads a block's transactions under (3, 3) since 6.0 (spec
+ * docs/specs/2026-09-30-jvm-node-construction-design.md §4a), whatever the
+ * box's own tree version.
  */
-function deriveTreeVersionFromBoxBytes(boxBytes: Uint8Array): number {
-    const reader = new ByteReader(boxBytes);
-    // Skip the value VLQ — we don't care about its decoded value, just
-    // that the cursor lands on the ErgoTree header byte.
-    reader.readVlqBigInt();
-    const headerByte = reader.readU8();
-    return headerByte & 0x07;
+function topLevelTreeVersion(): number {
+    return 3;
 }
 
 /**
@@ -645,7 +631,7 @@ export async function main(argv: readonly string[]): Promise<number> {
 
             // 7b: validate.
             try {
-                validateBlock(currentBundle, walkerState, deriveTreeVersionFromBoxBytes, txValidator, census);
+                validateBlock(currentBundle, walkerState, topLevelTreeVersion, txValidator, census);
             } catch (err) {
                 const report = classifyError(err, h, currentBundle);
                 writeErrorReport(args.errorReportPath, report);

@@ -45,13 +45,13 @@
  *   - STuple[T1, T2, ...]: items in order, NO length prefix on the wire.
  *     The arity is recoverable from the SType.
  *
- * Deferred kinds (SHeader, SPreHeader, SContext, SGlobal, SAny, SString,
- * SFunc, STypeVar) throw `SValueParseError` with code `not-implemented-phase-2a`.
+ * The kinds with no data form (SPreHeader, SContext, SGlobal, SAny, STypeVar)
+ * throw `SValueParseError` with code `not-implemented-phase-2a`, a hard reject,
+ * as the JVM's `SerializerException` is; SFunc data throws the soft
+ * `'data-type-not-serializable'`, the JVM's rule 1009 (see the SFunc arm).
  * SBox shipped in phase 2f Stop α; SAvlTree shipped in phase 2h-b.
- * Phase 2a corpora don't contain inline `Const(_)` values of the still-deferred
- * types — they appear only as `Expr.tpe` slots (e.g. for `MethodCall` return
- * types) or as `SColl.elem` slots, and their runtime values are produced by
- * accessors and predefs at evaluation time.
+ * A `Coll`'s element type is checked as the JVM's `stypeToRType` checks it,
+ * before any item (see the SColl arm).
  *
  * Cross-reference:
  *   - `~/projects/sigma-rust/sigma-rust/ergotree-ir/src/serialization/data.rs`
@@ -135,8 +135,10 @@ function parseRegisterExpr(
   const tag = r.readU8()
   let entry: { tpe: SType; value: SValue }
   if (tag <= LAST_CONSTANT_CODE) {
-    // Constant Expr: tag is the SType lead byte.
-    const tpe = parseSTypeWithFirstByte(tag, r)
+    // Constant Expr: tag is the SType lead byte. The type and the data are read under the version in
+    // force here: in a nested box, the ENCLOSING tree's, whose withVersions is still in force (the box's
+    // own tree scopes its version to its own parse, VersionContext.scala:99-100); 3 at the top level.
+    const tpe = parseSTypeWithFirstByte(tag, r, treeVersion)
     entry = { tpe, value: parseSValue(tpe, treeVersion, r) }
   } else if (tag === OP_TUPLE) {
     // Tuple Expr: 1-byte items count, then N nested Exprs.
@@ -264,11 +266,8 @@ export class SValueParseError extends Error {
  *     disjointly, so the explicit STuple-before-SColl ordering is moot here,
  *     but the per-arm shape is kept identical to the JVM `step`.
  *
- * DISTINCT from `eval/validate-v6-types.ts::containsV6Type` — that predicate
- * gates the tree BODY for the v6 version-gate type set `{ SUnsignedBigInt,
- * SFunc }`. This one gates box REGISTERS and context-extension values for the
- * set `{ SOption, SHeader, SUnsignedBigInt }`. Different type set, different
- * surface; do NOT merge.
+ * It is not a version gate: the rule refuses these types in a register at every
+ * version, and the type read has its own version rules (`parseSType`).
  *
  * The JVM enforces `CheckV6Type` at two ingress points, both served by this one
  * predicate: box registers (`ErgoBoxCandidate.scala:232`, here in
@@ -292,6 +291,42 @@ export function violatesCheckV6Type(tpe: SType): boolean {
     default:
       return false
   }
+}
+
+/**
+ * The JVM's `Evaluation.stypeToRType(t)` (core/shared/src/main/scala/sigma/Evaluation.scala:18-56) as a
+ * check, for a `Coll`'s element type (see the SColl arm). It accepts every primitive and predefined type
+ * (`:19-36`) and recurses through a tuple of any arity (a pair, `:37-40`; any other, `:41-48`), `Coll`
+ * (`:49`), `Option` (`:50`) and an SFunc of one argument and no type parameters, its argument and result
+ * (`:51-53`). Anything else, an STypeVar or any other SFunc, is its `sys.error` (`:54-55`): a
+ * RuntimeException, which no sized tree degrades on.
+ */
+function checkStypeToRType(t: SType): void {
+  switch (t.tag) {
+    case 'STuple':
+      for (const item of t.items) checkStypeToRType(item)
+      return
+    case 'SColl':
+    case 'SOption':
+      checkStypeToRType(t.elem)
+      return
+    case 'SFunc':
+      if (t.args.length === 1 && t.tpeParams.length === 0) {
+        checkStypeToRType(t.args[0]!)
+        checkStypeToRType(t.result)
+        return
+      }
+      break
+    case 'STypeVar':
+      break
+    default:
+      return
+  }
+  const what = t.tag === 'SFunc' ? 'an SFunc of other than one argument, or with type parameters' : 'a type variable'
+  throw new SValueParseError(
+    `a collection's element type holds ${what}: no RType (Evaluation.stypeToRType)`,
+    'coll-elem-type-no-rtype'
+  )
 }
 
 /**
@@ -470,7 +505,11 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
         }
         return { kind: 'Coll', elem: t.elem, items }
       }
-      // General case: parse each item by `t.elem`.
+      // General case: the item RType first, then each item by `t.elem`. The JVM's deserializeColl
+      // (CoreDataSerializer.scala:158-173) builds the item RType before it reads any item, an empty
+      // collection included: a tuple element of other than two items takes collRType(AnyType) unchecked
+      // (:162-163); any other element goes through Evaluation.stypeToRType (:160-161, :164-165).
+      if (t.elem.tag !== 'STuple' || t.elem.items.length === 2) checkStypeToRType(t.elem)
       const items: SValue[] = new Array(len)
       for (let i = 0; i < len; i++) {
         items[i] = parseSValue(t.elem, treeVersion, r)
@@ -739,10 +778,7 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
     }
 
     // ---------------------------------------------------------------------
-    // Deferred kinds. These appear in `Expr.tpe` slots but not as inline
-    // `Const(_)` values in phase 2a corpora. If a phase 2a fixture trips
-    // one of these, the fixture itself must be deferred to the appropriate
-    // later phase.
+    // SString, and the kinds with no data form.
     // ---------------------------------------------------------------------
     case 'SString': {
       // JVM CoreDataSerializer.scala:104-110 (sigma-state v6.0.6): `getUIntExact` length, then
@@ -764,12 +800,23 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       return { kind: 'String', value: decodeUtf8Lossy(bytes) }
     }
 
+    case 'SFunc':
+      // No data form: CoreDataSerializer.deserialize's fallback runs rule 1009 CheckSerializableTypeCode
+      // (CoreDataSerializer.scala:144-146), and SFunc's code 112 is above LastDataType (111), so the rule
+      // throws, a ValidationException: soft, and a sized tree degrades. The type is read only from v3
+      // (below v3 its type read fails rule 1018 first).
+      throw new SValueParseError(
+        'SFunc data has no data form (rule 1009 CheckSerializableTypeCode)',
+        'data-type-not-serializable'
+      )
+
     case 'SPreHeader':
     case 'SContext':
     case 'SGlobal':
     case 'SAny':
-    case 'SFunc':
     case 'STypeVar':
+      // No data form either, and a code at or below LastDataType (111): rule 1009 passes, and the JVM
+      // throws a SerializerException (CoreDataSerializer.scala:144-146), a hard reject.
       throw new SValueParseError(
         `parseSValue ${t.tag} is not implemented in phase 2a`,
         'not-implemented-phase-2a'
@@ -782,7 +829,8 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       // which checks the window first. Unlike SBigInt, size 0 is a normal,
       // accepted value: `BigIntegers.fromUnsignedByteArray` gives 0n for empty
       // input (must accept — rejecting would be stricter than the JVM = fork.
-      // See P2a spec §3). Permissive on version — the v3 gate is validateV6Types.
+      // See P2a spec §3). The type is read only from tree v3 (below v3 its read
+      // fails rule 1017 first, parse-stype.ts), so no version check is made here.
       const len = r.readVlqU()
       if (len > 0xffff) {
         throw new SValueParseError(`SUnsignedBigInt length ${len} exceeds u16`, 'unsigned-bigint-too-large')

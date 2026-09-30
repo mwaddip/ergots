@@ -1,6 +1,7 @@
 /**
- * Shared numeric helpers for BinOp family arms (Bit, Relation, Arith) and
- * top-level numeric-poly arms (Negation, BitInversion, Upcast, Downcast).
+ * Shared numeric helpers for BinOp family arms (Relation, Arith) and
+ * top-level numeric-poly arms (Negation, Upcast, Downcast). (The Bit family and
+ * BitInversion arms used them until they became eval rejects, spec 2026-09-30 §9.)
  *
  * Defines the closed set of numeric SValue kinds (Byte/Short/Int/Long/BigInt),
  * a type-guard for narrowing, bidirectional conversion to/from bigint for
@@ -158,7 +159,8 @@ export function checkRange(value: bigint, kind: NumericKind, errorCode: string):
  * - Mask to `BIT_WIDTH[kind]` bits (drop anything above).
  * - If the high bit is set, interpret as negative (subtract 2^width).
  *
- * Used by BinOp.Bit (BitAnd/Or/Xor) and the BitInversion arm.
+ * Used by the Negation arm. (BinOp.Bit and BitInversion used it until they became
+ * eval rejects; the JVM has no eval for either, spec 2026-09-30 §9.)
  *
  * Sigma-rust ref: ergotree-interpreter/src/eval/bin_op.rs (Bit family) and
  *                 ergotree-interpreter/src/eval/bit_inversion.rs.

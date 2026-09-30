@@ -46,7 +46,6 @@ function toContextExtension(input: ContextExtensionInput): ContextExtension {
  *   'bin-op-not-numeric'           — BinOp applied to a non-numeric operand
  *   'bin-op-kind-mismatch'         — BinOp operand kinds mismatch (V3+)
  *   'bigint-result-out-of-range'   — BigInt256 arithmetic result overflows ±2^255
- *   'v6-type-in-pre-v3-tree'       — SUnsignedBigInt type found in a pre-V3 tree
  *   'unsigned-bigint-op-unsupported' — UBI operation not yet supported (casts/modular; P2b/P2c)
  *   'unsigned-bigint-out-of-range'   — UBI value outside [0, 2^256): shiftLeft overflow or negative cast to UBI
  *   'unsigned-bigint-not-invertible' — UBI.modInverse with gcd(a, m) != 1 (no multiplicative inverse; P2d-2)
@@ -69,9 +68,11 @@ export interface EvalOpts {
   /** Overrides tree.constants if set. Used by ConstPlaceholder resolution. */
   constants?: SValue[]
   /**
-   * ErgoTree version (0..7). Auto-derived from tree.header.version in
-   * evaluate(); explicit in evaluateWith(). Arms reading ctx.treeVersion
-   * use (ctx.treeVersion ?? 0) — V0 default; most-restrictive fallback.
+   * ErgoTree version (0..7). When unset, evaluate() and evaluateWith() set it
+   * to tree.header.version before any substitution or eval (one version per
+   * evaluation, as the JVM reduces a tree under its own version). Arms reading
+   * ctx.treeVersion use (ctx.treeVersion ?? 0), which then only a direct arm
+   * call without a version meets.
    *
    * Required for arms with tree-version-dependent semantics:
    * - Upcast: BigInt → BigInt requires V3+

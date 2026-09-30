@@ -12,6 +12,12 @@
  *   5. insert_or_update_malformed_proof         — construct fail → None (359; NOT a throw — JVM swallows construct errors).
  *   6. insert_or_update_v2_dispatcher_reject    — opts_json.treeVersion=2 → dispatcher rejects 'tree-version-too-low'.
  *
+ * The fixture's trees carry fixture-gen's v0 header, and ask for v3 in their eval context. The JVM looks
+ * 100:16 up at the tree's own version, so it rejects those v0 trees at parse (rule 1016; pinned below), and
+ * each scenario runs on the same body in a v3 tree (`atTreeVersion`). Entry 6 keeps its v2 eval context: a
+ * caller's version below the tree's is the one way parsed bytes reach the dispatcher's minVersion gate,
+ * which stays as a defensive check (spec 2026-09-30 §4a, "The policy").
+ *
  * F4 value-class fix: entry 5 flipped from throw('avl-tree-proof-failed') →
  * None (JVM canonical: scorex BatchAVLVerifier swallows reconstruction errors;
  * broken verifier → every op returns Failure → forall breaks → digest None →
@@ -33,11 +39,11 @@ import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import { dirname, join } from 'node:path'
 
-import { parseTree } from '../../src/wire/ergo-tree'
+import { parseTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalSAvlTreeInsertOrUpdate } from '../../src/eval/savltree'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { atTreeVersion, hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
 import { runMutationLoop, evalSafely, DEFAULT_KILL_THRESHOLD } from '../_helpers/mutation-harness'
 
 interface InsertOrUpdateEntry {
@@ -57,10 +63,34 @@ const __dirname = dirname(fileURLToPath(import.meta.url))
 const fixturePath = join(__dirname, '../fixtures/eval/savltree-insert-or-update.json')
 const fixture: InsertOrUpdateFixture = JSON.parse(readFileSync(fixturePath, 'utf-8'))
 
+/** An entry's scenario tree: the fixture's body in a v3 tree (see the header comment). */
+const scenarioTree = (entry: InsertOrUpdateEntry) => parseTree(atTreeVersion(hexToBytes(entry.tree_bytes_hex), 3))
+
+describe("the fixture's own v0 trees: 100:16 is a v3 method, so the method lookup fails at parse", () => {
+  for (const entry of fixture.entries) {
+    it(`${entry.name}: rejected at parse (rule 1016 in an unsized tree)`, () => {
+      // The JVM rejects each of these trees at parse: SerializerException, "Cannot handle
+      // ValidationException, ErgoTree serialized without size bit.", over rule 1016 (a local sigma-state
+      // 6.0.6 probe, tree mode, lenient and under the box rules). insert_or_update_v2_dispatcher_reject's
+      // bytes are insert_or_update_happy_v3's.
+      let err: unknown
+      try {
+        parseTree(hexToBytes(entry.tree_bytes_hex))
+      } catch (x) {
+        err = x
+      }
+      expect(err).toBeInstanceOf(ErgoTreeParseError)
+      expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+      expect(((err as Error).cause as { code?: string }).code).toBe('method-unknown')
+    })
+  }
+})
+
 describe('SAvlTree.insertOrUpdate (100:16) — V3-gated, fixture-driven', () => {
+  // Each scenario's v3 tree parses in the JVM (a local sigma-state 6.0.6 probe, tree mode, v3).
   for (const entry of fixture.entries) {
     it(entry.name, () => {
-      const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
+      const tree = scenarioTree(entry)
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       if (entry.expected_error_code) {
         const err = captureEvalError(() => evaluateWith(tree, ctx))
@@ -90,19 +120,22 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
   // The fixture's `expected_cost: 0` on the v2-reject entry is a sentinel (the
   // fixture-driven oracle test above skips cost assertion on throw entries);
   // the actual numeric cost-at-throw is asserted here instead.
+  //
+  // The gate is ergots' defensive check: a v2 tree never reaches it, since its parse fails the method
+  // lookup first (the JVM's verdict). The v2 run below is the v3 tree under a caller's eval version of 2.
   it('V2 reject incurs receiver-eval + envelope cost only, not the handler cost', () => {
     const v3Happy = fixture.entries.find((e) => e.name === 'insert_or_update_happy_v3')!
     const v2Reject = fixture.entries.find((e) => e.name === 'insert_or_update_v2_dispatcher_reject')!
 
     // Capture the V3 success cost (the pivot for the parallel-pair delta).
-    const v3Tree = parseTree(hexToBytes(v3Happy.tree_bytes_hex))
+    const v3Tree = scenarioTree(v3Happy)
     const v3Ctx = makeContext(rehydrateEvalOpts(v3Happy.opts_json))
     evaluateWith(v3Tree, v3Ctx)
 
     // Capture the V2 reject cost: evaluateWith throws but the EvalContext
     // accumulates cost up to the throw (cost-before-throw semantics from
     // 2h-c.2 dispatcher; see method-call.ts:116-150).
-    const v2Tree = parseTree(hexToBytes(v2Reject.tree_bytes_hex))
+    const v2Tree = scenarioTree(v2Reject)
     const v2Ctx = makeContext(rehydrateEvalOpts(v2Reject.opts_json))
     const err = captureEvalError(() => evaluateWith(v2Tree, v2Ctx))
     expect(err.code).toBe('tree-version-too-low')
@@ -162,9 +195,10 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
 // Per the T8 precedent and the user's recommendation in the task brief,
 // happy-v3-only mutation is the correct scope.
 //
-// MUTATION SURFACE — happy scenario, 148-byte tree, FULL whole-tree:
-//   - All 148 bytes are eligible (no excluded receiver-digest region).
-//   - For insertOrUpdate, the receiver digest at offsets 5..37 inside the
+// MUTATION SURFACE — happy scenario, 150-byte v3 tree (`atTreeVersion`: the
+// fixture's 147-byte body under a v3 header and its 2-byte size), FULL whole-tree:
+//   - All 150 bytes are eligible (no excluded receiver-digest region).
+//   - For insertOrUpdate, the receiver digest at offsets 7..39 inside the
 //     SAvlTree Const is CONSUMED by the verifier as `startingDigest`
 //     (savltree.ts:682: `verifyAvlBatchPartial(obj.value.digest, ...)`).
 //     A flipped receiver digest produces either a verifier construct-fail
@@ -173,18 +207,19 @@ describe('SAvlTree.insertOrUpdate — V3 dispatcher-gating cost parity', () => {
 //     T8's updateDigest where the receiver digest is REPLACED by args[0]
 //     and is therefore semantically invisible.
 //
-//   Mutation surface: 148 bytes × 3 patterns = 444 mutations.
+//   Mutation surface: 150 bytes × 3 patterns = 450 mutations.
 //
 // TOLERATED (survived) mutations — observed for insert_or_update_happy_v3
-// (3 survivors out of 444 mutations; rate 441/444 = 0.993):
-//   - offset 0 (header byte, 0x00), xor 0x01 → 0x01 (v1 header tag): parses
-//     identically (no constants section to validate); body and evaluation
-//     unchanged. Same tolerance as T4/T8 (universal across ergo-tree wire
-//     fixtures with `0x00` header byte).
-//   - offset 0 (header byte, 0x00), xor 0x80 → 0x80 (reserved bit set):
+// (4 survivors out of 450 mutations; rate 446/450 = 0.991):
+//   - offset 0 (header byte, 0x0b), xor 0x80 → 0x8b (reserved bit set):
 //     parser tolerates the reserved bit per the wire spec; body unchanged.
-//     Same tolerance as T4/T8.
-//   - offset 147 (last byte of proof, 0x08), xor 0x80 → 0x88 (bit 7 set):
+//     Same tolerance as T4/T8. (xor 0x01 gives a v2 header, whose method
+//     lookup fails at parse: a kill.)
+//   - offsets 1 and 2 (the declared size, 0x93 0x01), xor 0x01 → 0x92 0x01
+//     and 0x93 0x00: a size that still ends the VLQ where it ended. The
+//     declared size is read only when the tree degrades (facts/ergoscript-wire.md,
+//     "parseTreeFromReader"), so the body and evaluation are unchanged.
+//   - offset 149 (last byte of proof, 0x08), xor 0x80 → 0x88 (bit 7 set):
 //     this byte is the trailing byte of the inline 66-byte AVL proof Coll[Byte].
 //     The AVL verifier consumes directions as a bit-string indexed by
 //     `proof[i >> 3] & (1 << (i & 7))` (batch-verifier.ts:102), reading only
@@ -205,7 +240,7 @@ describe('SAvlTree.insertOrUpdate — mutation testing', () => {
   }
 
   it(`${happyEntry.name}: ≥${(DEFAULT_KILL_THRESHOLD * 100).toFixed(0)}% kill rate on whole-tree byte mutations`, () => {
-    const treeBytes = hexToBytes(happyEntry.tree_bytes_hex)
+    const treeBytes = atTreeVersion(hexToBytes(happyEntry.tree_bytes_hex), 3)
 
     // Precondition: baseline must succeed for kill-rate math to be meaningful.
     const baseline = evalSafely(treeBytes, happyEntry.opts_json)

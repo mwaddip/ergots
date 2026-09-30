@@ -5,14 +5,15 @@
 // OptionGet.tpe = input.tpe.elemType (sigma/ast/transformers.scala:601); an Apply of an SAny
 // function is NoType (sigma/ast/values.scala:1247-1251). ergots marks the declared SAny at its
 // origin (parseSType returns SANY_JVM, the JVM's SAny). exprTpe mirrors the JVM node's tpe: it passes
-// the JVM's SAny through where the JVM types it, and throws where the JVM's tpe casts it or its
-// constructor requires a numeric type. ergots' own SAny, a fresh object its method typing makes
-// (residual 1), keeps passing, and keeps passing rule 1001.
+// the JVM's SAny through where the JVM types it, and throws where the JVM's tpe casts it. A
+// constructor's require of a numeric type is checkBuild's (wire/check-build.ts). ergots' own SAny, a
+// fresh object its method typing makes (residual 1), keeps passing, and keeps passing rule 1001.
 import { describe, it, expect } from 'vitest'
 import { ByteReader } from '@ergots/scorex'
 import { parseTree, parseErgoTreeBytes, parseTreeFromReader, serializeTree } from '../../src/wire/ergo-tree'
 import { boxTreeOf } from '../../src/wire/box-tree'
 import { parseSType } from '../../src/wire/parse-stype'
+import { checkBuild } from '../../src/wire/check-build'
 import { exprTpe } from '../../src/mir/expr-tpe'
 import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../../src/mir/types'
 import type { Expr, SType } from '../../src/mir/types'
@@ -62,16 +63,16 @@ describe('rule 1001 fails a root typed as a declared SAny', () => {
 
 describe('the declared SAny is one object, from parseSType through exprTpe', () => {
   it('parseSType returns SANY_JVM for type code 97, also nested', () => {
-    expect(parseSType(new ByteReader(hex('61')))).toBe(SANY_JVM)
+    expect(parseSType(new ByteReader(hex('61')), 3)).toBe(SANY_JVM)
     // Option[SAny]: 0x24 (Option, recursive) then 0x61.
-    const opt = parseSType(new ByteReader(hex('2461')))
+    const opt = parseSType(new ByteReader(hex('2461')), 3)
     expect(opt.tag === 'SOption' && opt.elem).toBe(SANY_JVM)
     expect(SANY_JVM).toEqual({ tag: 'SAny' })
   })
   it('exprTpe of OptionGet(GetVar(1, SAny)) is SANY_JVM', () => {
     const t = parseTree(hex('00' + OPTION_GET_OF_GETVAR_SANY))
     if (isUnparsedTree(t)) throw new Error('expected a parsed tree')
-    expect(exprTpe(t.body)).toBe(SANY_JVM)
+    expect(exprTpe(t.body, t.header.version)).toBe(SANY_JVM)
   })
 })
 
@@ -95,20 +96,20 @@ const COLL_INT: Expr = { tag: 'Collection', kind: 'Exprs', elemTpe: { tag: 'SInt
 const TRUE: Expr = { tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } }
 const FUNC: Expr = { tag: 'FuncValue', args: [{ id: 1, tpe: { tag: 'SInt' } }], body: TRUE }
 const bitOr = (left: Expr, right: Expr): Expr => ({ tag: 'BinOp', op: { kind: 'Bit', op: 'BitOr' }, left, right })
-// Apply(Int 0, []): the JVM's NoType for a function of a concrete type, which exprTpe throws as
-// 'apply-func-no-type'.
+// Apply(Int 0, []): the JVM's NoType for a function of a concrete type, which exprTpe types as
+// NOTYPE_JVM (it threw 'apply-func-no-type' until 2026-09-30).
 const CONCRETE_NOTYPE: Expr = { tag: 'Apply', func: INT0, args: [] }
 const codeOf = (f: () => unknown): string | undefined => (errOf(f) as { code?: string } | undefined)?.code
 
 describe('exprTpe types an Apply of the JVM SAny as the JVM NoType', () => {
   it('the JVM SAny function gives NOTYPE_JVM', () => {
-    expect(exprTpe(NOTYPE)).toBe(NOTYPE_JVM)
+    expect(exprTpe(NOTYPE, 0)).toBe(NOTYPE_JVM)
   })
   it('a NoType function gives NOTYPE_JVM', () => {
-    expect(exprTpe({ tag: 'Apply', func: NOTYPE, args: [INT0] })).toBe(NOTYPE_JVM)
+    expect(exprTpe({ tag: 'Apply', func: NOTYPE, args: [INT0] }, 0)).toBe(NOTYPE_JVM)
   })
   it("ergots' own SAny function stays that object", () => {
-    const t = exprTpe({ tag: 'Apply', func: UNRESOLVED, args: [INT0] })
+    const t = exprTpe({ tag: 'Apply', func: UNRESOLVED, args: [INT0] }, 0)
     expect(t).toEqual({ tag: 'SAny' })
     expect(t).not.toBe(SANY_JVM)
     expect(t).not.toBe(NOTYPE_JVM)
@@ -131,13 +132,13 @@ const CASTS: [string, string, (x: Expr) => Expr][] = [
 describe('an arm that casts its input type throws for the JVM SAny and NoType', () => {
   for (const [arm, code, build] of CASTS) {
     it(`${arm}: the JVM SAny throws '${code}'`, () => {
-      expect(codeOf(() => exprTpe(build(DECLARED)))).toBe(code)
+      expect(codeOf(() => exprTpe(build(DECLARED), 0))).toBe(code)
     })
     it(`${arm}: the JVM NoType throws '${code}'`, () => {
-      expect(codeOf(() => exprTpe(build(NOTYPE)))).toBe(code)
+      expect(codeOf(() => exprTpe(build(NOTYPE), 0))).toBe(code)
     })
     it(`${arm}: ergots' own SAny passes through as itself`, () => {
-      const t = exprTpe(build(UNRESOLVED))
+      const t = exprTpe(build(UNRESOLVED), 0)
       expect(t).toEqual({ tag: 'SAny' })
       expect(t).not.toBe(SANY_JVM)
       expect(t).not.toBe(NOTYPE_JVM)
@@ -146,38 +147,47 @@ describe('an arm that casts its input type throws for the JVM SAny and NoType', 
 })
 
 // The JVM requires a numeric type or NoType while it builds these nodes (isNumTypeOrNoType,
-// core/.../sigma/ast/package.scala:139): SAny fails the require, NoType passes it.
+// core/.../sigma/ast/package.scala:139): SAny fails the require, NoType passes it. The require is the
+// constructor's, which checkBuild makes when the node is built (an ExprParseError; until 2026-09-30
+// exprTpe threw the '*-jvm-sany' codes for the JVM's SAny); exprTpe types the node from its input or
+// left operand.
 const REQUIRES: [string, string, (x: Expr) => Expr][] = [
-  ['Negation', 'negation-input-jvm-sany', (x) => ({ tag: 'Negation', input: x })],
-  ['BitInversion', 'bit-inversion-input-jvm-sany', (x) => ({ tag: 'BitInversion', input: x })],
-  ['BitOp (the left operand)', 'bit-op-operand-jvm-sany', (x) => bitOr(x, INT0)],
+  ['Negation', 'negation-input-not-numeric', (x) => ({ tag: 'Negation', input: x })],
+  ['BitInversion', 'bit-inversion-input-not-numeric', (x) => ({ tag: 'BitInversion', input: x })],
+  ['BitOp (the left operand)', 'bit-op-operand-not-numeric', (x) => bitOr(x, INT0)],
 ]
 
-describe('an arm that requires a numeric input throws for the JVM SAny, not for NoType', () => {
+describe('an arm that requires a numeric input rejects the JVM SAny as it is built, not NoType', () => {
   for (const [arm, code, build] of REQUIRES) {
-    it(`${arm}: the JVM SAny throws '${code}'`, () => {
-      expect(codeOf(() => exprTpe(build(DECLARED)))).toBe(code)
+    it(`${arm}: the JVM SAny fails the require ('${code}'), and the node types as it`, () => {
+      expect(codeOf(() => checkBuild(build(DECLARED), 'parse', 0))).toBe(code)
+      expect(exprTpe(build(DECLARED), 0)).toBe(SANY_JVM)
     })
     it(`${arm}: the JVM NoType passes, as NOTYPE_JVM`, () => {
-      expect(exprTpe(build(NOTYPE))).toBe(NOTYPE_JVM)
+      expect(codeOf(() => checkBuild(build(NOTYPE), 'parse', 0))).toBeUndefined()
+      expect(exprTpe(build(NOTYPE), 0)).toBe(NOTYPE_JVM)
     })
     it(`${arm}: ergots' own SAny passes through as itself`, () => {
-      const t = exprTpe(build(UNRESOLVED))
+      expect(codeOf(() => checkBuild(build(UNRESOLVED), 'parse', 0))).toBeUndefined()
+      const t = exprTpe(build(UNRESOLVED), 0)
       expect(t).toEqual({ tag: 'SAny' })
       expect(t).not.toBe(SANY_JVM)
     })
   }
-  it("BitOp (the right operand): the JVM SAny throws 'bit-op-operand-jvm-sany'", () => {
-    expect(codeOf(() => exprTpe(bitOr(INT0, DECLARED)))).toBe('bit-op-operand-jvm-sany')
+  it("BitOp (the right operand): the JVM SAny fails the require ('bit-op-operand-not-numeric')", () => {
+    expect(codeOf(() => checkBuild(bitOr(INT0, DECLARED), 'parse', 0))).toBe('bit-op-operand-not-numeric')
   })
   it('BitOp (the right operand): the JVM NoType passes, and the node types as its left operand', () => {
-    expect(exprTpe(bitOr(INT0, NOTYPE))).toEqual({ tag: 'SInt' })
-    expect(exprTpe(bitOr(INT0, CONCRETE_NOTYPE))).toEqual({ tag: 'SInt' })
+    expect(codeOf(() => checkBuild(bitOr(INT0, NOTYPE), 'parse', 0))).toBeUndefined()
+    expect(exprTpe(bitOr(INT0, NOTYPE), 0)).toEqual({ tag: 'SInt' })
+    expect(exprTpe(bitOr(INT0, CONCRETE_NOTYPE), 0)).toEqual({ tag: 'SInt' })
   })
   it('BitOp: a NoType left operand passes, and the JVM then reads the right one', () => {
     // BitOp's require reads left.tpe, then right.tpe (trees.scala:913).
-    expect(codeOf(() => exprTpe(bitOr(CONCRETE_NOTYPE, DECLARED)))).toBe('bit-op-operand-jvm-sany')
-    expect(codeOf(() => exprTpe(bitOr(CONCRETE_NOTYPE, INT0)))).toBe('apply-func-no-type')
+    expect(codeOf(() => checkBuild(bitOr(CONCRETE_NOTYPE, DECLARED), 'parse', 0))).toBe('bit-op-operand-not-numeric')
+    // A NoType left and a numeric right pass, and the node types as its left operand, NoType.
+    expect(codeOf(() => checkBuild(bitOr(CONCRETE_NOTYPE, INT0), 'parse', 0))).toBeUndefined()
+    expect(exprTpe(bitOr(CONCRETE_NOTYPE, INT0), 0)).toBe(NOTYPE_JVM)
   })
 })
 
@@ -192,10 +202,10 @@ describe('an arm the JVM types keeps typing the JVM SAny and NoType', () => {
   ]
   for (const [arm, build, pick] of KEEPS) {
     it(`${arm}: the JVM SAny stays SANY_JVM`, () => {
-      expect(pick(exprTpe(build(DECLARED)))).toBe(SANY_JVM)
+      expect(pick(exprTpe(build(DECLARED), 0))).toBe(SANY_JVM)
     })
     it(`${arm}: the JVM NoType stays NOTYPE_JVM`, () => {
-      expect(pick(exprTpe(build(NOTYPE)))).toBe(NOTYPE_JVM)
+      expect(pick(exprTpe(build(NOTYPE), 0))).toBe(NOTYPE_JVM)
     })
   }
   const FIXED: [string, (x: Expr) => Expr, SType][] = [
@@ -207,8 +217,8 @@ describe('an arm the JVM types keeps typing the JVM SAny and NoType', () => {
   ]
   for (const [arm, build, tpe] of FIXED) {
     it(`${arm}: types as ${tpe.tag} over the JVM SAny and NoType`, () => {
-      expect(exprTpe(build(DECLARED))).toEqual(tpe)
-      expect(exprTpe(build(NOTYPE))).toEqual(tpe)
+      expect(exprTpe(build(DECLARED), 0)).toEqual(tpe)
+      expect(exprTpe(build(NOTYPE), 0)).toEqual(tpe)
     })
   }
 })
@@ -226,7 +236,7 @@ describe("a PropertyCall with explicit type arguments does not type its object, 
       methodId: 10,
       explicitTypeArgs: { T: { tag: 'SSigmaProp' } },
     }
-    expect(exprTpe(none)).toEqual({ tag: 'SOption', elem: { tag: 'SSigmaProp' } })
+    expect(exprTpe(none, 3)).toEqual({ tag: 'SOption', elem: { tag: 'SSigmaProp' } })
   })
 })
 
@@ -240,7 +250,7 @@ describe("ergots' own SAny still passes rule 1001 (residual 1)", () => {
     const t = parseTree(hex('00db6501fe'), { checkType: true })
     expect(isUnparsedTree(t)).toBe(false)
     if (!isUnparsedTree(t)) {
-      const tpe = exprTpe(t.body)
+      const tpe = exprTpe(t.body, t.header.version)
       expect(tpe).toEqual({ tag: 'SAny' })
       expect(tpe).not.toBe(SANY_JVM)
     }
@@ -267,7 +277,7 @@ describe("rule 1001 fails a root typed through ByIndex over a tuple, the JVM's S
   it('exprTpe of ByIndex over a tuple is SANY_JVM', () => {
     const t = parseTree(hex('00' + BY_INDEX_TUPLE))
     if (isUnparsedTree(t)) throw new Error('expected a parsed tree')
-    expect(exprTpe(t.body)).toBe(SANY_JVM)
+    expect(exprTpe(t.body, t.header.version)).toBe(SANY_JVM)
   })
   // JVM: Unparsed (rule 1001), re-encoded as received.
   for (const [name, h] of [
