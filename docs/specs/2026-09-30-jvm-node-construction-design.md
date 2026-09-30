@@ -254,7 +254,7 @@ A sized tree's verdict is its first failure in byte order: a `ValidationExceptio
 | Site | The version the JVM reads under |
 |---|---|
 | A tree's segregated constants and its body | the tree's header version (`ErgoTreeSerializer.scala:154`) |
-| A nested box's registers (an SBox constant's data) | the **enclosing** tree's. The nested tree's own `withVersions` is scoped and restored before the registers are read (`VersionContext.scala:99-100`; `W:126`, `W:129`) |
+| A nested box's registers (an SBox constant's data) | the **enclosing** tree's. The nested tree's own `withVersions` is scoped and restored before the registers are read (`VersionContext.scala:99-100`; `W:126`, `W:129`). Rule 1019 flags UnsignedBigInt, SHeader and Option registers under any version, so SANTA's `tree_nested_degrade` #14 and #15 (`7f88e28`) tell the versions apart with SHeader: a reject under an enclosing v0 (SHeader has no data serializer there), a degrade on 1019 under v3 |
 | A nested box's own tree | its own header version |
 | A script decoded at spend | the spent tree's version (`Interpreter.scala:207, 245`) |
 | A SubstConstants template's constants, at eval | the spent tree's version |
