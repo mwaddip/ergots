@@ -575,8 +575,8 @@ function formatOurError(err: unknown): string {
  *   - `'tree-parse-failed'`
  *   - `'context-extension-parse-failed'`
  *   - `'evaluate-threw'` (any non-EvalError throw + both-error case)
- *   - `'evaluate-not-implemented'` (`EvalError.code === 'not-implemented-yet'`
- *      or any of the `'*-method-not-implemented'` codes; both-error case)
+ *   - `'evaluate-not-implemented'` (`EvalError.code` is `'not-implemented-yet'`
+ *      or `'method-not-implemented'`; both-error case)
  *   - `'evaluate-eval-error'` (any other `EvalError`; both-error case)
  *   - `'cost-overflow'` (phase `'evaluate-cost'`; oracleCost exceeded
  *      `Number.MAX_SAFE_INTEGER`)
@@ -807,10 +807,11 @@ export function validateTx(
                 // CreateAvlTree and, since 2026-09-30, every raw BitOp,
                 // the three shifts included, and BitInversion), which
                 // the JVM rejects too, so it lands in
-                // 'evaluate-eval-error'.
+                // 'evaluate-eval-error'. The gap codes are exactly these two
+                // of the EvalError union, compared whole.
                 const isNotImpl =
                     err.code === 'not-implemented-yet' ||
-                    err.code.endsWith('-method-not-implemented');
+                    err.code === 'method-not-implemented';
                 throw new HarnessError(
                     'evaluate',
                     isNotImpl ? 'evaluate-not-implemented' : 'evaluate-eval-error',

@@ -492,6 +492,41 @@ describe('validateTx — the spend evaluates the box-rules tree', () => {
         expect(he.code).toBe('evaluate-eval-error');
         expect(he.ourError).toMatch(/unparsed-ergotree/);
     });
+
+    it("labels a both-errored spend whose EvalError is 'method-not-implemented' as evaluate-not-implemented", () => {
+        // sigmaProp(SELF.getRegV5(0).isDefined): header 0x08 (v0 + hasSize),
+        // bodySize 9, then BoolToSigmaProp(OptionIsDefined(MethodCall(99, 7,
+        // SELF, [Int 0]))). The JVM's method lookup knows 99:7, and its eval
+        // fails by reflection (a local sigma-state 6.0.6 probe, spend mode:
+        // NoSuchMethodException, getRegV5); ergots' dispatcher has no handler
+        // for it, so it throws EvalError('method-not-implemented'). The label
+        // tested the code with endsWith('-method-not-implemented'), which the
+        // real code never matches, so such a halt was labelled
+        // evaluate-eval-error (the final review's M1).
+        const tree = hexToBytes('0809d1e6dc6307a7010400');
+        const tx = makeTx([
+            makeInput({
+                spentBoxBytes: sboxBytes(tree),
+                signatureBytes: SIGNATURE_BYTES,
+                oracleSucceeded: false,
+                oracleError: 'simulated: the reference rejects the spend',
+            }),
+        ]);
+        const block = makeBundle(tx);
+        const state = makeState([fakeHeader(100), fakeHeader(99)]);
+
+        let captured: unknown = null;
+        try {
+            validateTx(tx, block, state, 0);
+        } catch (e) {
+            captured = e;
+        }
+        expect(captured).toBeInstanceOf(HarnessError);
+        const he = captured as HarnessError;
+        expect(he.phase).toBe('evaluate');
+        expect(he.ourError).toMatch(/EvalError\[method-not-implemented\]/);
+        expect(he.code).toBe('evaluate-not-implemented');
+    });
 });
 
 describe('validateBlock orchestrator', () => {
