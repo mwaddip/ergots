@@ -12,7 +12,7 @@ checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identi
 
 ## Scope
 
-**Ships in this contract (v0.5.0):**
+**Ships in this contract (v0.6.0):**
 
 1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values. All-or-nothing: any per-op failure collapses to `null`. Thin wrapper over `verifyAvlBatchPartial`.
 2. `verifyAvlBatchPartial` — partial-success variant. On per-op failure, returns `{ newDigest, results, opsCompleted }` reflecting state AFTER the last successful op. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics (break-on-failure with state-after-last-success).
@@ -32,17 +32,20 @@ checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identi
 16. Neighbor-reporting lookups (v0.5.0) — `performLookupWithNeighbors` on `BatchAVLVerifier`, `BatchAVLProver` and `PersistentBatchAVLProver` (recorded: exactly a `Lookup`), and `unauthenticatedLookupWithNeighbors` on the two provers (unrecorded). Types `NeighborLookup` and `NeighborLookupResult`. TS-only: neither reference has a neighbor-reporting lookup.
 17. `AvlVerifyFailReason` (v0.5.0) — exported, reachable through `BatchAVLVerifier.getLastFailReason()`.
 18. A prover fix, and prover hardening (v0.5.0) — the fix: `newInternal` copies its key (P1). Before 0.5.0, a caller that reused a key buffer after an `Insert` silently rewrote an internal node's key; see `newInternal` under "Node types and constructors" for what 0.5.0 does not repair. The hardening: an operation never inherits `found` from a failed or thrown one (P2); a proof-cycle fail-stop after an engine throw (P3). No proof, digest or codec byte changes.
+19. `StrictBatchAVLVerifier` (v0.6.0) — a second step-by-step verifier: `BatchAVLVerifier`'s constructor, methods and behavior, plus `isFullyConsumed()`, which says whether the proof is byte-for-byte the proof `BatchAVLProver.generateProof()` writes for the operations performed. TS-only: neither reference has one. **Not Ergo consensus:** both references accept proofs it rejects, and no existing entry point runs any of its code.
 
 **Does NOT ship:**
 
 - Direct exposure of the internal `VerifierCore` class. `BatchAVLVerifier` wraps it, so the core's mutable fields (`root`, `height`, `lastFailReason`) stay free to change.
+- A consumption check on `BatchAVLVerifier` or on the batch functions. They stay reference-faithful: like `ergo_avltree_rust` and scrypto, they accept a proof with trailing bytes, with set padding bits, or with content the operations never read. Exact consumption is `StrictBatchAVLVerifier`'s alone.
+- An interface that both verifier classes implement. `StrictBatchAVLVerifier` is not a subtype of `BatchAVLVerifier`; code that takes either one types its parameter structurally.
 - A range operation or any ninth `Operation` variant. Range reads compose from neighbor-reporting `Lookup`s (see "Neighbor lookups").
 - Neighbor reporting on modifications, and neighbor lookups on the functional batch API (`verifyAvlBatch*`).
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
 - `compareBytes`. A single internal module (`src/compare-bytes.ts`) consolidating what were four duplicate private byte-comparison implementations (prover, verifier, tree-traversal, persistent-prover); not exported from the package entry point.
 
-## Public surface (v0.5.0)
+## Public surface (v0.6.0)
 
 ### Primary export: `@ergots/avltree`
 
@@ -133,6 +136,54 @@ The step-by-step verifier. It is the public face of `batch_avl_verifier.rs::Batc
   2. A sentinel key throws `'operation-key-out-of-bounds'` on the prover, but fails and poisons on the verifier.
 - **Invariant.** The same determinism as the functions: no I/O, no clock, no PRNG. Driven step by step over the 50-fixture corpus and the partial fixture, it reproduces every expected result, digest and failure index.
 
+#### `StrictBatchAVLVerifier` (v0.6.0)
+
+```ts
+class StrictBatchAVLVerifier {
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig)
+  performOneOperation(op: Operation): ProverOperationResult
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult
+  digest(): Uint8Array | null
+  getLastFailReason(): AvlVerifyFailReason | null
+  isFullyConsumed(): boolean
+}
+```
+
+A step-by-step verifier that can also say whether the proof it replayed is exactly the proof a prover writes for the operations performed. It serves networks whose full nodes regenerate each proof and refuse any other bytes: a light client there must refuse them too, and the digest check cannot, because a padded proof replays to the right digest. TS-only: `ergo_avltree_rust` @568e7c3 and scrypto 3.0.0 have no consumption query. Their verifiers read only the direction bits they need and never compare the cursor with the proof's length (`batch_avl_verifier.rs`: `directions_index`, `:32` @568e7c3, is private and unchecked).
+
+- **Not Ergo consensus.** Both references accept proofs this class's check rejects. No Ergo path may use it, and `@ergots/ergoscript` does not: it calls `verifyAvlBatchPartial` only. `BatchAVLVerifier` and the batch functions remain the reference-faithful surface.
+- **Isolated from the existing surface.** None of its code runs on an existing entry point.
+  - It replays through a subclass of the internal `VerifierCore` that records the engine's `onNodeVisit` calls. `BatchAVLVerifier` and the batch functions keep the core's no-op.
+  - Its proof encoder is its own, separate from the prover's.
+- **The constructor and the four shared methods behave exactly as `BatchAVLVerifier`'s** (see that section):
+  - the same copy-then-validate construction, and the same `AvlVerifyError` codes;
+  - poisoning from birth on a proof that fails to decode or anchor;
+  - shape validation on each operation;
+  - fresh copies of returned values;
+  - the first fail reason kept;
+  - the fail-stop after an engine throw;
+  - the two asymmetries with the prover.
+- **Not a subtype of `BatchAVLVerifier`.** Both classes have private members, which TypeScript compares nominally.
+- **`isFullyConsumed()`.**
+  - `true` when the proof is byte-for-byte the proof a prover writes for the operations performed so far. A caller therefore asks after its last operation.
+  - `false` once the verifier is poisoned: a proof that failed to decode or anchor, or an operation that failed.
+  - After an engine throw it throws a plain `Error`, as `digest()` does.
+  - It changes no state and may be called at any time. Before any operation it is `true` only for an empty cycle's proof: the root as one label, then `END_OF_TREE`.
+- **How it decides.** It regenerates the proof and compares the bytes, stopping at the first difference:
+  1. the tree as the proof decoded it, packed post-order as `BatchAVLProver.generateProof()` packs its old tree: a node the replay visited is written in full, any other as a label, without descending;
+  2. `END_OF_TREE`;
+  3. the direction bits the replay read. They must fill exactly ⌈bits / 8⌉ bytes, and the unused high bits of a partial last byte must be zero.
+- **The guarantee.** Start from a digest with honest provenance: the digest of a tree built from the empty tree by valid operations, such as a consensus state root. After a replay in which every operation succeeded, `isFullyConsumed()` is `true` if and only if `proof` is byte-for-byte the proof `BatchAVLProver.generateProof()` writes after the same operations, in the same order, from the tree with that digest. A recorded neighbor lookup counts as a `Lookup`. `generateProofForOperations` writes the same proof, and so does `ergo_avltree_rust`'s `BatchAVLProver::generate_proof`.
+  - **An honest proof answers `true`.** A prover writes a node in full exactly when the shared engine visited it, and a failed operation leaves neither visits nor direction bits. The replay runs the same engine along the same paths.
+  - **`true` means the honest proof.** With honest provenance the leaves form a sorted linked list, so the leaf a key resolves at is the only one that passes the leaf check. The replay's bits and visits are therefore the producer's, short of a blake2b-256 collision.
+- **The conditions.**
+  - The digest's provenance. On a digest of unknown provenance there is no producer's proof to compare with.
+  - Every operation succeeded. A consumer must treat `{ success: false }` as fatal anyway.
+  - The same operations as the producer's, in the same order.
+- **Cost.**
+  - Memory: beyond what `BatchAVLVerifier` holds, it keeps alive the decoded nodes that writes replaced, and a set with one entry per node visited.
+  - Time: `isFullyConsumed()` walks the decoded tree once and hashes nothing, because the decode-time digest check has already cached every label.
+
 #### Type definitions
 
 ```ts
@@ -176,7 +227,7 @@ export type ADValue  = Uint8Array
 export type OperationResult = Uint8Array | null  // null = key was absent before op
 ```
 
-## Prover surface (v0.5.0)
+## Prover surface (v0.6.0)
 
 ```ts
 class BatchAVLProver {
@@ -432,6 +483,13 @@ type AvlVerifyFailReason =               // exported since v0.5.0
   | 'operation-required-but-not-allowed' // reserved for ABI stability (currently unreachable)
 ```
 
+**`StrictBatchAVLVerifier` (v0.6.0) has `BatchAVLVerifier`'s failure model**, and adds no code and no reason:
+- the same `AvlVerifyError` codes, at construction and per operation;
+- the same fail reasons through `getLastFailReason()`;
+- the same fail-stop after an engine throw: every method except `getLastFailReason()` then throws a plain `Error`, `isFullyConsumed()` included.
+
+A proof that is not exactly consumed is reported by `isFullyConsumed() === false`. That never poisons the verifier and sets no fail reason. One plain `Error` is the comparison's own: a label stub among the visited nodes. It is unreachable, because the engine fails the operation at every site that can meet a stub.
+
 **Invariants on the boundary:**
 
 1. Shape validation is sole and comprehensive at the public entry points (the batch functions, `BatchAVLVerifier`'s constructor, and each `BatchAVLVerifier` operation). After construction, `VerifierCore` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @568e7c3; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw — deliberately: converting the published `'operation-key-length-mismatch'` throw into a per-op failure would be a breaking change on a shipped package (observable as `opsCompleted` for `[goodOp, wrongLengthOp]`: references apply then fail at index 1; ergots throws before applying anything), and the consensus path is unaffected either way — `@ergots/ergoscript`'s `savltree` pre-scans op shapes (`keyShapeBad`/`firstShapeBadOpIndex`) and reproduces the JVM's per-op failure index and charging exactly.
@@ -466,6 +524,13 @@ Four test layers plus cross-runtime, mirroring the proof and ergoscript packages
    - `proof-routes.test.ts`: step-by-step against one-go proofs.
    - `serialize-keylength-65.test.ts`.
    - `public-surface-0.5.test.ts`.
+7. **v0.6.0 suites.**
+   - `canonical-proof.test.ts`: the comparison on hand-written bytes — labels, leaves, key chaining and its reset, the value-length prefix, the `-1` balance, the directions' length and padding — and a 100,000-level spine.
+   - `strict-verifier-rust.test.ts`: Rust byte-equality. Regeneration reproduces the proof on all 42 corpus fixtures that replay fully and on all 18 cycles of the 10 prover fixtures. The 8 other corpus fixtures and the partial fixture answer `false`.
+   - `strict-verifier-guarantee.test.ts`: the guarantee in both directions, over random trees and batches at key lengths 1, 8, 32 and 65, with fixed and variable values. Honest proofs answer `true`. Appended bytes, an unasked operation, a set padding bit and an unvisited node written in full each replay to the right digest and answer `false`.
+   - `strict-verifier-parity.test.ts`: both verifier classes, driven with the same calls, give the same results, throws, digests and fail reasons, over the corpus, random batches, failing operations, shape errors and an engine throw. It also holds the strict class to its copy rules.
+   - `strict-verifier-query.test.ts`: `isFullyConsumed()` on a poisoned verifier, mid-replay, before any operation, after a shape throw and after an engine throw.
+   - `public-surface-0.6.test.ts`.
 
 `removed-nodes/` — 7 Rust-emitted removedNodes() label-set vectors (emitter source preserved as EMITTER.rs in the same directory; regenerate via worktree off ergo_avltree_rust 568e7c3, ERGOTS_FIXTURE_DIR env).
 
@@ -541,6 +606,8 @@ in use since.
 | `batch_avl_verifier.rs::BatchAVLVerifier`, public face (`new` 59-77, `perform_one_operation` 195-210; trait `digest`, `authenticated_tree_ops.rs:133-149` @568e7c3) | `BatchAVLVerifier` (`verify.ts`) | Thin wrapper over `VerifierCore`: validation, input copies, copies of returned values (digests and neighbor reports come from the core already fresh), and the engine-throw fail-stop. A proof that fails to decode or anchor poisons from birth instead of throwing, as in scrypto 3.0.0, not Rust's `Result`; shape errors still throw |
 | `batch_avl_prover.rs::perform_one_operation` (120-141 @568e7c3) | `BatchAVLProver.performOneOperation` → private `perform` + `validateShape` / `validateKey` + `runOperation` (`batch-prover.ts`) | Decomposed. Deliberate divergences (v0.5.0): `found` is cleared at each operation's entry (P2), and a proof-cycle fail-stop follows an engine throw (P3). Older, documented in v0.5.0: the descent throws on a key-less internal node in found mode too, where the reference reads the key only in search mode (`:441-444`) |
 | (TS-only) | `performLookupWithNeighbors` / `unauthenticatedLookupWithNeighbors` (`batch-prover.ts`, `verify.ts`, `persistent-prover.ts`), `VerifierCore.lookupWithNeighbors` (`batch-verifier.ts`), `neighborLookupOf` (`neighbors.ts`) | No counterpart in either reference. The leaf is observed through the `keyMatchesLeaf` callback; the unrecorded walk mirrors the recorded descent |
+| (TS-only) | `StrictBatchAVLVerifier` + `RecordingVerifierCore` (`strict-verifier.ts`) | No counterpart in either reference. The public class mirrors `BatchAVLVerifier`'s wrapper without sharing its code. The recording core is `VerifierCore` with the engine's `onNodeVisit` recording each node, which is what the trait's default `on_node_visit` does on Rust's verifier too (`authenticated_tree_ops.rs:102-127` @568e7c3). `VerifierCore` itself keeps the no-op |
+| `batch_avl_prover.rs::pack_tree` + `generate_proof` (186-225, 233-258 @568e7c3), re-encoded for comparison | `matchesCanonicalProof` (`canonical-proof.ts`) | A second encoder of the proof layout, used only to compare a given proof with the one a prover writes. `BatchAVLProver.generateProof` remains the port of those two functions and is untouched |
 
 ## Node types and constructors (v0.5.0)
 
