@@ -14,6 +14,7 @@ import {
   verifyAvlBatchPartial,
   verifyAvlLookup,
   BatchAVLVerifier,
+  StrictBatchAVLVerifier,
   type VerifyAvlBatchResult,
   type VerifyAvlBatchPartialResult,
   type AvlTreeConfig,
@@ -283,6 +284,63 @@ while (next !== null) {
 
 ---
 
+### StrictBatchAVLVerifier (0.6.0)
+
+```ts
+class StrictBatchAVLVerifier {
+  // The constructor and the first four methods are BatchAVLVerifier's, with the same behavior.
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig)
+  performOneOperation(op: Operation): ProverOperationResult
+  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult
+  digest(): Uint8Array | null
+  getLastFailReason(): AvlVerifyFailReason | null
+  // Whether the proof is byte-for-byte the proof a prover writes for the operations performed so far.
+  isFullyConsumed(): boolean
+}
+```
+
+`BatchAVLVerifier` accepts any proof that lets its operations succeed, as both reference implementations do. That includes a proof with bytes appended, and a proof that carries operations the caller never asks. `StrictBatchAVLVerifier` can tell those from the proof a prover actually writes.
+
+**Use it when the network accepts exactly one proof.** If full nodes regenerate each proof from their own execution and refuse any other bytes, a light client must refuse them too. The digest check alone cannot do that: a padded proof replays to the right digest.
+
+**Do not use it on an Ergo path.** This is not Ergo consensus. Ergo's references accept proofs that `isFullyConsumed()` rejects, so a check built on it would reject data Ergo accepts. Use `BatchAVLVerifier` or the batch functions there.
+
+- **Everything `BatchAVLVerifier` does, this class does the same way:** construction and its `AvlVerifyError` codes, poisoning from birth, shape validation per operation, fresh copies of returned values, the first fail reason kept, and the fail-stop after an engine throw. See `BatchAVLVerifier` above.
+- **It is not a subtype of `BatchAVLVerifier`.** Both classes have private members, which TypeScript compares nominally. To take either one, type the parameter structurally, for example `Pick<StrictBatchAVLVerifier, 'performLookupWithNeighbors'>`.
+- **`isFullyConsumed()`.**
+  - `true` when the proof is byte-for-byte the proof `BatchAVLProver.generateProof()` writes for the operations performed so far. Ask after the last operation.
+  - `false` once the verifier is poisoned: a proof that failed to decode or anchor, or an operation that failed.
+  - After an engine throw it throws a plain `Error`, as `digest()` does.
+  - It changes no state. Each call walks the decoded tree once, in time proportional to the proof, so ask once at the end rather than after every operation.
+- **What `true` guarantees.** Start from a digest with honest provenance, such as a consensus state root. After a replay in which every operation succeeded, `isFullyConsumed()` is `true` if and only if the proof is byte-for-byte what `BatchAVLProver.generateProof()` (or `generateProofForOperations`) writes after the same operations, in the same order, from that state. Three conditions carry it:
+  - the digest's provenance;
+  - every operation succeeded (treat `{ success: false }` as fatal, as with `BatchAVLVerifier`);
+  - the caller performed the producer's operations, in the producer's order. A recorded neighbor lookup counts as a `Lookup`.
+- **What it rejects that `BatchAVLVerifier` accepts:**
+  - bytes after the directions;
+  - a set bit among the unused high bits of the last direction byte;
+  - a node written in full that no operation visited;
+  - an operation the proof carries that the caller did not perform.
+- **Memory.** It keeps the tree as the proof decoded it, and the set of visited nodes, for its lifetime. Both grow with the proof.
+
+**Example:**
+
+```ts
+const v = new StrictBatchAVLVerifier(parentDigest, blockProof, config)
+if (v.digest() === null) reject(v.getLastFailReason())      // the proof does not anchor
+for (const key of readsInOrder) {
+  const r = v.performLookupWithNeighbors(key)
+  if (!r.success) reject(v.getLastFailReason())             // fatal to the block
+}
+for (const op of writesInOrder) {
+  if (!v.performOneOperation(op).success) reject(v.getLastFailReason())
+}
+if (!bytesEqual(v.digest()!, claimedPostDigest)) reject('post-state mismatch')
+if (!v.isFullyConsumed()) reject('not the proof a prover writes for these operations')
+```
+
+---
+
 ## Types
 
 ### `AvlTreeConfig`
@@ -425,7 +483,7 @@ This guarantee holds on the adversarial path too. A crafted proof that places a 
 
 One engine-level carve-out remains, narrower than before this package's `0.4.0` line: `modifyHelper` / `deleteHelper`'s per-operation descent (`modify.ts` / `delete.ts`) is independently recursive, so a pathologically deep proof spine combined with an operation that descends deep into it can still overflow the call stack and escape as a `RangeError` ("Maximum call stack size exceeded") — resource exhaustion, not a verification verdict. The digest-check-time carve-out this paragraph used to describe — `label()` recursing once per tree level while computing the constructor's starting-digest comparison — is now CLOSED: `label()`'s Internal arm labels children iteratively (an explicit heap-allocated stack, `labelSubtree`), so a deep spine decodes cleanly and, absent a matching digest, returns an ordinary `null`. Both references share whatever exposure remains on the per-operation path (the Rust reference's own `label` fix was likewise label-only; the JVM's `Try` does not catch `StackOverflowError`, and its script-eval verifier sets no node bound), so no reference-corroborated cap exists to reject such proofs earlier without risking an accept/reject divergence. Callers verifying untrusted proofs can either set `config.maxNumOperations` — reconstruction then enforces a node-count bound before any recursion — or catch `RangeError` at their own boundary. A caught `RangeError` is **indeterminate** — abort or propagate it; never map it to a rejection verdict, which would reintroduce exactly the accept/reject fork this carve-out exists to prevent. Documented by `verifier-adversarial-recursion.test.ts`; detail in `facts/avltree.md`.
 
-Tracked by `VerifierCore.lastFailReason` and exposed through `BatchAVLVerifier.getLastFailReason()` (v0.5.0); the type is exported. The batch functions still return a bare `null`.
+Tracked by `VerifierCore.lastFailReason` and exposed through `BatchAVLVerifier.getLastFailReason()` (v0.5.0); the type is exported. `StrictBatchAVLVerifier.getLastFailReason()` (0.6.0) reports the same reasons. The batch functions still return a bare `null`.
 
 Eight reasons are produced somewhere. Three are never produced and stay in the union for stability:
 - `'tree-poisoned'`: it is assigned only through `??=`, and every `root = null` site also sets its own reason, so the `??=` never assigns and a poisoned verifier keeps its first reason.
@@ -571,7 +629,7 @@ All three are unreachable through this API's own operations alone. The height an
 
 See `facts/avltree.md`'s `removedNodes()` divergence table for the deliberate differences from `ergo_avltree_rust`'s `removed_nodes`.
 
-`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. `BatchAVLVerifier`, whose tree outlives each call, returns fresh copies of values, neighbor keys and digests (0.5.0). One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. Node **fields** reached via the public `root` / `oldTopNode` are the exception, not the rule — see "Do not mutate nodes" below, which documents the opposite for those.
+`performOneOperation`'s `value` and `unauthenticatedLookup`'s return are defensive copies — mutating them cannot affect the tree. The verifier's returned buffers (`results`, `newDigest`) follow the same rule: they alias only the verifier's internal reconstruction, which is unreachable after the call returns. `BatchAVLVerifier` and `StrictBatchAVLVerifier`, whose trees outlive each call, return fresh copies of values, neighbor keys and digests (0.5.0, 0.6.0). One uniform contract across every *method return* in the package: the buffer you get back from a call is yours. Node **fields** reached via the public `root` / `oldTopNode` are the exception, not the rule — see "Do not mutate nodes" below, which documents the opposite for those.
 
 **Example:**
 
@@ -658,7 +716,7 @@ type ProverOperationResult =
   | { success: false }
 ```
 
-Return type of `BatchAVLProver.performOneOperation` and (0.5.0) `BatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure the prover reports no reason; on a `BatchAVLVerifier`, `getLastFailReason()` says which check failed.
+Return type of `BatchAVLProver.performOneOperation`, (0.5.0) `BatchAVLVerifier.performOneOperation` and (0.6.0) `StrictBatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure the prover reports no reason; on a `BatchAVLVerifier`, `getLastFailReason()` says which check failed.
 
 ---
 
