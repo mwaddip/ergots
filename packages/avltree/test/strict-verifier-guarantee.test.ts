@@ -104,8 +104,9 @@ function indexOfBytes(haystack: Uint8Array, needle: Uint8Array): number {
 /**
  * `proof` with the label token of internal node `n` replaced by `n` written in
  * full, its two children as labels: `03 label(left) 03 label(right) balance`.
- * The root label is unchanged, and so is key chaining: the token before the
- * next leaf is a label either way. Null when `proof` has no such token.
+ * The root label is unchanged, and so is key chaining: either way a label
+ * resets it before the next leaf, and the balance byte leaves it as it is.
+ * Null when `proof` has no such token.
  */
 function writtenInFull(proof: Uint8Array, n: InternalNode): Uint8Array | null {
   const at = indexOfBytes(proof, new Uint8Array([0x03, ...label(n)]))
