@@ -145,4 +145,15 @@ describe('matchesCanonicalProof — the directions', () => {
     // The bits that were read are the proof's own: any value matches.
     for (let v = 0; v < 8; v++) expect(check(l, [l], 1, tree, [v], 3)).toBe(true)
   })
+
+  it('a range that ends before it starts is an invariant violation, never an answer', () => {
+    // The caller's cursor only advances, so this cannot happen in a replay.
+    const proof = new Uint8Array([...tree, 0x04])
+    const start = (tree.length + 1) * 8
+    for (let back = 1; back <= 8; back++) {
+      expect(() => matchesCanonicalProof(proof, l, new Set([l]), 1, start, start - back), `${back} bits back`).toThrow(
+        /end before they start/,
+      )
+    }
+  })
 })

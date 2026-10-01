@@ -488,7 +488,9 @@ type AvlVerifyFailReason =               // exported since v0.5.0
 - the same fail reasons through `getLastFailReason()`;
 - the same fail-stop after an engine throw: every method except `getLastFailReason()` then throws a plain `Error`, `isFullyConsumed()` included.
 
-A proof that is not exactly consumed is reported by `isFullyConsumed() === false`. That never poisons the verifier and sets no fail reason. One plain `Error` is the comparison's own: a label stub among the visited nodes. It is unreachable, because the engine fails the operation at every site that can meet a stub.
+A proof that is not exactly consumed is reported by `isFullyConsumed() === false`. That never poisons the verifier and sets no fail reason. Two plain `Error`s are the comparison's own, and both are unreachable:
+- a label stub among the visited nodes: the engine fails the operation at every site that can meet a stub;
+- a direction range that ends before it starts: the verifier's cursor only advances.
 
 **Invariants on the boundary:**
 
