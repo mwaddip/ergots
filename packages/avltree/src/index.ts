@@ -37,7 +37,14 @@ export {
 // proof encoding.
 export { serializeNode, deserializeNode } from './serialize.js'
 
+// The strict step-by-step verifier (0.6.0): BatchAVLVerifier's surface plus
+// isFullyConsumed(). NOT Ergo consensus — see facts/avltree.md. Kept as the
+// LAST export on purpose: its modules are then appended after all existing
+// code in dist/index.js, which leaves that code's text untouched.
+export { StrictBatchAVLVerifier } from './strict-verifier.js'
+
 // Internal (NOT exported): VerifierCore, modify/delete helpers, rotation
 // primitives, tree-traversal state, compare-bytes.ts's byte comparator,
-// neighbors.ts's neighborLookupOf. These are implementation detail and may
-// change without notice.
+// neighbors.ts's neighborLookupOf, strict-verifier.ts's RecordingVerifierCore,
+// canonical-proof.ts's matchesCanonicalProof, verify.ts's three validators.
+// These are implementation detail and may change without notice.

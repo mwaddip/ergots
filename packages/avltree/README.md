@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 442 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 480 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -55,6 +55,28 @@ else console.log(r.prevKey, r.nextKey);         // null = end of the tree
 ```
 
 A `{ success: false }` poisons the verifier, and the prover leaves a failed operation out of its proof. So treat any failure as fatal to the whole batch, on both sides. See [API.md](./API.md) for the contract and a range-walk example.
+
+### Exactly the prover's proof (0.6.0)
+
+`BatchAVLVerifier` accepts any proof that lets its operations succeed, as the
+reference implementations do. That includes a proof with bytes appended, and one
+that carries operations nobody asked. `StrictBatchAVLVerifier` has the same
+methods, plus `isFullyConsumed()`: whether the proof is byte-for-byte the one
+`BatchAVLProver` writes for the operations performed.
+
+```ts
+import { StrictBatchAVLVerifier } from '@ergots/avltree';
+
+const v = new StrictBatchAVLVerifier(startingDigest, proof, config);
+for (const op of operations) {
+  if (!v.performOneOperation(op).success) throw new Error(`proof rejected: ${v.getLastFailReason()}`);
+}
+if (!v.isFullyConsumed()) throw new Error('not the proof a prover writes for these operations');
+```
+
+Use it where full nodes regenerate each proof and refuse any other bytes. It is
+not Ergo consensus: Ergo's references accept proofs it rejects, so keep it off
+any Ergo path. See [API.md](./API.md) for the guarantee and its conditions.
 
 ### Prover
 
@@ -136,7 +158,7 @@ the first-cycle sentinel note.
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins, no WASM. ESM-only.
 
-The batch verify functions are stateless: inputs in, structured result (or `null`) out. `BatchAVLVerifier` holds one proof's state across its calls. No I/O, no clock, no storage.
+The batch verify functions are stateless: inputs in, structured result (or `null`) out. `BatchAVLVerifier` and `StrictBatchAVLVerifier` each hold one proof's state across their calls. No I/O, no clock, no storage.
 
 ## What this package does NOT do
 
