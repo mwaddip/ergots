@@ -326,6 +326,7 @@ class StrictBatchAVLVerifier {
 **Example:**
 
 ```ts
+// reject and bytesEqual are yours; reject must not return. The package exports no byte comparison.
 const v = new StrictBatchAVLVerifier(parentDigest, blockProof, config)
 if (v.digest() === null) reject(v.getLastFailReason())      // the proof does not anchor
 for (const key of readsInOrder) {

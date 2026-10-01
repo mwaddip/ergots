@@ -121,7 +121,9 @@ export class VerifierCore {
    * Not public, so external callers can't corrupt it. `state` and
    * `buildCallbacks` are protected rather than private (0.6.0) for one
    * subclass: the strict verifier's recording core (strict-verifier.ts), which
-   * reads the cursor and wraps the callbacks.
+   * reads the cursor and wraps the callbacks. That subclass needs this class's
+   * constructor to call no overridable method: its own fields are set only
+   * after this constructor returns.
    *
    * All three indices are BIT INDICES (not byte indices), per the Rust
    * `proof[i >> 3] & (1 << (i & 7))` indexing convention.

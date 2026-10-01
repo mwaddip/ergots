@@ -166,8 +166,9 @@ export class StrictBatchAVLVerifier {
 
   /**
    * Why the verifier is poisoned — the first failure's reason — or null if no
-   * verification failure has occurred. It answers even after an engine throw
-   * left the instance indeterminate.
+   * verification failure has occurred. Neither an AvlVerifyError nor an
+   * engine throw sets a reason, and this method answers even after an engine
+   * throw left the instance indeterminate.
    */
   getLastFailReason(): AvlVerifyFailReason | null {
     return this.core.lastFailReason

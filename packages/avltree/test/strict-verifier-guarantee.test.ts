@@ -17,7 +17,7 @@ import { randInt, randomKey, randomTree, randomValue, rng, successfulBatch, toHe
  * has honest provenance.
  */
 
-/** [keyLength, valueLengthOpt]. 65 is Notis' key length; 0 is a fixed empty value. */
+/** [keyLength, valueLengthOpt]. 65 is a key longer than a 32-byte label; 0 is a fixed empty value. */
 const CONFIGS: [number, number | null][] = [
   [32, null],
   [65, null],
