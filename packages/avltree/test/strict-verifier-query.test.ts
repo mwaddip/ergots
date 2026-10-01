@@ -1,8 +1,10 @@
 import { describe, expect, it } from 'vitest'
 import { BatchAVLProver } from '../src/batch-prover.js'
+import { AvlVerifyError } from '../src/errors.js'
 import type { Operation } from '../src/operation.js'
 import { StrictBatchAVLVerifier } from '../src/strict-verifier.js'
 import type { AvlTreeConfig } from '../src/types.js'
+import { SPINE_CONFIG, buildSpineDigest, buildSpineProof } from './helpers/deep-spine.js'
 
 const KL = 32
 const CONFIG: AvlTreeConfig = { keyLength: KL, valueLengthOpt: null }
@@ -126,5 +128,36 @@ describe('isFullyConsumed — the answer covers the operations performed so far'
     // The proof carries nothing for a second lookup: it fails, and poisons.
     expect(v.performOneOperation(TWO_LOOKUPS[1]!)).toEqual({ success: false })
     expect(v.isFullyConsumed()).toBe(false)
+  })
+})
+
+describe('isFullyConsumed — a throw is not an answer', () => {
+  it('a shape throw changes nothing', () => {
+    const { digest, proof } = scenario(TWO_LOOKUPS)
+    const v = new StrictBatchAVLVerifier(digest, proof, CONFIG)
+    expect(v.performOneOperation(TWO_LOOKUPS[0]!).success).toBe(true)
+    expect(v.isFullyConsumed()).toBe(false)
+    expect(() => v.performOneOperation({ tag: 'Lookup', key: new Uint8Array(KL - 1).fill(1) })).toThrow(AvlVerifyError)
+    expect(() => v.performLookupWithNeighbors(new Uint8Array(KL + 1).fill(1))).toThrow(AvlVerifyError)
+    expect(v.getLastFailReason()).toBeNull()
+    expect(v.isFullyConsumed()).toBe(false)
+    // The verifier is still healthy: the second lookup counts, as a neighbor lookup here.
+    expect(v.performLookupWithNeighbors(key(40))).toMatchObject({ success: true, found: true })
+    expect(v.isFullyConsumed()).toBe(true)
+  })
+
+  it('after an engine throw it throws, as digest() does', () => {
+    const depth = 100_000
+    const v = new StrictBatchAVLVerifier(
+      buildSpineDigest(depth, 0xff),
+      buildSpineProof(depth, Math.ceil(depth / 8)),
+      SPINE_CONFIG,
+    )
+    expect(v.isFullyConsumed()).toBe(false) // healthy, and nothing visited yet
+    expect(() => v.performOneOperation({ tag: 'Lookup', key: new Uint8Array([0x10]) })).toThrow(RangeError)
+    expect(() => v.isFullyConsumed()).toThrow(/StrictBatchAVLVerifier\.isFullyConsumed.*indeterminate/)
+    expect(() => v.digest()).toThrow(/indeterminate/)
+    // The one method that still answers: no verification failure was recorded.
+    expect(v.getLastFailReason()).toBeNull()
   })
 })
