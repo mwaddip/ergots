@@ -118,12 +118,15 @@ export class VerifierCore {
    * Verifier traversal state — proof-byte cursor (directionsIndex), deepest
    * right-step (lastRightStep), and delete-pass replay cursor (replayIndex).
    * Mirrors the three indices on the Rust struct (lines 32, 35, 37 @568e7c3).
-   * Private so external callers can't corrupt state.
+   * Not public, so external callers can't corrupt it. `state` and
+   * `buildCallbacks` are protected rather than private (0.6.0) for one
+   * subclass: the strict verifier's recording core (strict-verifier.ts), which
+   * reads the cursor and wraps the callbacks.
    *
    * All three indices are BIT INDICES (not byte indices), per the Rust
    * `proof[i >> 3] & (1 << (i & 7))` indexing convention.
    */
-  private state: TraversalState
+  protected state: TraversalState
 
   /**
    * Ports BatchAVLVerifier::new (lines 59-77 @568e7c3) + reconstruct_tree (lines 80-181 @568e7c3).
@@ -184,7 +187,7 @@ export class VerifierCore {
    * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
    * implementation of the same callback WILL use them.
    */
-  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
+  protected buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
     const proof = this.proof
     const state = this.state
     return {
