@@ -37,8 +37,6 @@ checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identi
 **Does NOT ship:**
 
 - Direct exposure of the internal `VerifierCore` class. `BatchAVLVerifier` wraps it, so the core's mutable fields (`root`, `height`, `lastFailReason`) stay free to change.
-- A consumption check on `BatchAVLVerifier` or on the batch functions. They stay reference-faithful: like `ergo_avltree_rust` and scrypto, they accept a proof with trailing bytes, with set padding bits, or with content the operations never read. Exact consumption is `StrictBatchAVLVerifier`'s alone.
-- An interface that both verifier classes implement. `StrictBatchAVLVerifier` is not a subtype of `BatchAVLVerifier`; code that takes either one types its parameter structurally.
 - A range operation or any ninth `Operation` variant. Range reads compose from neighbor-reporting `Lookup`s (see "Neighbor lookups").
 - Neighbor reporting on modifications, and neighbor lookups on the functional batch API (`verifyAvlBatch*`).
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
