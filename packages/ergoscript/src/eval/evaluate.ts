@@ -6,19 +6,34 @@
  * not overridden) and dispatches on the tree body. `evaluateWith(tree,
  * ctx)` takes a pre-built EvalContext, useful for tests and tooling that
  * need to inspect `ctx.jitCost` after evaluation completes.
+ *
+ * `reduceWith(tree, ctx)` is the reduction a spend is charged for, the JVM's
+ * `Interpreter.fullReduction`: for a tree with a Deserialize node it adds the
+ * interpreter's charges to what `evaluateWith` charges.
  */
 
 import type { ErgoTree, ParsedErgoTree, Expr, SValue } from '../mir/types'
 import { isUnparsedTree } from '../mir/types'
+import { treeByteLength } from '../wire/ergo-tree'
+import { activatedScriptVersion } from './_activated-version'
 import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext, EvalError } from './eval-context'
 import type { EvalContext, EvalOpts } from './eval-context'
 import {
+  SUBSTITUTION_JIT_COST_PER_BYTE,
   substituteConstants,
   substituteDeserialize,
   treeHasDeserialize,
 } from './_substitute-deserialize'
+
+/**
+ * Which of the JVM's two entry points a dispatch stands for: `'evaluate'` is the evaluator
+ * (`CErgoTreeEvaluator.eval`, CErgoTreeEvaluator.scala:556-590), and `'reduce'` the interpreter's reduction
+ * (`Interpreter.fullReduction`, Interpreter.scala:203-229). It is an argument of {@link dispatchTreeBody}, and no
+ * part of it is kept on the context.
+ */
+type DispatchMode = 'evaluate' | 'reduce'
 
 /**
  * P2PK short-circuit on an Expr — mirrors sigma-rust's `trivial_reduce` in
@@ -88,7 +103,7 @@ export function evaluate(tree: ErgoTree, opts: EvalOpts = {}): SValue {
     constants: opts.constants ?? tree.constants,
     treeVersion: opts.treeVersion ?? tree.header.version,
   })
-  return dispatchTreeBody(tree, ctx)
+  return dispatchTreeBody(tree, ctx, 'evaluate')
 }
 
 export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
@@ -96,7 +111,43 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
   // becomes the tree's header version (dispatchTreeBody). If they want
   // tree.constants resolution they must set it themselves before calling.
   rejectIfUnparsed(tree)
-  return dispatchTreeBody(tree, ctx)
+  return dispatchTreeBody(tree, ctx, 'evaluate')
+}
+
+/**
+ * The reduction a spend is charged for: the JVM's `Interpreter.fullReduction` (sigma-state 6.0.6,
+ * Interpreter.scala:203-229), which `Interpreter.verify` runs for each input. The context is honored as
+ * {@link evaluateWith} honors it, and `ctx.jitCost` holds the cost afterwards: `ctx.jitCost` at entry stands for the
+ * JVM's `initCost * 10`, and `ctx.jitCostLimit` for its `costLimit * 10`.
+ *
+ * A tree without a Deserialize node reduces as `evaluateWith` evaluates it (`fullReduction`'s first two cases,
+ * :211-223). For a tree with one (`reductionWithDeserialize`, :240-268) the interpreter also charges:
+ *  - the tree's bytes: {@link SUBSTITUTION_JIT_COST_PER_BYTE} for each, checked against the limit at every
+ *    activation and added from activated version 3 ({@link chargeTreeBytes});
+ *  - each decode that completes: the same for each byte of the decoded array (`substituteDeserialize`);
+ * and it evaluates the substituted body as it is, so a body that is a SigmaProp constant costs a constant's 5.
+ * `ctx.preHeader` gives the activated version, and is required for such a tree.
+ */
+export function reduceWith(tree: ErgoTree, ctx: EvalContext): SValue {
+  rejectIfUnparsed(tree)
+  return dispatchTreeBody(tree, ctx, 'reduce')
+}
+
+/**
+ * The interpreter's charge for the bytes of a tree it substitutes in (`reductionWithDeserialize`,
+ * Interpreter.scala:246-260). `addCostChecked` compares the charge with the limit at every activation (:247). The
+ * substitution then starts from the charged context only once V6 is activated (:255-259): below activated version 3
+ * the charge is checked and dropped.
+ */
+function chargeTreeBytes(tree: ParsedErgoTree, ctx: EvalContext): void {
+  const charge = SUBSTITUTION_JIT_COST_PER_BYTE * treeByteLength(tree)
+  if (activatedScriptVersion(ctx, 'reduceWith') >= 3) {
+    ctx.addCost(charge)
+    return
+  }
+  if (ctx.jitCostLimit !== undefined && ctx.jitCost + charge > ctx.jitCostLimit) {
+    throw new EvalError(`JIT cost limit (${ctx.jitCostLimit}) exceeded`, 'cost-limit-exceeded')
+  }
 }
 
 /**
@@ -104,11 +155,17 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  *
  *   if tree.has_deserialize() { substitute_then_eval } else { straight_eval }
  *
- * Both branches end with `tryTrivialReduce ?? evalExpr`. The substitute path
- * runs `substituteConstants` (when the tree is segregated) and then
- * `substituteDeserialize` as bottom-up pre-eval rewrites, then dispatches on
- * the REWRITTEN body (so the P2PK 50-cost short-circuit can fire on a
+ * Under `'evaluate'` both branches end with `tryTrivialReduce ?? evalExpr`. The
+ * substitute path runs `substituteConstants` (when the tree is segregated) and
+ * then `substituteDeserialize` as bottom-up pre-eval rewrites, then dispatches
+ * on the REWRITTEN body (so the P2PK 50-cost short-circuit can fire on a
  * substituted `Const(SSigmaProp)` body — see fixture `dc_const_sigmaprop_inner`).
+ *
+ * Under `'reduce'` the substitute path is the interpreter's
+ * (`reductionWithDeserialize`, Interpreter.scala:240-268): the tree charge, the
+ * same two rewrites with each completed decode charged, and `evalExpr` on the
+ * rewritten body with no short-circuit. A tree without a Deserialize node takes
+ * the same path in both modes.
  *
  * Order matches sigma-rust `eval.rs:206-207`:
  *
@@ -129,7 +186,7 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  * branch (`eval.rs:259-261`), which intentionally charges 1 per CP. Only the
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
-function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
+function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext, mode: DispatchMode): SValue {
   // One version per evaluation (spec docs/specs/2026-09-30-jvm-node-construction-design.md §1): the JVM reduces a
   // tree under its own version (VersionContext.withVersions(activated, ergoTree.version), Interpreter.scala:203-238),
   // so the substitution, exprTpe and every arm read that one version, and an arm's `ctx.treeVersion ?? 0` never meets
@@ -170,7 +227,14 @@ function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext): SValue {
     const constSubstituted = tree.header.constantSegregation
       ? substituteConstants(tree.body, tree.constants, tree.constantTypes, ctx.treeVersion)
       : tree.body
-    const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx)
+    if (mode === 'reduce') {
+      // reductionWithDeserialize (Interpreter.scala:240-268): the tree charge, the substitution with its decode
+      // charges, then reduceToCryptoJITC evaluates the substituted proposition whatever it is (:171-186).
+      chargeTreeBytes(tree, ctx)
+      const substituted = substituteDeserialize(constSubstituted, tree, ctx, true)
+      return evalExpr(substituted, Env.empty(), ctx)
+    }
+    const rewrittenBody = substituteDeserialize(constSubstituted, tree, ctx, false)
     return tryTrivialReduceExpr(rewrittenBody, ctx) ?? evalExpr(rewrittenBody, Env.empty(), ctx)
   }
   return tryTrivialReduce(tree, ctx) ?? evalExpr(tree.body, Env.empty(), ctx)

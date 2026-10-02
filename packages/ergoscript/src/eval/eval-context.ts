@@ -68,11 +68,11 @@ export interface EvalOpts {
   /** Overrides tree.constants if set. Used by ConstPlaceholder resolution. */
   constants?: SValue[]
   /**
-   * ErgoTree version (0..7). When unset, evaluate() and evaluateWith() set it
-   * to tree.header.version before any substitution or eval (one version per
-   * evaluation, as the JVM reduces a tree under its own version). Arms reading
-   * ctx.treeVersion use (ctx.treeVersion ?? 0), which then only a direct arm
-   * call without a version meets.
+   * ErgoTree version (0..7). When unset, evaluate(), evaluateWith() and
+   * reduceWith() set it to tree.header.version before any substitution or
+   * eval (one version per evaluation, as the JVM reduces a tree under its own
+   * version). Arms reading ctx.treeVersion use (ctx.treeVersion ?? 0), which
+   * then only a direct arm call without a version meets.
    *
    * Required for arms with tree-version-dependent semantics:
    * - Upcast: BigInt → BigInt requires V3+

@@ -524,7 +524,7 @@ describe('a substitution rebuild copies the decision, as Kiama\'s dup keeps the 
     const bytes = probed(tree, 0x00, expected)
     const parsed = parseParsedTree(bytes)
     const before = firstByIndex(parsed.body)!
-    const after = firstByIndex(substituteDeserialize(parsed.body, parsed, spendContext(bytes, parsed, opts)))!
+    const after = firstByIndex(substituteDeserialize(parsed.body, parsed, spendContext(bytes, parsed, opts), false))!
     expect(after).not.toBe(before)
     expect(recordedIndexUpcast(before)).toBe(decision)
     expect(recordedIndexUpcast(after)).toBe(decision)

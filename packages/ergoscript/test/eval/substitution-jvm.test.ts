@@ -717,11 +717,11 @@ describe('the rewrite rebuilds only what changed (review m7) and keeps every fie
 
   it('a tree whose Deserialize node stays comes back as the same object', () => {
     const tree = parseParsedTree(S16)
-    expect(substituteDeserialize(tree.body, tree, ctxFor(tree))).toBe(tree.body)
+    expect(substituteDeserialize(tree.body, tree, ctxFor(tree), false)).toBe(tree.body)
   })
   it('only the ancestors of a substituted node are new; a sibling subtree keeps its identity', () => {
     const tree = parseParsedTree(treeBytes(sp(If(EQ(SizeOf(collInt([1])), int(1)), EQ(DC(1, T.Int), int(5)), bool(false))), 0x00))
-    const out = substituteDeserialize(tree.body, tree, ctxFor(tree, script(int(5))))
+    const out = substituteDeserialize(tree.body, tree, ctxFor(tree, script(int(5))), false)
     const before = tree.body as M.BoolToSigmaProp
     const after = out as M.BoolToSigmaProp
     expect(after).not.toBe(before)
@@ -756,7 +756,7 @@ describe('the rewrite rebuilds only what changed (review m7) and keeps every fie
     const tree = parseParsedTree(treeBytes(Block([FunDef(1, ['T'], DC(1, T.Int))], sp(bool(true))), 0x0b))
     const funDef = (tree.body as M.BlockValue).items[0] as M.ValDef
     expect(funDef.tpeArgs).toEqual([{ name: 'T' }])
-    const out = substituteDeserialize(tree.body, tree, ctxFor(tree, script(int(5)))) as M.BlockValue
+    const out = substituteDeserialize(tree.body, tree, ctxFor(tree, script(int(5))), false) as M.BlockValue
     const rebuilt = out.items[0] as M.ValDef
     expect(rebuilt).not.toBe(funDef)
     expect(rebuilt.rhs).toEqual(int(5))
