@@ -1,7 +1,8 @@
 // The cost validateStateful returns, against the JVM's. ergo-core's ErgoTransaction.validateStateful returns the
 // transaction's cost, and SANTA's transaction tier records it for every entry the JVM accepts
 // (vectors/transaction/, blessed by ergo-core's validateStateful). Every file under test/fixtures/conformance/ with
-// that tier's schema runs here, with no list to keep: a file vendored later is graded on its cost as well.
+// that tier's schema runs here: a file vendored later is graded on its cost as well, and the first test names the
+// files it found, so a new one shows there.
 //
 // The files and where their verdicts are tested:
 //  - cost-limit-boundary.json (cost-limit-boundary.test.ts);
@@ -34,7 +35,7 @@ const TX_FILES: TxFile[] = fs.readdirSync(fixtureDir)
   .filter(({ doc }) => doc.schema === 'santa-transaction/v1')
   .map(({ file, doc }) => ({ file, entries: doc.entries }));
 
-// The entries the JVM accepts and ergots still rejects, each pinned in its own file's test.
+// The entries the JVM accepts and ergots rejects, each pinned in its own file's test.
 const REJECTED_BY_ERGOTS: Record<string, string[]> = {
   // Residual 7 (facts/ergoscript-eval.md, "The Deserialize substitution"): the untyped default and the root wrap.
   'deserialize-substitution-spend.json': ['root-boolean-default-true-accept#20'],
@@ -73,11 +74,11 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
   }
 });
 
-// SANTA has no substitution spend before V6 yet. Until it does, four of its entries run here with the pre-header's
-// version set to 3, the block version of activated script version 2. The expected costs are derived, not blessed:
-// the entry's init cost, 12100, plus the reduction cost a local sigma-state 6.0.6 probe gives the same spend at
-// activated version 2 (its rows K2, D2, K4 and K6). Before V6 the interpreter still adds each completed decode's
-// charge, and it checks the tree charge against the limit without adding it (Interpreter.scala:246-260).
+// A substitution spend before V6. Four of SANTA's entries, blessed at V6, run here with the pre-header's version set
+// to 3, the block version of activated script version 2. The expected costs are derived, not blessed: the entry's
+// init cost, 12100, plus the reduction cost a local sigma-state 6.0.6 probe gives the same spend at activated
+// version 2 (its rows K2, D2, K4 and K6). Before V6 the interpreter adds each completed decode's charge, and it
+// checks the tree charge against the limit without adding it (Interpreter.scala:246-260).
 describe('a substitution spend before V6 (derived from the probe)', () => {
   const spends = TX_FILES.find((f) => f.file === 'deserialize-substitution-spend.json')!.entries;
   const beforeV6 = (name: string, maxBlockCost?: number) => {
@@ -107,5 +108,20 @@ describe('a substitution spend before V6 (derived from the probe)', () => {
     expect((err as EvalError).code).toBe('cost-limit-exceeded');
     const enough = beforeV6(name, 12100 + 32);
     expect(validateStateful(enough.tx, enough.deps)).toBe(12103);
+  });
+});
+
+// The init cost the derived figures use, from the vendored entries themselves: each blessed cost at V6, less the
+// reduction cost the probe gives the same spend at activated version 3 (its rows K1, D1, K3 and K5).
+describe('the init cost of the derived before-V6 figures', () => {
+  const spends = TX_FILES.find((f) => f.file === 'deserialize-substitution-spend.json')!.entries;
+
+  it.each([
+    ['s3j-decode-cast-swallowed-dead-accept#0', 35],
+    ['s3-type-read-cast-swallowed-dead-accept#3', 103],
+    ['s16-context-type-read-cast-swallowed-dead-accept#13', 67],
+    ['s16b-context-decode-cast-swallowed-dead-accept#14', 33],
+  ])('%s is blessed at 12100 + %i', (name, reduction) => {
+    expect(spends.find((x) => x.name === name)?.expected.cost).toBe(12100 + reduction);
   });
 });
