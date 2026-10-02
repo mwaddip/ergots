@@ -1,6 +1,6 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { boxIdOf, boxTreeOf, evaluateWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
+import { boxIdOf, boxTreeOf, reduceWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
@@ -112,27 +112,32 @@ function computeInitCost(tx: ErgoLikeTransaction, deps: StatefulDeps, params: Ch
 
 /**
  * Full stateful validation: structural/accounting checks, then the per-input
- * verify loop (parse tree → build context → evaluate → verifySignature) with
+ * verify loop (parse tree → build context → reduce → verifySignature) with
  * the real `validate()` cost model. Lift of the mainnet-proven harness
  * `validate-tx.ts:658-911` (oracle machinery removed) + sigma-rust
  * `TransactionContext::validate` (tx_context.rs:148-268).
  *
+ * Returns the transaction's block cost, as the JVM's `ErgoTransaction.validateStateful`
+ * does: the init cost plus every input's cost.
+ *
  * Cost model: a per-tx init/structural cost (block units) seeds a SINGLE
  * cumulative BLOCK-cost accumulator (`runningBlock`). Each scripted input adds
- * `floor(evalJit/10) + floor(cryptoJit/10)` — the reduction cost and
+ * `floor(reductionJit/10) + floor(cryptoJit/10)` — the reduction cost and
  * the sigma-verification (crypto) cost, each truncated to block cost
  * independently (JVM `Interpreter.scala:280-286`, `JitCost.toBlockCost`); a
  * storage-rent input adds `STORAGE_CONTRACT_COST` (50). After
- * each input `runningBlock > maxBlockCost` rejects. The mid-reduction JIT ceiling
- * handed to `evaluateWith` is `(maxBlockCost − runningBlock) * 10`. The crypto
- * cost is `estimateCryptoCost` (`@ergots/ergoscript`); the earlier deferral is
- * CLOSED.
+ * each input `runningBlock > maxBlockCost` rejects. The reduction is
+ * `reduceWith` (`@ergots/ergoscript`), the JVM's `Interpreter.fullReduction`:
+ * it charges what the interpreter charges for a tree with a Deserialize node.
+ * Its mid-reduction JIT ceiling is `(maxBlockCost − runningBlock) * 10`. The
+ * crypto cost is `estimateCryptoCost` (`@ergots/ergoscript`); the earlier
+ * deferral is CLOSED.
  *
  * Errors surface UNWRAPPED: eval (`EvalError`, incl. `'cost-limit-exceeded'`)
  * and verify (`VerifyError`) errors propagate as-is; only the validator's own
  * structural verdicts are `TxValidationError`.
  */
-export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): void {
+export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): number {
   const params = resolveParameters(deps.stateContext.parameters);
   checkStructural(tx, deps, params);
 
@@ -185,7 +190,7 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     const tree = boxTreeOf(ergoTreeBytes);
     // An unparsed proposition — a size-flagged tree that degraded under the box rules (a soft-fork
     // failure, or rule 1001 on its root) — is permanently unevaluable: it has no constants and
-    // evaluateWith rejects it with EvalError('unparsed-ergotree') (Interpreter.scala:131-141), surfaced
+    // reduceWith rejects it with EvalError('unparsed-ergotree') (Interpreter.scala:131-141), surfaced
     // unwrapped below. Thread empty constants so the union narrows past buildInputContext.
     // Cumulative limit: this input may consume only the remaining headroom; an overrun throws
     // EvalError 'cost-limit-exceeded' (unwrapped), matching validate()'s mid-tx limit firing.
@@ -195,7 +200,7 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
       constants: isUnparsedTree(tree) ? [] : tree.constants,
       inputExtensions,
     });
-    const result = evaluateWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded + unparsed-ergotree)
+    const result = reduceWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded + unparsed-ergotree)
     if (result.kind !== 'SigmaProp') {
       throw new TxValidationError(`input ${i} reduced to ${result.kind}, not SigmaProp`, 'non-sigmaprop-result', location);
     }
@@ -211,4 +216,5 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): v
     const ok = verifySignature(result.value, msg, input.spendingProof.proofBytes);  // VerifyError surfaces unwrapped
     if (!ok) throw new TxValidationError(`input ${i} script reduced to false`, 'script-reduced-false', location);
   }
+  return runningBlock;
 }
