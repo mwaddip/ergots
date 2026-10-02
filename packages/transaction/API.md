@@ -473,7 +473,7 @@ type TxValidationErrorCode =
   | 'cost-limit-exceeded';   // init-cost overrun OR per-input block-cost (eval+crypto, or 50 for rent) overrun; see note
 ```
 
-**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` when the per-tx init/structural cost alone exceeds `maxBlockCost`, OR when the per-input block-cost accumulator (eval + sigma-verification cost, each `floor(jit/10)`; 50 for a storage-rent input) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead propagates `EvalError('cost-limit-exceeded')` unwrapped (from inside `evaluateWith`). Callers must catch both.
+**Note on `cost-limit-exceeded`:** This code appears in `TxValidationError` when the per-tx init/structural cost alone exceeds `maxBlockCost`, OR when the per-input block-cost accumulator (eval + sigma-verification cost, each `floor(jit/10)`; 50 for a storage-rent input) exceeds `maxBlockCost` after an input. A mid-reduction overrun instead propagates `EvalError('cost-limit-exceeded')` unwrapped (from inside `reduceWith`). Callers must catch both.
 
 ### Unwrapped errors
 
