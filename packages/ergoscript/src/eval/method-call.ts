@@ -44,6 +44,7 @@ import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { activatedScriptVersion } from './_activated-version'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE, creationInfoTupleSValue } from './_box-synthesis'
@@ -362,14 +363,7 @@ function registerHandlers(): void {
         'context-obj-not-context'
       )
     }
-    if (ctx.preHeader === undefined) {
-      throw new EvalError(
-        `SContext.selfBoxIndex: ctx.preHeader is undefined`,
-        'context-field-missing'
-      )
-    }
-    // activated_script_version = saturating_sub(preHeader.version, 1).
-    const activatedVersion = Math.max(0, (ctx.preHeader.version | 0) - 1)
+    const activatedVersion = activatedScriptVersion(ctx, 'SContext.selfBoxIndex')
     if (activatedVersion < 2) {
       return { kind: 'Int', value: -1 }
     }
