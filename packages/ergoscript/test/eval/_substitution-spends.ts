@@ -80,14 +80,14 @@ export const SPENDS = {
   L2: { tree: '00d1d5040101d40101', var1: '0e020101', sigma: TRUE_PROP },
   L3: { tree: '00d1d5040101d40101', r4: '0e020101', sigma: TRUE_PROP },
   /** The default's variable is an empty array: its decode fails. */
-    L4: { tree: '00d1d5040101d40101', r4: '0e020101', var1: '0e00' },
+  L4: { tree: '00d1d5040101d40101', r4: '0e020101', var1: '0e00' },
   /** J4's tree at versions 3 and 2. */
   N1: { tree: '0b07d193d404010402', var1: '0e020402', sigma: TRUE_PROP },
   N2: { tree: '0a07d193d404010402', var1: '0e020402', sigma: TRUE_PROP },
   /** A sized version-1 tree with A1's root. */
   R8a: { tree: '0905d5040800', r4: '0e0208d3', sigma: TRUE_PROP },
   /** B's tree, decoding DC(SigmaProp, 2), whose variable is absent. */
-    R10a: { tree: '00d40801', var1: '0e03d40802' },
+  R10a: { tree: '00d40801', var1: '0e03d40802' },
   /** A segregated tree: one constant, and B's root. */
   SEG1: { tree: '10010402d40801', var1: '0e0208d3', sigma: TRUE_PROP },
   /** Controls without a Deserialize node whose root is a placeholder: a segregated TrueProp, a segregated P2PK. */
