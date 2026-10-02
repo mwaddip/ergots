@@ -327,7 +327,7 @@ const DEFAULT_PARAMETERS: ChainParameters;  // all values above
 
 **Precondition:** `tx` is an `ErgoLikeTransaction`. `deps.inputBoxes` is ordered to match `tx.inputs` (same length, same order). `deps.dataInputBoxes` is ordered to match `tx.dataInputs`. `deps.stateContext.headers` contains at least one `Header` (newest-first). `deps.stateContext.preHeader` is the block being validated against.
 
-**Postcondition (success):** Returns the transaction's block cost: the init cost plus every input's cost, the figure the JVM's `ErgoTransaction.validateStateful` returns (ergo-core `modifiers/mempool/ErgoTransaction.scala:356-451`). The transaction passes the full structural + per-input validation.
+**Postcondition (success):** Returns the transaction's block cost: the init cost plus every input's cost, the figure the JVM's `ErgoTransaction.validateStateful` returns (ergo-core `modifiers/mempool/ErgoTransaction.scala:360-441`). The transaction passes the full structural + per-input validation.
 
 **Rule set in order** (mirrors sigma-rust `TransactionContext::validate`, `tx_context.rs:148-268`):
 
