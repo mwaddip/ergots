@@ -218,9 +218,9 @@ function checkRootIsSigmaProp(body: Expr, treeVersion: number): void {
 }
 
 /**
- * The length of the bytes each parsed tree came from, keyed by the tree object (as the box-tree cache is keyed by
- * its bytes, box-tree-cache.ts). The JVM keeps the bytes themselves: `ErgoTree.bytes` is the span the parser
- * consumed, re-read after the parse (ErgoTreeSerializer.scala:179-181).
+ * The length of the bytes each parsed tree came from, in a WeakMap keyed by the tree object (the box-tree cache is
+ * one keyed by a box's tree-bytes object, box-tree-cache.ts). The JVM keeps the bytes themselves: `ErgoTree.bytes`
+ * is the span the parser consumed, re-read after the parse (ErgoTreeSerializer.scala:179-181).
  */
 const parsedByteLengths = new WeakMap<ParsedErgoTree, number>()
 

@@ -34,8 +34,8 @@
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
- *   'context-field-missing'     — thrown by the SContext.preHeader handler when ctx.preHeader === undefined;
- *                                  code originated in global-vars.ts / get-var.ts.
+ *   'context-field-missing'     — thrown by the SContext.preHeader and SContext.selfBoxIndex handlers when
+ *                                  ctx.preHeader === undefined; code originated in global-vars.ts / get-var.ts.
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'

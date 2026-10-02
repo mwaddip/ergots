@@ -8,8 +8,8 @@
  * need to inspect `ctx.jitCost` after evaluation completes.
  *
  * `reduceWith(tree, ctx)` is the reduction a spend is charged for, the JVM's
- * `Interpreter.fullReduction`: for a tree with a Deserialize node it adds the
- * interpreter's charges to what `evaluateWith` charges.
+ * `Interpreter.fullReduction`: for a tree with a Deserialize node it makes the
+ * interpreter's charges, and evaluates the substituted body as it is.
  */
 
 import type { ErgoTree, ParsedErgoTree, Expr, SValue } from '../mir/types'
@@ -122,8 +122,8 @@ export function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue {
  *
  * A tree without a Deserialize node reduces as `evaluateWith` evaluates it (`fullReduction`'s first two cases,
  * :211-223). For a tree with one (`reductionWithDeserialize`, :240-268) the interpreter also charges:
- *  - the tree's bytes: {@link SUBSTITUTION_JIT_COST_PER_BYTE} for each, checked against the limit at every
- *    activation and added from activated version 3 ({@link chargeTreeBytes});
+ *  - the tree's bytes: 20 JitCost for each, checked against the limit at every activation and added from
+ *    activated version 3 (`chargeTreeBytes`);
  *  - each decode that completes: the same for each byte of the decoded array (`substituteDeserialize`);
  * and it evaluates the substituted body as it is, so a body that is a SigmaProp constant costs a constant's 5.
  * `ctx.preHeader` gives the activated version, and is required for such a tree.
