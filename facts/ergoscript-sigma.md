@@ -40,7 +40,7 @@ type SigmaBoolean = ... // see Types section
 
 - **Trailing bytes accepted.** Extra bytes after the last parsed scalar are silently ignored (mirrors sigma-rust's `proof_append_some_byte` proptest at `verifier.rs:229-235`).
 
-- **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both evaluation cost and signature verification compose `evaluateWith` + `verifySignature` manually.
+- **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both a cost and signature verification compose `reduceWith` (a spend's cost) or `evaluateWith` (the evaluator's cost) with `verifySignature` manually.
 
 ### `estimateCryptoCost(sigmaBoolean)`
 
