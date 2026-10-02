@@ -5,7 +5,7 @@ Pure-TypeScript Ergo transaction wire codec and validator. Parses and serializes
 ## Scope
 
 - **Wire codec:** parse, serialize, derive the signing message, compute the transaction id.
-- **Validation:** `validateStateless` (well-formedness) and `validateStateful` (box provisioning, value and token conservation, output rules, per-input script evaluation and signature verification, storage rent, and the JVM block-cost model). The script evaluation is `@ergots/ergoscript`'s, whose Deserialize substitution and eval-time type reads follow the JVM's since 2026-09-30, so an `ExprTpeError` can propagate from a spend too. See [`API.md`](./API.md).
+- **Validation:** `validateStateless` (well-formedness) and `validateStateful` (box provisioning, value and token conservation, output rules, per-input script evaluation and signature verification, storage rent, and the JVM block-cost model). `validateStateful` returns the transaction's block cost. The script evaluation is `@ergots/ergoscript`'s, whose Deserialize substitution and eval-time type reads follow the JVM's since 2026-09-30, so an `ExprTpeError` can propagate from a spend too. See [`API.md`](./API.md).
 
 ## Install
 

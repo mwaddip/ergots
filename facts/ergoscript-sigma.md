@@ -40,7 +40,7 @@ type SigmaBoolean = ... // see Types section
 
 - **Trailing bytes accepted.** Extra bytes after the last parsed scalar are silently ignored (mirrors sigma-rust's `proof_append_some_byte` proptest at `verifier.rs:229-235`).
 
-- **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both evaluation cost and signature verification compose `evaluateWith` + `verifySignature` manually.
+- **Not a cost-charging operation.** `verifySignature` is a separate public function from `evaluate`; it does not interact with `EvalContext` or `jitCost`. Callers who want both a cost and signature verification compose `reduceWith` (a spend's cost) or `evaluateWith` (the evaluator's cost) with `verifySignature` manually.
 
 ### `estimateCryptoCost(sigmaBoolean)`
 
@@ -64,7 +64,7 @@ Constants are taken from the JVM `Interpreter.estimateCryptoVerifyCost` (`sigmas
 
 ## SigmaProp-constant trivial-reduce (eval cost)
 
-A tree whose root body is a plain `Const(SSigmaProp, _)` or a `ConstPlaceholder` resolving to a SigmaProp short-circuits with a flat `ctx.addCost(50)` (`EVAL_SIGMA_PROP_CONSTANT`), mirroring sigma-rust's `trivial_reduce` at `eval.rs:138-158, 268-278`. The short-circuit fires in `tryTrivialReduce(tree, ctx)` at the entry of `evaluate()` / `evaluateWith()` — NOT inside `evalConst`. Without it, bare P2PK trees undercharge by 10× vs sigma-rust. (This is an eval-time cost behavior; `verifySignature` itself charges no cost — see the note above.)
+A tree whose root body is a plain `Const(SSigmaProp, _)` or a `ConstPlaceholder` resolving to a SigmaProp short-circuits with a flat `ctx.addCost(50)` (`EVAL_SIGMA_PROP_CONSTANT`), mirroring sigma-rust's `trivial_reduce` at `eval.rs:138-158, 268-278`. The short-circuit fires in `tryTrivialReduce(tree, ctx)` at the entry of `evaluate()` / `evaluateWith()` / `reduceWith()` — NOT inside `evalConst`. Without it, bare P2PK trees undercharge by 10× vs sigma-rust. (This is an eval-time cost behavior; `verifySignature` itself charges no cost — see the note above.)
 
 ## Types
 
@@ -98,7 +98,7 @@ It is consumed by `verifySignature` (this slice) and by the eval-side `SigmaProp
 
 ## `VerifyError` taxonomy (9 codes)
 
-`VerifyError` is distinct from `EvalError`: it is thrown by `verifySignature` only, not by the recursive evaluator. The two surfaces don't interact — a caller composing `evaluateWith` + `verifySignature` may encounter both, but they carry separate `code` namespaces. Of the 9 declared codes, 4 are thrown by the current verifier and 5 are reserved — declared in `VerifyErrorCode` for ABI stability and future strict-check passes, never thrown today.
+`VerifyError` is distinct from `EvalError`: it is thrown by `verifySignature` only, not by the recursive evaluator. The two surfaces don't interact — a caller composing `evaluateWith` or `reduceWith` with `verifySignature` may encounter both, but they carry separate `code` namespaces. Of the 9 declared codes, 4 are thrown by the current verifier and 5 are reserved — declared in `VerifyErrorCode` for ABI stability and future strict-check passes, never thrown today.
 
 ### Leaf and signature-read codes
 

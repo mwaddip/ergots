@@ -84,7 +84,7 @@ export { parseSType, STypeParseError } from './wire/parse-stype'
 export { serializeSType, STypeSerializeError } from './wire/serialize-stype'
 
 // v0.2.0 (phase 2b) — evaluator surface
-export { evaluate, evaluateWith } from './eval/evaluate'
+export { evaluate, evaluateWith, reduceWith } from './eval/evaluate'
 export { makeContext, EvalError } from './eval/eval-context'
 export type { EvalOpts, EvalContext } from './eval/eval-context'
 

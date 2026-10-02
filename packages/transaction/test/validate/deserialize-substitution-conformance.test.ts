@@ -11,9 +11,9 @@
 // corresponds to the JVM's reason, which the entry's own `reason` gives (the JVM's reason is matched against it):
 // a spend that rejects for another reason would be green for the wrong one.
 //
-// Costs are not compared. The JVM's cost for a valid entry includes the substitution path's own charges, the
-// tree's bytes × 2 from V6 (Interpreter.scala:88, 240-265) and twice the length of a decode that completes
-// (:99-107), so this file grades validity only.
+// This file grades the verdicts. The costs, which include the substitution path's own charges (the tree's bytes × 2
+// from V6, Interpreter.scala:88, 240-265, and twice the length of a decode that completes, :99-107), are graded for
+// every accept in santa-tx-cost.test.ts.
 import { describe, it, expect } from 'vitest';
 import { EvalError, ExprTpeError, STypeParseError } from '@ergots/ergoscript';
 

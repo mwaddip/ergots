@@ -12,8 +12,13 @@
  * Both are Kiama's `everywherebu` (core/.../sigma/kiama/rewriting/Rewriter.scala:805-842): a node's children are
  * rewritten first, left to right; a node whose children all come back as the same objects is kept as it is, and one
  * with a changed child is rebuilt (`allProduct`, :446-471; `dup`, :236-320); then the node itself is rewritten. A
- * substituted script is not traversed again. The rewrites charge no cost: the JVM's decode and tree-bytes charges are
- * a follow-up. {@link treeHasDeserialize} and {@link childrenOf} walk a tree without rewriting it.
+ * substituted script is not traversed again. {@link treeHasDeserialize} and {@link childrenOf} walk a tree without
+ * rewriting it.
+ *
+ * The interpreter charges for a decode: `scriptBytes.length * CostPerByteDeserialized` block-cost units, once the
+ * decode completes and before the script's type is checked (`deserializeMeasured`, Interpreter.scala:81, 99-107).
+ * {@link substituteDeserialize} makes that charge when its caller asks for it: `reduceWith` does, `evaluateWith`
+ * does not (`evaluate.ts:dispatchTreeBody`).
  */
 
 import type {
@@ -47,6 +52,13 @@ import { scriptTypeEquals } from '../mir/jvm-types'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { collByteToUint8Array } from './_byte-coll'
 import { getRegisterEntry } from './extract-register-as'
+
+/**
+ * JitCost per byte for the interpreter's two per-byte charges: a tree's bytes (`CostPerTreeByte`,
+ * Interpreter.scala:88) and a decoded script's (`CostPerByteDeserialized`, :81). Each is 2 block-cost units, and a
+ * block-cost unit is 10 JitCost (sigma/ast/JitCost.scala:29-34).
+ */
+export const SUBSTITUTION_JIT_COST_PER_BYTE = 20
 
 // ---------------------------------------------------------------------------
 // treeHasDeserialize — O(n) early-return scan.
@@ -88,20 +100,22 @@ function hasDeserializeWalk(e: Expr): boolean {
  * (`Interpreter.scala:149-157`): `everywherebu(strategy { case x: SValue => substDeserialize(...) })`. The version is
  * the evaluation's one version, the spent tree's (`withVersions(activated, ergoTree.version)`, `:203-238`), so a
  * script decodes at the spent tree's version. Does not mutate `body`.
+ *
+ * With `chargeDecodes`, each decode that completes is charged on `ctx` ({@link decodeScript}).
  */
-export function substituteDeserialize(body: Expr, tree: ParsedErgoTree, ctx: EvalContext): Expr {
-  return rewriteBottomUp(body, ctx, ctx.treeVersion ?? tree.header.version)
+export function substituteDeserialize(body: Expr, tree: ParsedErgoTree, ctx: EvalContext, chargeDecodes: boolean): Expr {
+  return rewriteBottomUp(body, ctx, ctx.treeVersion ?? tree.header.version, chargeDecodes)
 }
 
 /**
  * Kiama's `bottomup(attempt(s))`: the children first, then the node. A node rebuilt because a child changed passes
  * the constructor's checks, as `dup` runs them; then a Deserialize node is substituted.
  */
-function rewriteBottomUp(e: Expr, ctx: EvalContext, v: number): Expr {
-  const node = mapChildren(e, (child) => rewriteBottomUp(child, ctx, v), v)
+function rewriteBottomUp(e: Expr, ctx: EvalContext, v: number, chargeDecodes: boolean): Expr {
+  const node = mapChildren(e, (child) => rewriteBottomUp(child, ctx, v, chargeDecodes), v)
   if (node !== e) checkRebuild(node, v)
-  if (node.tag === 'DeserializeContext') return substituteDeserializeContext(node, ctx, v)
-  if (node.tag === 'DeserializeRegister') return substituteDeserializeRegister(node, ctx, v)
+  if (node.tag === 'DeserializeContext') return substituteDeserializeContext(node, ctx, v, chargeDecodes)
+  if (node.tag === 'DeserializeRegister') return substituteDeserializeRegister(node, ctx, v, chargeDecodes)
   return node
 }
 
@@ -136,8 +150,18 @@ function isCollByte(t: SType): boolean {
  * the node, `undefined` here. Any other failure rejects. The decode is `ValueSerializer.deserialize` on a fresh reader,
  * with no constant store and trailing bytes ignored (`deserializeMeasured`, Interpreter.scala:99-107). A soft failure
  * inside the script is no class cast, so it rejects too, as the JVM rethrows it (spec §4a).
+ *
+ * With `chargeTo`, a decode that completes is charged there: {@link SUBSTITUTION_JIT_COST_PER_BYTE} for each byte of
+ * the array, whatever the decode consumed. `deserializeMeasured` charges after the decode and stores the charged
+ * context before the type check, so a decode that throws costs nothing, and a class cast at the type read leaves
+ * the node with its charge kept.
  */
-function decodeScript(bytes: Uint8Array, node: string, v: number): { script: Expr; tpe: SType } | undefined {
+function decodeScript(
+  bytes: Uint8Array,
+  node: string,
+  v: number,
+  chargeTo: EvalContext | undefined
+): { script: Expr; tpe: SType } | undefined {
   let script: Expr
   try {
     script = parseExpr(new ByteReader(bytes), [], [], new Map(), v)
@@ -147,6 +171,7 @@ function decodeScript(bytes: Uint8Array, node: string, v: number): { script: Exp
       cause: err,
     })
   }
+  if (chargeTo !== undefined) chargeTo.addCost(SUBSTITUTION_JIT_COST_PER_BYTE * bytes.length)
   let tpe: SType
   try {
     tpe = exprTpe(script, v)
@@ -165,14 +190,14 @@ function decodeScript(bytes: Uint8Array, node: string, v: number): { script: Exp
  * accepts. A decoded script replaces the node when its type is the declared one by the JVM's `!=`
  * (`CheckDeserializedScriptType`, rule 1000, ValidationRules.scala:24-37), under which `NoType != SAny`.
  */
-function substituteDeserializeContext(e: DeserializeContext, ctx: EvalContext, v: number): Expr {
+function substituteDeserializeContext(e: DeserializeContext, ctx: EvalContext, v: number, chargeDecodes: boolean): Expr {
   if (ctx.extension === undefined) {
     throw new EvalError('DeserializeContext: ctx.extension undefined', 'context-field-missing')
   }
   const entry = ctx.extension.values.get(e.id)
   if (entry === undefined || !isCollByte(entry.tpe)) return e
   const bytes = collByteToUint8Array(entry.value, 'DeserializeContext', 'deserialize-input-not-byte-array')
-  const decoded = decodeScript(bytes, 'DeserializeContext', v)
+  const decoded = decodeScript(bytes, 'DeserializeContext', v, chargeDecodes ? ctx : undefined)
   if (decoded === undefined) return e
   if (!scriptTypeEquals(decoded.tpe, e.tpe)) {
     throw new EvalError(
@@ -194,7 +219,7 @@ function substituteDeserializeContext(e: DeserializeContext, ctx: EvalContext, v
  * - A `Coll[Byte]` register decodes as a context variable does; `outVal.tpe != d.tpe` is a `sys.error`.
  * - An absent register gives the default, if any ({@link substituteDefault}); with none, the node stays.
  */
-function substituteDeserializeRegister(e: DeserializeRegister, ctx: EvalContext, v: number): Expr {
+function substituteDeserializeRegister(e: DeserializeRegister, ctx: EvalContext, v: number, chargeDecodes: boolean): Expr {
   if (ctx.selfBox === undefined) {
     throw new EvalError('DeserializeRegister: ctx.selfBox undefined', 'context-field-missing')
   }
@@ -202,7 +227,7 @@ function substituteDeserializeRegister(e: DeserializeRegister, ctx: EvalContext,
   if (entry !== undefined) {
     if (!isCollByte(entry.tpe)) return e
     const bytes = collByteToUint8Array(entry.value, 'DeserializeRegister', 'deserialize-input-not-byte-array')
-    const decoded = decodeScript(bytes, 'DeserializeRegister', v)
+    const decoded = decodeScript(bytes, 'DeserializeRegister', v, chargeDecodes ? ctx : undefined)
     if (decoded === undefined) return e
     if (!scriptTypeEquals(decoded.tpe, e.tpe)) {
       throw new EvalError(

@@ -34,8 +34,8 @@
  *
  * Codes callers may also observe (owned by other modules):
  *   'cost-limit-exceeded'       — thrown by ctx.addCost() in eval-context.ts when jitCostLimit is reached.
- *   'context-field-missing'     — thrown by the SContext.preHeader handler when ctx.preHeader === undefined;
- *                                  code originated in global-vars.ts / get-var.ts.
+ *   'context-field-missing'     — thrown by the SContext.preHeader and SContext.selfBoxIndex handlers when
+ *                                  ctx.preHeader === undefined; code originated in global-vars.ts / get-var.ts.
  */
 
 import type { ErgoBox, MethodCall, PropertyCall, SType, SValue } from '../mir/types'
@@ -44,6 +44,7 @@ import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
+import { activatedScriptVersion } from './_activated-version'
 import { evalExpr } from './eval'
 import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE, creationInfoTupleSValue } from './_box-synthesis'
@@ -362,14 +363,7 @@ function registerHandlers(): void {
         'context-obj-not-context'
       )
     }
-    if (ctx.preHeader === undefined) {
-      throw new EvalError(
-        `SContext.selfBoxIndex: ctx.preHeader is undefined`,
-        'context-field-missing'
-      )
-    }
-    // activated_script_version = saturating_sub(preHeader.version, 1).
-    const activatedVersion = Math.max(0, (ctx.preHeader.version | 0) - 1)
+    const activatedVersion = activatedScriptVersion(ctx, 'SContext.selfBoxIndex')
     if (activatedVersion < 2) {
       return { kind: 'Int', value: -1 }
     }

@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **85 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` / `reduceWith` cover **68 of 68 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **85 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -248,7 +248,7 @@ interface UnparsedErgoTree {  // a size-flagged tree that failed soft-forkably: 
 }
 ```
 
-An `UnparsedErgoTree` cannot be evaluated: `evaluate` / `evaluateWith` throw `EvalError('unparsed-ergotree')`, so a box locked by one cannot be spent.
+An `UnparsedErgoTree` cannot be evaluated: `evaluate` / `evaluateWith` / `reduceWith` throw `EvalError('unparsed-ergotree')`, so a box locked by one cannot be spent.
 
 ### `TreeHeader`
 
@@ -349,7 +349,7 @@ class AddressDecodeError        extends Error { readonly code: string }
 class ExprTpeError              extends Error { readonly code: string }
 ```
 
-These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The tree parse wraps two failures in an `ErgoTreeParseError` whose `cause` is the original error: a soft-forkable failure in a tree without the size flag (`'soft-fork-without-size-bit'`) and a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end (`'nested-tree-truncated'`). The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. Since 2026-09-30 it also escapes any parse, from a type read made while a node is built, and `evaluate` / `evaluateWith`, from a type read at one of the JVM's eval-time `checkType` sites (see `evaluate`). One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
+These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serializeSType` / `parseSValue` / `serializeSValue` / `parseSigmaBoolean` / `serializeSigmaBoolean` codecs) UNWRAPPED — callers see the innermost typed failure and can classify it by `instanceof`. The tree parse wraps two failures in an `ErgoTreeParseError` whose `cause` is the original error: a soft-forkable failure in a tree without the size flag (`'soft-fork-without-size-bit'`) and a nested tree that runs out of input while reading its constants or body, or whose degrade span runs past the end (`'nested-tree-truncated'`). The mir-layer type-inference error `ExprTpeError` is root-exported since 2026-09-28: rule 1001 lets it escape a box-rules parse (`parseErgoTreeBytes`, `parseTree(bytes, { checkType: true })`) as a hard reject. Since 2026-09-30 it also escapes any parse, from a type read made while a node is built, and `evaluate` / `evaluateWith` / `reduceWith`, from a type read at one of the JVM's eval-time `checkType` sites (see `evaluate`). One typed error that can escape is NOT root-exported: scorex's `ReaderError` (imported from `@ergots/scorex`). The full wire-layer error taxonomy with every emitted code is documented in `facts/ergoscript-wire.md` § "Error taxonomy (wire-layer error classes)" (runtime/evaluator codes live in `facts/ergoscript-eval.md`).
 
 ### `ErgoTreeParseError` codes
 
@@ -443,7 +443,7 @@ Retired: `STypeParseError('invalid-type-code')`, which covered codes 0, 10, 11 a
 
 ```ts
 import {
-  evaluate, evaluateWith, makeContext,
+  evaluate, evaluateWith, reduceWith, makeContext,
   EvalError,
   type EvalOpts, type EvalContext,
 } from '@ergots/ergoscript';
@@ -477,6 +477,43 @@ function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue;
 
 Same evaluation pipeline as `evaluate` using a caller-supplied `EvalContext`. The context is mutated in-place — inspect `ctx.jitCost` after the call to read total cost charged. When `ctx.treeVersion` is unset, it is set to `tree.header.version` before any substitution or eval (2026-09-30), as the JVM runs a tree under its own version; before, the arms read an unset version as 0. A version the caller set is kept. Partial costs are NOT rolled back on failure; `ctx.jitCost` reflects cost up to and including the point of any throw.
 
+`ctx.jitCost` after `evaluateWith` is the evaluator's cost: the operations it evaluated, and the flat 50 for a tree that is a SigmaProp constant. To learn what a spend costs, call `reduceWith`.
+
+### `reduceWith(tree, ctx)`
+
+```ts
+function reduceWith(tree: ErgoTree, ctx: EvalContext): SValue;
+```
+
+The reduction a spend is charged for: the JVM's `Interpreter.fullReduction`. It takes the same arguments as `evaluateWith` and returns the same value; `ctx.jitCost` holds the cost. `@ergots/transaction`'s `validateStateful` calls it for each scripted input.
+
+For a tree without a `DeserializeContext` or `DeserializeRegister` node, `reduceWith` and `evaluateWith` cost the same. For a tree with one, `reduceWith` adds what the JVM's interpreter charges for the substitution:
+
+| Charge | Amount | When |
+|---|---|---|
+| The tree's bytes | 20 JitCost per byte (2 block-cost units) | Added from activated script version 3 (block version 4, the V6 soft fork). Checked against `ctx.jitCostLimit` at every activation |
+| Each decoded script | 20 JitCost per byte of the decoded array | At every activation, once the decode completes |
+
+It also evaluates the substituted body as it is: a body that is a SigmaProp constant costs 5 JitCost, where `evaluateWith` charges the flat 50 of a tree that is a SigmaProp constant.
+
+- **The tree's bytes** are the bytes the tree was parsed from, as received. A tree built through the API counts the length of its serialization.
+- **The activated version** is one below the block version, floored at 0: `max(0, ctx.preHeader.version − 1)`. The block version is read from the pre-header; the JVM node reads the voted block version, which it checks against a header's at an epoch's first block. A tree with a Deserialize node needs `ctx.preHeader`; without it `reduceWith` throws `EvalError('context-field-missing')`.
+- **Limits.** Pass `jitCostLimit` as the block-cost limit × 10, on a fresh context: `ctx.jitCost` at entry stands for the JVM's `initCost × 10`. Below activated version 3, a tree whose byte charge, added to `ctx.jitCost`, exceeds the limit rejects with `'cost-limit-exceeded'`, although the charge is never added.
+
+```ts
+import { boxTreeOf, makeContext, reduceWith, isUnparsedTree } from '@ergots/ergoscript';
+
+const tree = boxTreeOf(box.ergoTreeBytes);
+const ctx = makeContext({
+  selfBox: box, inputs, outputs, dataInputs, headers, preHeader, height: preHeader.height,
+  lastBlockUtxoRootHash, extension, inputExtensions,
+  constants: isUnparsedTree(tree) ? [] : tree.constants,
+  jitCostLimit: remainingBlockCost * 10,
+});
+const value = reduceWith(tree, ctx);              // EvalError on a reject
+const blockCost = Math.floor(ctx.jitCost / 10);   // what the spend's reduction costs
+```
+
 ### `makeContext(opts?)`
 
 ```ts
@@ -491,7 +528,7 @@ Construct a fresh `EvalContext` from `EvalOpts`. Pure constructor — same opts 
 interface EvalOpts {
   jitCostLimit?: number          // undefined = unlimited
   constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
-  treeVersion?: number           // 0..7; when unset, evaluate() and evaluateWith() set it to tree.header.version
+  treeVersion?: number           // 0..7; when unset, evaluate(), evaluateWith() and reduceWith() set it to tree.header.version
   // Chain-state fields:
   height?: number                // current block height
   selfBox?: ErgoBox              // spending box
@@ -506,7 +543,7 @@ interface EvalOpts {
 }
 
 interface EvalContext extends EvalOpts {
-  jitCost: number                // mutable accumulator; read after evaluateWith()
+  jitCost: number                // mutable accumulator; read after evaluateWith() or reduceWith()
   addCost(amount: number): void
   addPerItemCost(base: number, perChunk: number, chunkSize: number, nItems: number): void
 }
