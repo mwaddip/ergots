@@ -26,7 +26,7 @@
  *   ~/projects/sigma-rust/sigma-rust/ergotree-ir/src/ergo_tree.rs (byte layout)
  */
 
-import type { ErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
+import type { ErgoTree, ParsedErgoTree, TreeHeader, SType, SValue, Expr } from '../mir/types'
 import { isUnparsedTree, NOTYPE_JVM, SANY_JVM } from '../mir/types'
 import { exprTpe } from '../mir/expr-tpe'
 import { ByteReader, ByteWriter, ReaderError, readVlqU32 } from '@ergots/scorex'
@@ -217,6 +217,23 @@ function checkRootIsSigmaProp(body: Expr, treeVersion: number): void {
   throw new ErgoTreeParseError(`root types as ${tpe.tag}, not SigmaProp (rule 1001)`, 'root-not-sigma-prop')
 }
 
+/**
+ * The length of the bytes each parsed tree came from, keyed by the tree object (as the box-tree cache is keyed by
+ * its bytes, box-tree-cache.ts). The JVM keeps the bytes themselves: `ErgoTree.bytes` is the span the parser
+ * consumed, re-read after the parse (ErgoTreeSerializer.scala:179-181).
+ */
+const parsedByteLengths = new WeakMap<ParsedErgoTree, number>()
+
+/**
+ * The length of `tree`'s bytes: the JVM's `ErgoTree.bytes.length` (sigma/ast/ErgoTree.scala:123-131). For a tree a
+ * parse returned it is the span that parse consumed, as received: a size or a constant written with an over-long
+ * VLQ counts at its written length, and a segregated tree's constants are part of it. For a tree built any other
+ * way it is the length of its serialization.
+ */
+export function treeByteLength(tree: ParsedErgoTree): number {
+  return parsedByteLengths.get(tree) ?? serializeTree(tree).length
+}
+
 export interface ParseTreeOptions {
   /** Rule 1001: the root must type as SigmaProp. The JVM's box, address and fromBytes paths set it. */
   checkType?: boolean
@@ -264,7 +281,9 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
     }
     const body = parseExpr(r, constantTypes, constants, new Map(), header.version)
     if (opts.checkType) checkRootIsSigmaProp(body, header.version)
-    return { header, constantTypes, constants, body }
+    const tree: ParsedErgoTree = { header, constantTypes, constants, body }
+    parsedByteLengths.set(tree, r.position - start)
+    return tree
   } catch (err) {
     if (!isSoftForkableParseError(err)) {
       // A read that ran out inside a nested tree: ambiguous for a standalone re-parse, so it is
