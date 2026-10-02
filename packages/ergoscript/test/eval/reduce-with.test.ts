@@ -8,26 +8,41 @@
 //    JitCost, not the 50 of a tree that is one (:211-217).
 // A block-cost unit is 10 JitCost (JitCost.scala:29-34), so each per-byte charge is 20 JitCost.
 //
-// Every expected cost and verdict below is a local sigma-state 6.0.6 probe's (spend mode: fullReduction with
-// initCost 0, and the limit as the context's costLimit), in block-cost units. The row names are the probe's.
+// Every expected cost and verdict below is a local sigma-state 6.0.6 probe's (spend mode: fullReduction, with
+// initCost 0 unless the row gives one, and the limit as the context's costLimit), in block-cost units, and so is the
+// proposition each spend reduces to. The row names are the probe's.
 import { describe, it, expect } from 'vitest'
+import { ByteWriter } from '@ergots/scorex'
 import { evaluateWith, reduceWith } from '../../src/eval/evaluate'
 import { EvalError } from '../../src/eval/eval-context'
+import type { SValue } from '../../src/mir/types'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { SValueParseError } from '../../src/wire/parse-svalue'
+import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { hexToBytes } from '../_helpers'
-import { SPENDS, spendContext, type SpendName } from './_substitution-spends'
+import { SPENDS, spendContext, type Spend, type SpendName } from './_substitution-spends'
 
-/** The reduction's cost as the JVM reports it: JitCost / 10, truncated (JitCost.toBlockCost). */
-function blockCost(name: SpendName, activated: number, limit?: number): number {
-  const { tree, ctx } = spendContext(SPENDS[name], activated, limit)
-  const value = reduceWith(tree, ctx)
-  expect(value.kind).toBe('SigmaProp')
+/** A reduced value's proposition, serialized: what the probe reports as `sigma_hex`. */
+function sigmaHex(value: SValue): string {
+  if (value.kind !== 'SigmaProp') throw new Error(`reduced to ${value.kind}, not to a SigmaProp`)
+  const w = new ByteWriter()
+  serializeSigmaBoolean(value.value, w)
+  return Array.from(w.toBytes(), (b) => b.toString(16).padStart(2, '0')).join('')
+}
+
+/**
+ * The reduction's cost as the JVM reports it: JitCost / 10, truncated (JitCost.toBlockCost). Also checks that the
+ * spend reduces to the probe's proposition. `init` is the cost at entry, in block-cost units.
+ */
+function blockCost(name: SpendName, activated: number, limit?: number, init?: number): number {
+  const spend: Spend = SPENDS[name]
+  const { tree, ctx } = spendContext(spend, activated, limit, init)
+  expect(sigmaHex(reduceWith(tree, ctx))).toBe(spend.sigma)
   return Math.floor(ctx.jitCost / 10)
 }
 
-function rejection(name: SpendName, activated: number, limit?: number): EvalError {
-  const { tree, ctx } = spendContext(SPENDS[name], activated, limit)
+function rejection(name: SpendName, activated: number, limit?: number, init?: number): EvalError {
+  const { tree, ctx } = spendContext(SPENDS[name], activated, limit, init)
   let err: unknown
   try { reduceWith(tree, ctx) } catch (e) { err = e }
   expect(err).toBeInstanceOf(EvalError)
@@ -177,11 +192,14 @@ describe('reduceWith: a tree without a Deserialize node', () => {
   it.each<[string, SpendName]>([
     ['A5', 'A5'], // a SigmaProp-constant tree: the flat 50 JitCost
     ['A6', 'A6'], // P2PK
+    ['Q1', 'SEG_TRUE'], // the same two with the constant segregated: the root is a placeholder
+    ['Q3', 'SEG_P2PK'],
   ])('%s costs 5, at either activation, as evaluateWith does', (_row, name) => {
     expect(blockCost(name, 3)).toBe(5)
     expect(blockCost(name, 2)).toBe(5)
-    const { tree, ctx } = spendContext(SPENDS[name], 3)
-    evaluateWith(tree, ctx)
+    const spend: Spend = SPENDS[name]
+    const { tree, ctx } = spendContext(spend, 3)
+    expect(sigmaHex(evaluateWith(tree, ctx))).toBe(spend.sigma)
     expect(ctx.jitCost).toBe(50)
   })
 
@@ -190,6 +208,26 @@ describe('reduceWith: a tree without a Deserialize node', () => {
     ctx.preHeader = undefined
     expect(reduceWith(tree, ctx).kind).toBe('SigmaProp')
     expect(ctx.jitCost).toBe(50)
+  })
+})
+
+describe('reduceWith: a cost at entry counts in every limit check', () => {
+  // The probe with initCost 10: the JVM checks each charge as initCost + charge against the limit
+  // (addCostChecked, eval/package.scala:38-52), and the reported cost holds the entry cost.
+  it.each<[string, SpendName, number, number, number | null]>([
+    ['P1', 'C', 2, 41, null], // before V6 the tree charge is checked on top of it: 10 + 32 exceeds 41
+    ['P2', 'C', 2, 42, 13], // and is never added: 10 + 3
+    ['P3', 'C', 3, 41, null], // 10 + 32 exceeds 41
+    ['P4', 'C', 3, 45, null], // JitCost 455 over 450
+    ['P5', 'C', 3, 46, 45], // 10 + 32 + 3
+    ['P6', 'A3', 2, 79, null], // the decode charge: 10 + 70 exceeds 79
+    ['P7', 'A3', 2, 80, null], // JitCost 805 over 800
+    ['P8', 'A3', 2, 81, 80],
+    ['Q5', 'SEG_P2PK', 3, 14, null], // the flat 5 of a tree that is a SigmaProp constant: 10 + 5 exceeds 14
+    ['Q6', 'SEG_P2PK', 3, 15, 15],
+  ])('%s: spend %s at activated %i, limit %i, entry cost 10', (_row, name, activated, limit, cost) => {
+    if (cost === null) expect(rejection(name, activated, limit, 10).code).toBe('cost-limit-exceeded')
+    else expect(blockCost(name, activated, limit, 10)).toBe(cost)
   })
 })
 

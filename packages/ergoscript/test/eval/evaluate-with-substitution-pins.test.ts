@@ -18,7 +18,7 @@ const JIT: Partial<Record<SpendName, number>> = {
   K1: 35, K3: 35, K5: 35,
   L1: 20, L2: 20, L3: 20,
   N1: 28, N2: 28,
-  R8a: 50, SEG1: 50, T1: 50,
+  R8a: 50, SEG1: 50, SEG_TRUE: 50, SEG_P2PK: 50, T1: 50,
 }
 
 /** The spends that reject, with nothing charged: the substitution fails, or leaves a node that is then evaluated. */
