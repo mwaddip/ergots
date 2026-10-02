@@ -190,7 +190,7 @@ interface StateContext {
 
 **Errors surface unwrapped:** Only the validator's own structural verdicts are `TxValidationError`. `EvalError` (incl. `'cost-limit-exceeded'` fired during eval), `VerifyError`, and wire-parse errors propagate as-is. See the "Error handling" section.
 
-**Returns:** the transaction's block cost: the init cost plus every input's cost, the figure the JVM's `ErgoTransaction.validateStateful` returns. Add it to a block's running cost to check the block's limit.
+**Returns:** the transaction's block cost: the init cost plus every input's cost, the figure the JVM's `ErgoTransaction.validateStateful` returns for an accumulated cost of 0. To validate a block as the JVM does, give each transaction the budget the block has left (`maxBlockCost` less the block's cost so far, as `parameters.maxBlockCost`) and add the returned cost to the block's. The JVM bounds every input by that remainder, so summing costs that were each checked against the full limit accepts blocks the JVM rejects.
 
 **Throws:** `TxValidationError` (structural); `EvalError` (script eval / cost overrun, or `'unparsed-ergotree'`); `ExprTpeError` (a type read at an eval-time `checkType` site, since 2026-09-30); `VerifyError` (crypto layer); `ReaderError` / ergoscript parse and serialize errors (malformed ergoTree bytes, or a value that cannot be written; see "Unwrapped errors").
 

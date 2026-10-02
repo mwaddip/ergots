@@ -477,7 +477,7 @@ function evaluateWith(tree: ErgoTree, ctx: EvalContext): SValue;
 
 Same evaluation pipeline as `evaluate` using a caller-supplied `EvalContext`. The context is mutated in-place — inspect `ctx.jitCost` after the call to read total cost charged. When `ctx.treeVersion` is unset, it is set to `tree.header.version` before any substitution or eval (2026-09-30), as the JVM runs a tree under its own version; before, the arms read an unset version as 0. A version the caller set is kept. Partial costs are NOT rolled back on failure; `ctx.jitCost` reflects cost up to and including the point of any throw.
 
-`ctx.jitCost` after `evaluateWith` is the evaluator's cost: the operations it evaluated. To learn what a spend costs, call `reduceWith`.
+`ctx.jitCost` after `evaluateWith` is the evaluator's cost: the operations it evaluated, and the flat 50 for a tree that is a SigmaProp constant. To learn what a spend costs, call `reduceWith`.
 
 ### `reduceWith(tree, ctx)`
 
@@ -506,7 +506,8 @@ import { boxTreeOf, makeContext, reduceWith, isUnparsedTree } from '@ergots/ergo
 const tree = boxTreeOf(box.ergoTreeBytes);
 const ctx = makeContext({
   selfBox: box, inputs, outputs, dataInputs, headers, preHeader, height: preHeader.height,
-  extension, constants: isUnparsedTree(tree) ? [] : tree.constants,
+  lastBlockUtxoRootHash, extension, inputExtensions,
+  constants: isUnparsedTree(tree) ? [] : tree.constants,
   jitCostLimit: remainingBlockCost * 10,
 });
 const value = reduceWith(tree, ctx);              // EvalError on a reject
