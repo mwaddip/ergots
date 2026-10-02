@@ -1,8 +1,11 @@
 /**
- * The activated script version of the block being validated: one below the pre-header's block version, as the JVM
- * node sets it (ergo-core nodeView/ErgoContext.scala:28: `(stateContext.blockVersion - 1).toByte`), floored at 0.
- * The interpreter reads it as `VersionContext.activatedVersion`: block version 4 is activated version 3, the V6 soft
- * fork (sigma/VersionContext.scala:33, 56). The gate is the block's version, never the tree's.
+ * The activated script version of the block being validated: one below the block version, floored at 0. The block
+ * version is read from the pre-header. The JVM node takes its state context's block version, the voted parameter
+ * (ergo-core nodeView/ErgoContext.scala:28: `(stateContext.blockVersion - 1).toByte`;
+ * nodeView/state/ErgoStateContext.scala:109), and checks a header's version against it at an epoch's first block
+ * (rule 410, :222). The interpreter reads it as `VersionContext.activatedVersion`: block version 4 is activated
+ * version 3, the V6 soft fork (sigma/VersionContext.scala:33, 56). The gate is the block's version, never the
+ * tree's.
  *
  * `caller` names the reader in the error an unset pre-header gives.
  */

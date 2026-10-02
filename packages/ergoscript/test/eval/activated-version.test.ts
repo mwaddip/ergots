@@ -1,5 +1,6 @@
-// activatedScriptVersion: one below the block version the pre-header carries, as the JVM node sets it (ergo-core
-// nodeView/ErgoContext.scala:28), floored at 0. Block version 4 is activated version 3, the V6 soft fork.
+// activatedScriptVersion: one below the block version, read from the pre-header and floored at 0. The JVM node takes
+// one below its state context's block version (ergo-core nodeView/ErgoContext.scala:28). Block version 4 is
+// activated version 3, the V6 soft fork.
 import { describe, it, expect } from 'vitest'
 import { activatedScriptVersion } from '../../src/eval/_activated-version'
 import { makeContext } from '../../src/eval/eval-context'
