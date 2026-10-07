@@ -25,7 +25,7 @@
  * (authenticated_tree_ops.rs 261-288 @568e7c3): modify_helper first, then
  * delete_helper if to_delete=true. The same dispatch pattern lives in
  * `VerifierCore`'s private `perform` (the body `performOneOperation` and
- * `lookupWithNeighbors` share).
+ * (the body performOneOperation runs).
  *
  * `deleteHelper` does NOT invoke `updateFn` — modifyHelper already did the
  * per-operation precondition check (Remove on absent key already failed; the

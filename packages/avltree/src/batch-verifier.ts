@@ -27,10 +27,10 @@
  * shape pre-scan; see facts/avltree.md invariant #1). The references'
  * two strict ±inf bounds requires (Rust `ensure!`s at
  * authenticated_tree_ops.rs:267-268 @568e7c3; scrypto's identical requires)
- * are enforced HERE at the top of perform (the body performOneOperation and
- * lookupWithNeighbors share) as fail-and-poison ('key-out-of-bounds') —
- * task 6g. Beyond those per-op gates, once construction finishes this class
- * trusts the inputs and operates on bytes.
+ * are enforced HERE at the top of perform (performOneOperation's body) as
+ * fail-and-poison ('key-out-of-bounds') — task 6g. Beyond those per-op
+ * gates, once construction finishes this class trusts the inputs and
+ * operates on bytes.
  *
  * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
  * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (261-288 @568e7c3; ±inf ensure!s :267-268 @568e7c3)
@@ -47,7 +47,6 @@ import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import { compareBytes } from './compare-bytes.js'
-import { neighborLookupOf, type NeighborLookup } from './neighbors.js'
 
 /**
  * Constants — mirrors `DIGEST_LENGTH` from the Rust source.
@@ -58,15 +57,14 @@ const DIGEST_LENGTH = 32
 /**
  * Ports batch_avl_verifier.rs::BatchAVLVerifier (struct + impl), the integration
  * layer of the AVL+ verifier. Holds the proof bytes and the reconstructed
- * tree state, and exposes `performOneOperation` and (0.5.0)
- * `lookupWithNeighbors` for the caller.
+ * tree state, and exposes `performOneOperation` for the caller.
  *
  * Lifecycle:
  *   1. `new VerifierCore(startingDigest, proof, config)` — runs
  *      proof-decode to reconstruct the tree. On failure `root === null` and
  *      `lastFailReason` is set; `isValid` returns false.
- *   2. `performOneOperation(op)`, or (0.5.0) `lookupWithNeighbors(key)`
- *      (both run the private `perform`) — applies one operation:
+ *   2. `performOneOperation(op)` (via the protected `perform`) — applies
+ *      one operation:
  *        - If the tree is already poisoned (`root === null`), returns
  *          `{ failed: true }` without touching state.
  *        - Otherwise dispatches modify_helper → (optional) delete_helper per
@@ -74,8 +72,7 @@ const DIGEST_LENGTH = 32
  *        - On failure, sets `root = null` (poisoning), records
  *          `lastFailReason`, returns `{ failed: true }`.
  *        - On success, updates `root` and `height`, returns the old value
- *          (Uint8Array if the key existed, `null` if absent);
- *          `lookupWithNeighbors` returns its neighbor report instead.
+ *          (Uint8Array if the key existed, `null` if absent).
  *   3. `digest()` — computes the current 33-byte digest, or null if poisoned.
  *
  * `lastFailReason` is set on every failure path (proof decode, modifyHelper,
@@ -93,17 +90,16 @@ export class VerifierCore {
   /**
    * The current tree height. Set from `startingDigest[32]` on construction
    * (Rust line 83 @568e7c3) and updated by the private `perform` (behind
-   * `performOneOperation` and `lookupWithNeighbors`) via `heightDelta` from
-   * modify/delete results.
+   * `performOneOperation`) via `heightDelta` from modify/delete results.
    */
   height: number
   /**
    * The first failure's reason — exposed since 0.5.0 through
    * BatchAVLVerifier.getLastFailReason(). Set on:
    *   - construction-time proof-decode failure (reason from parseProofPackedTree)
-   *   - operation failure, in performOneOperation or lookupWithNeighbors
-   *     (reason from modifyHelper / deleteHelper, or 'key-out-of-bounds'
-   *     from the ±inf gate)
+   *   - operation failure, in performOneOperation (reason from
+   *     modifyHelper / deleteHelper, or 'key-out-of-bounds' from the ±inf
+   *     gate)
    * Re-entry on a poisoned tree keeps it: the `??=` 'tree-poisoned' never
    * lands, because every poisoning path also sets its own reason.
    */
@@ -142,8 +138,7 @@ export class VerifierCore {
    * Failure handling: on parseProofPackedTree failure, `root` stays null,
    * `lastFailReason` is set, and `isValid` returns false. Callers (verifyAvlBatch)
    * MUST check `isValid` (or equivalently `root !== null`) before issuing
-   * operations — otherwise performOneOperation and lookupWithNeighbors
-   * return `{ failed: true }`.
+   * operations — otherwise performOneOperation returns `{ failed: true }`.
    */
   constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig) {
     this.proof = proof
@@ -279,35 +274,8 @@ export class VerifierCore {
   }
 
   /**
-   * A Lookup that reports its neighbors (0.5.0): exactly
-   * performOneOperation({ tag: 'Lookup', key }) — same gates, same proof bits
-   * consumed, same poisoning — with the report read off the leaf the lookup
-   * resolved at. Buffers in the report are fresh copies.
-   */
-  lookupWithNeighbors(key: Uint8Array): NeighborLookup | { failed: true } {
-    const seen: { leaf: LeafNode | null; matches: boolean; calls: number } = {
-      leaf: null,
-      matches: false,
-      calls: 0,
-    }
-    const r = this.perform({ tag: 'Lookup', key }, (leaf, matches) => {
-      seen.leaf = leaf
-      seen.matches = matches
-      seen.calls++
-    })
-    if (r !== null && 'failed' in r) return r
-    if (seen.calls !== 1 || seen.leaf === null) {
-      throw new Error(
-        `VerifierCore.lookupWithNeighbors: a successful Lookup observed ${seen.calls} leaves, not 1 — the shared engine is in an inconsistent state`,
-      )
-    }
-    return neighborLookupOf(seen.leaf, seen.matches, this.negInfKey, this.posInfKey)
-  }
-
-  /**
-   * performOneOperation's body, shared with lookupWithNeighbors. `onLeaf`
-   * observes the leaf the operation resolves at, and only once
-   * keyMatchesLeaf's range check approved it.
+   * performOneOperation's body. `onLeaf` observes the leaf the operation
+   * resolves at, and only once keyMatchesLeaf's range check approved it.
    *
    * `protected` since 0.7.0: a subclass that owns a recorded entry point of
    * its own (e.g. a downstream neighbor-lookup) calls this to consume the next

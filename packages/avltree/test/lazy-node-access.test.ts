@@ -96,10 +96,11 @@ function makeLazyLoader(rows: Map<string, Uint8Array>): {
     const row = rows.get(hex(lab))
     if (!row) throw new Error(`row for ${hex(lab).slice(0, 16)}… not found`)
     const n = deserializeNode(row, CFG)
-    if (n.kind !== 'internal') {
+    if (n.kind === 'leaf') {
       n.labelCache = new Uint8Array(lab)
       return n
     }
+    if (n.kind === 'label') return n
     const ll = label(n.left)
     const rl = label(n.right)
     let L: AvlNode | null = null
@@ -157,17 +158,10 @@ function makeCases(keys: Uint8Array[]): Case[] {
       },
     },
     {
-      name: 'one key with neighbors',
-      run: (p) => {
-        const r = p.performLookupWithNeighbors(keys[321 % N]!)
-        if (!r.success) throw new Error('neighbor Lookup failed')
-      },
-    },
-    {
-      name: '513 neighbor lookups in key order',
+      name: '513 Lookups in key order (a full page)',
       run: (p) => {
         for (let i = 0; i < 513; i++) {
-          const r = p.performLookupWithNeighbors(sorted[(100 + i) % N]!)
+          const r = p.performOneOperation({ tag: 'Lookup', key: sorted[(100 + i) % N]! })
           if (!r.success) throw new Error('page Lookup failed')
         }
       },
@@ -228,7 +222,6 @@ describe('lazy-node-access invariant — proof + digest byte equality', () => {
     for (const name of [
       'one present key — Lookup',
       'one absent key — Lookup',
-      'one key with neighbors',
     ]) {
       const c = cases.find((c) => c.name === name)!
       const lazy = new BatchAVLProver(KL, null)
