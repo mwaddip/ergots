@@ -43,8 +43,24 @@ export { serializeNode, deserializeNode } from './serialize.js'
 // code in dist/index.js, which leaves that code's text untouched.
 export { StrictBatchAVLVerifier } from './strict-verifier.js'
 
-// Internal (NOT exported): VerifierCore, modify/delete helpers, rotation
-// primitives, tree-traversal state, compare-bytes.ts's byte comparator,
-// neighbors.ts's neighborLookupOf, strict-verifier.ts's RecordingVerifierCore,
-// canonical-proof.ts's matchesCanonicalProof, verify.ts's three validators.
-// These are implementation detail and may change without notice.
+// -----------------------------------------------------------------------------
+// Extension surface (0.7.0) — hooks a downstream verifier of its own needs to
+// subclass the engine or the prover and read the same bits the shipped
+// verifiers do. NOT Ergo consensus. See facts/avltree.md § Extension surface
+// and API.md.
+//
+// The surface is additive and the names are stable. Lazy-node access: an
+// unvisited sibling's `kind` / `left` / `right` / `label` is not read; see
+// facts/avltree.md § Lazy-node access invariant and
+// test/lazy-node-access.test.ts.
+// -----------------------------------------------------------------------------
+export { VerifierCore } from './batch-verifier.js'
+export type { AvlTreeOpsCallbacks, LeafCallback, KeyMatchesResult } from './avl-tree-ops.js'
+export { compareBytes, negInfKey, posInfKey } from './compare-bytes.js'
+export { validateConfig, validateOperationShape, validateStartingDigest } from './verify.js'
+
+// Internal (NOT exported): modify/delete helpers, rotation primitives,
+// tree-traversal state, neighbors.ts's neighborLookupOf,
+// strict-verifier.ts's RecordingVerifierCore, canonical-proof.ts's
+// matchesCanonicalProof. These are implementation detail and may change
+// without notice.

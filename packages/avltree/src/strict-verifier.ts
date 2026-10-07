@@ -16,11 +16,11 @@
 
 import { VerifierCore } from './batch-verifier.js'
 import { matchesCanonicalProof } from './canonical-proof.js'
-import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
+import type { AvlTreeOpsCallbacks, LeafCallback } from './avl-tree-ops.js'
 import type { ProverOperationResult } from './batch-prover.js'
 import type { AvlVerifyFailReason } from './errors.js'
 import type { NeighborLookupResult } from './neighbors.js'
-import type { AvlNode, LeafNode } from './node.js'
+import type { AvlNode } from './node.js'
 import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import { validateConfig, validateOperationShape, validateStartingDigest } from './verify.js'
@@ -57,7 +57,7 @@ class RecordingVerifierCore extends VerifierCore {
   }
 
   /** The parent's callbacks, with `onNodeVisit` recording instead of doing nothing. */
-  protected override buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
+  protected override buildCallbacks(onLeaf?: LeafCallback): AvlTreeOpsCallbacks {
     const visited = this.visited
     return {
       ...super.buildCallbacks(onLeaf),

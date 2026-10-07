@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 480 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 490 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -77,6 +77,23 @@ if (!v.isFullyConsumed()) throw new Error('not the proof a prover writes for the
 Use it where full nodes regenerate each proof and refuse any other bytes. It is
 not Ergo consensus: Ergo's references accept proofs it rejects, so keep it off
 any Ergo path. See [API.md](./API.md) for the guarantee and its conditions.
+
+### Extension surface (0.7.0)
+
+For a downstream TS verifier of its own (e.g. a store with
+neighbor-reporting and strict-consumption built on top), `VerifierCore` and
+`BatchAVLProver` are subclassable: engine state and callbacks are
+`protected`, and the three shape validators, the byte comparator
+(`compareBytes`), and sentinel-key helpers (`negInfKey(keyLength)`,
+`posInfKey(keyLength)`) are re-exported.
+
+The engine reads a node's `left` and `right` only when descending into or
+labeling it — unvisited siblings are not read — so a store may back the
+tree with nodes whose children are lazy getters (with the sibling's label
+precomputed). This invariant is pinned by `test/lazy-node-access.test.ts`.
+
+**Not Ergo consensus:** the extension surface is for downstream verifiers,
+not for Ergo validation paths. See [API.md](./API.md) § Extension surface.
 
 ### Prover
 

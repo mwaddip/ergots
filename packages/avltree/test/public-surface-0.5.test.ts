@@ -16,9 +16,11 @@ function k(b: number): Uint8Array {
 }
 
 describe('0.5.0 public surface', () => {
-  it('exports BatchAVLVerifier and keeps VerifierCore and neighborLookupOf internal', () => {
+  // VerifierCore moved into the extension surface in 0.7.0; public-surface-0.7
+  // owns the current snapshot. 0.5's own exports are still here (0.6 and 0.7
+  // only added).
+  it('exports BatchAVLVerifier and keeps neighborLookupOf internal', () => {
     expect(typeof avltree.BatchAVLVerifier).toBe('function')
-    expect('VerifierCore' in avltree).toBe(false)
     expect('neighborLookupOf' in avltree).toBe(false)
   })
 

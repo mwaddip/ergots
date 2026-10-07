@@ -42,7 +42,7 @@ import { deleteHelper } from './delete.js'
 import { label, type AvlNode } from './node.js'
 import type { InternalNode, LeafNode } from './node.js'
 import { nextDirectionIsLeft, keyMatchesLeaf, replayComparison, type TraversalState } from './tree-traversal.js'
-import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
+import type { AvlTreeOpsCallbacks, LeafCallback } from './avl-tree-ops.js'
 import type { Operation } from './operation.js'
 import type { AvlTreeConfig } from './types.js'
 import type { AvlVerifyFailReason } from './errors.js'
@@ -189,7 +189,7 @@ export class VerifierCore {
    * so nextDirectionIsLeft ignores its `key` and `r` parameters. The prover's
    * implementation of the same callback WILL use them.
    */
-  protected buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
+  protected buildCallbacks(onLeaf?: LeafCallback): AvlTreeOpsCallbacks {
     const proof = this.proof
     const state = this.state
     return {
@@ -308,10 +308,20 @@ export class VerifierCore {
    * performOneOperation's body, shared with lookupWithNeighbors. `onLeaf`
    * observes the leaf the operation resolves at, and only once
    * keyMatchesLeaf's range check approved it.
+   *
+   * `protected` since 0.7.0: a subclass that owns a recorded entry point of
+   * its own (e.g. a downstream neighbor-lookup) calls this to consume the next
+   * slice of the proof's directions with its own leaf observer. Overriding
+   * `buildCallbacks` instead would observe every operation, not only the ones
+   * the subclass's entry point wants a leaf from — extension surface. The
+   * return type stays part of the surface:
+   *  - `Uint8Array` — old value at the key;
+   *  - `null`       — key was absent (success);
+   *  - `{ failed: true }` — verification failure (verifier is poisoned).
    */
-  private perform(
+  protected perform(
     op: Operation,
-    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+    onLeaf?: LeafCallback,
   ): Uint8Array | null | { failed: true } {
     // Rust lines 197-203 @568e7c3: empty-tree / already-poisoned guard.
     // The Rust uses `ok_or(anyhow!("Empty tree"))?` (line 202 @568e7c3): the
