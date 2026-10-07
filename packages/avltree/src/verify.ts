@@ -20,7 +20,6 @@ import type { ProverOperationResult } from './batch-prover.js'
 import { AvlVerifyError, type AvlVerifyFailReason } from './errors.js'
 import type { AvlTreeConfig } from './types.js'
 import type { Operation } from './operation.js'
-import type { NeighborLookupResult } from './neighbors.js'
 
 /**
  * Successful batch-verify result.
@@ -283,28 +282,6 @@ export class BatchAVLVerifier {
     this.indeterminate = false
     if (r !== null && 'failed' in r) return { success: false }
     return { success: true, value: r === null ? null : new Uint8Array(r) }
-  }
-
-  /**
-   * A Lookup that also reports its neighbors (0.5.0; TS-only). Consumes the
-   * proof exactly as `performOneOperation({ tag: 'Lookup', key })` does —
-   * same key validation, same bits, same poisoning — and reports, for a
-   * present key, its value and the next leaf's key, or for an absent key the
-   * keys of the leaves either side; `null` for a sentinel. The leaf is
-   * authenticated: it is in the tree this verifier's digest commits to. An
-   * absent key is also checked to lie strictly between leaf.key and
-   * leaf.nextLeafKey; a present key is only checked to equal leaf.key, so its
-   * nextKey > key is not checked (as in both references). See facts/avltree.md
-   * § Neighbor lookups: the rest of the report rests on the digest's provenance.
-   */
-  performLookupWithNeighbors(key: Uint8Array): NeighborLookupResult {
-    this.assertUsable('performLookupWithNeighbors')
-    validateOperationShape({ tag: 'Lookup', key }, this.config)
-    this.indeterminate = true
-    const r = this.core.lookupWithNeighbors(key)
-    this.indeterminate = false
-    if ('failed' in r) return { success: false }
-    return { success: true, ...r }
   }
 
   /** The current 33-byte digest (a fresh buffer), or null once poisoned. */

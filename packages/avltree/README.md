@@ -1,6 +1,6 @@
 # @ergots/avltree
 
-Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 490 tests.
+Pure-TypeScript AVL+ authenticated dictionary — verifier and prover. Browser-compatible, no WASM. Validated byte-for-byte against `ergo_avltree_rust` (our fork, pin `568e7c3`). 426 tests.
 
 **Verifier:** Given a starting digest, a serialized AD proof, a tree configuration, and a batch of operations, `verifyAvlBatch` reconstructs the mutated tree, checks every leaf hash, and returns the resulting 33-byte digest plus the old value at each key — or `null` if the proof is invalid. The verifier is independently useful to wallets, DEX simulators, and light clients verifying Ergo state transitions, and is also a runtime dependency of `@ergots/ergoscript`.
 
@@ -35,57 +35,36 @@ if (result === null) {
 }
 ```
 
-### Step by step, with neighbors (0.5.0)
+### Step by step (0.5.0)
 
 `BatchAVLVerifier` performs operations one at a time, as a state transition asks
-for them. `performLookupWithNeighbors` also reports the neighbors: a present key's
-value and next key, or an absent key's two neighbors, with `null` at either end of
-the tree. For a digest with honest provenance, such as a consensus-agreed state
-root, that is enough to walk a key range and see that nothing was left out.
-The provers have the same method, recorded and unrecorded.
+for them.
 
 ```ts
 import { BatchAVLVerifier } from '@ergots/avltree';
 
 const v = new BatchAVLVerifier(startingDigest, proof, config);
-const r = v.performLookupWithNeighbors(key);
+const r = v.performOneOperation({ tag: 'Lookup', key });
 if (!r.success) throw new Error(`proof rejected: ${v.getLastFailReason()}`);
-if (r.found) console.log(r.value, r.nextKey);   // nextKey null = last key
-else console.log(r.prevKey, r.nextKey);         // null = end of the tree
+console.log(r.value); // the old value at the key, or null if absent
 ```
 
-A `{ success: false }` poisons the verifier, and the prover leaves a failed operation out of its proof. So treat any failure as fatal to the whole batch, on both sides. See [API.md](./API.md) for the contract and a range-walk example.
+A `{ success: false }` poisons the verifier, and the prover leaves a failed operation out of its proof. So treat any failure as fatal to the whole batch, on both sides. See [API.md](./API.md) for the contract.
 
-### Exactly the prover's proof (0.6.0)
+### Neighbor-reporting lookups and strict proof consumption
 
-`BatchAVLVerifier` accepts any proof that lets its operations succeed, as the
-reference implementations do. That includes a proof with bytes appended, and one
-that carries operations nobody asked. `StrictBatchAVLVerifier` has the same
-methods, plus `isFullyConsumed()`: whether the proof is byte-for-byte the one
-`BatchAVLProver` writes for the operations performed.
-
-```ts
-import { StrictBatchAVLVerifier } from '@ergots/avltree';
-
-const v = new StrictBatchAVLVerifier(startingDigest, proof, config);
-for (const op of operations) {
-  if (!v.performOneOperation(op).success) throw new Error(`proof rejected: ${v.getLastFailReason()}`);
-}
-if (!v.isFullyConsumed()) throw new Error('not the proof a prover writes for these operations');
-```
-
-Use it where full nodes regenerate each proof and refuse any other bytes. It is
-not Ergo consensus: Ergo's references accept proofs it rejects, so keep it off
-any Ergo path. See [API.md](./API.md) for the guarantee and its conditions.
+The neighbor-reporting lookups that shipped here in v0.5.0 and the strict
+step-by-step verifier that shipped in v0.6.0 moved to `@dagsocial/avltree`
+in v0.7.0: a downstream package built on this one's extension surface.
+Install `@dagsocial/avltree` alongside this package to use them.
 
 ### Extension surface (0.7.0)
 
-For a downstream TS verifier of its own (e.g. a store with
-neighbor-reporting and strict-consumption built on top), `VerifierCore` and
-`BatchAVLProver` are subclassable: engine state and callbacks are
-`protected`, and the three shape validators, the byte comparator
-(`compareBytes`), and sentinel-key helpers (`negInfKey(keyLength)`,
-`posInfKey(keyLength)`) are re-exported.
+For a downstream TS verifier of its own — `@dagsocial/avltree` is built
+this way — `VerifierCore` and `BatchAVLProver` are subclassable: engine
+state and callbacks are `protected`, and the three shape validators, the
+byte comparator (`compareBytes`), and sentinel-key helpers
+(`negInfKey(keyLength)`, `posInfKey(keyLength)`) are re-exported.
 
 The engine reads a node's `left` and `right` only when descending into or
 labeling it — unvisited siblings are not read — so a store may back the
@@ -175,7 +154,7 @@ the first-cycle sentinel note.
 
 Runs unchanged in evergreen browsers and Node >= 20. No `Buffer`, no `node:crypto`, no dynamic Node built-ins, no WASM. ESM-only.
 
-The batch verify functions are stateless: inputs in, structured result (or `null`) out. `BatchAVLVerifier` and `StrictBatchAVLVerifier` each hold one proof's state across their calls. No I/O, no clock, no storage.
+The batch verify functions are stateless: inputs in, structured result (or `null`) out. `BatchAVLVerifier` holds one proof's state across its calls. No I/O, no clock, no storage.
 
 ## What this package does NOT do
 

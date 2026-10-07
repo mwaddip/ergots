@@ -14,13 +14,12 @@ import {
 } from '../src/index.js'
 
 describe('0.7.0 public surface', () => {
-  it('exports exactly these runtime names (0.6.0 set plus the extension surface)', () => {
+  it('exports exactly these runtime names (0.4.0 set plus the extension surface; 0.5.0/0.6.0 neighbor + strict code moved out)', () => {
     expect(Object.keys(avltree).sort()).toEqual([
       'AvlVerifyError',
       'BatchAVLProver',
       'BatchAVLVerifier',
       'PersistentBatchAVLProver',
-      'StrictBatchAVLVerifier',
       'VerifierCore',
       'compareBytes',
       'deserializeNode',
@@ -40,8 +39,9 @@ describe('0.7.0 public surface', () => {
     ])
   })
 
-  it('the engine internals that stayed internal are still absent', () => {
+  it('the engine internals that stayed internal are still absent, and the moved code is gone', () => {
     for (const name of [
+      'StrictBatchAVLVerifier',
       'RecordingVerifierCore',
       'matchesCanonicalProof',
       'neighborLookupOf',

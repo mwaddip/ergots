@@ -1,12 +1,10 @@
 /**
- * Shared machinery for the 0.5.0 suites: a seeded PRNG, byte helpers, random
- * trees (Inserts, then Removes — sometimes all of them), a generator of
- * operation batches that all succeed, and a sorted-list oracle for neighbor
- * reports. No Buffer / node:* — these run under jsdom too.
+ * Shared machinery for the 0.5.0+ suites: a seeded PRNG, byte helpers, random
+ * trees (Inserts, then Removes — sometimes all of them), and a generator of
+ * operation batches that all succeed. No Buffer / node:* — these run under
+ * jsdom too.
  */
 import { BatchAVLProver } from '../../src/batch-prover.js'
-import { compareBytes } from '../../src/compare-bytes.js'
-import type { NeighborLookup, NeighborLookupResult } from '../../src/neighbors.js'
 import type { Operation } from '../../src/operation.js'
 
 export const KEY_LENGTHS = [32, 65] as const
@@ -98,18 +96,6 @@ export class TreeModel {
   sortedKeys(): Uint8Array[] {
     return [...this.values.keys()].sort().map(fromHex)
   }
-
-  /** The report a neighbor lookup of `key` must produce against these contents. */
-  neighbors(key: Uint8Array): NeighborLookup {
-    const keys = this.sortedKeys()
-    const found = keys.findIndex((k) => compareBytes(k, key) >= 0)
-    const at = found === -1 ? keys.length : found
-    const here = keys[at]
-    if (here !== undefined && compareBytes(here, key) === 0) {
-      return { found: true, value: this.get(key)!, nextKey: keys[at + 1] ?? null }
-    }
-    return { found: false, prevKey: keys[at - 1] ?? null, nextKey: here ?? null }
-  }
 }
 
 /**
@@ -145,8 +131,6 @@ export function randomTree(
 
 export interface PlannedBatch {
   readonly ops: Operation[]
-  /** For each Lookup, the report it must produce; undefined for other operations. */
-  readonly neighbors: (NeighborLookup | undefined)[]
 }
 
 /**
@@ -163,7 +147,6 @@ export function successfulBatch(
 ): PlannedBatch {
   const kl = model.keyLength
   const ops: Operation[] = []
-  const neighbors: (NeighborLookup | undefined)[] = []
   const present = (): Uint8Array | null => {
     const ks = model.sortedKeys()
     return ks.length === 0 ? null : ks[randInt(r, ks.length)]!
@@ -174,11 +157,9 @@ export function successfulBatch(
   }
   const lookup = (key: Uint8Array): void => {
     ops.push({ tag: 'Lookup', key })
-    neighbors.push(model.neighbors(key))
   }
   const push = (op: Operation): void => {
     ops.push(op)
-    neighbors.push(undefined)
   }
 
   for (let i = 0; i < count; i++) {
@@ -241,13 +222,5 @@ export function successfulBatch(
       lookup(anyKey())
     }
   }
-  return { ops, neighbors }
-}
-
-/** The report inside a successful neighbor result. */
-export function reportOf(r: NeighborLookupResult): NeighborLookup {
-  if (!r.success) throw new Error('neighbor lookup failed')
-  return r.found
-    ? { found: true, value: r.value, nextKey: r.nextKey }
-    : { found: false, prevKey: r.prevKey, nextKey: r.nextKey }
+  return { ops }
 }
