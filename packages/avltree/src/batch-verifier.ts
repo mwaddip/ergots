@@ -32,8 +32,8 @@
  * gates, once construction finishes this class trusts the inputs and
  * operates on bytes.
  *
- * @see ~/projects/ergo_avltree_rust/src/batch_avl_verifier.rs
- * @see ~/projects/ergo_avltree_rust/src/authenticated_tree_ops.rs (261-288 @568e7c3; ±inf ensure!s :267-268 @568e7c3)
+ * @see ergo_avltree_rust @568e7c3 src/batch_avl_verifier.rs
+ * @see ergo_avltree_rust @568e7c3 src/authenticated_tree_ops.rs (261-288; ±inf ensure!s :267-268)
  */
 
 import { parseProofPackedTree } from './proof-decode.js'
