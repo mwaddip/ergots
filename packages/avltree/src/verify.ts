@@ -341,7 +341,8 @@ export class BatchAVLVerifier {
  * Throws AvlVerifyError (code 'invalid-config-key-length',
  * 'invalid-config-value-length', or 'invalid-config-max-ops') for any
  * field that violates its stated constraint.
- * Exported for strict-verifier.ts only; not package API.
+ * Part of the extension surface (0.7.0) — subclass verifiers call this with
+ * the config they received before copying.
  */
 export function validateConfig(config: AvlTreeConfig): void {
   if (config.keyLength <= 0) {
@@ -400,7 +401,8 @@ export function validateConfig(config: AvlTreeConfig): void {
 /**
  * Validates that startingDigest is exactly 33 bytes (32-byte root label +
  * 1-byte height). Throws AvlVerifyError (code 'invalid-starting-digest-length').
- * Exported for strict-verifier.ts only; not package API.
+ * Part of the extension surface (0.7.0) — subclass verifiers call this on the
+ * digest they received, before passing it to the engine.
  */
 export function validateStartingDigest(d: Uint8Array): void {
   if (d.length !== 33) {
@@ -416,7 +418,8 @@ export function validateStartingDigest(d: Uint8Array): void {
  * config's length constraints.
  * Throws AvlVerifyError (codes 'operation-key-length-mismatch',
  * 'operation-value-length-mismatch', or 'operation-delta-out-of-range').
- * Exported for strict-verifier.ts only; not package API.
+ * Part of the extension surface (0.7.0) — subclass verifiers call this on
+ * every operation before passing it to the engine.
  */
 export function validateOperationShape(op: Operation, config: AvlTreeConfig): void {
   if (op.key.length !== config.keyLength) {

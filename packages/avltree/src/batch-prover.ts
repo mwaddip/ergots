@@ -12,7 +12,7 @@
  */
 
 import { newLeaf, newInternal, label, type AvlNode, type InternalNode, type LeafNode } from './node.js'
-import type { AvlTreeOpsCallbacks } from './avl-tree-ops.js'
+import type { AvlTreeOpsCallbacks, LeafCallback } from './avl-tree-ops.js'
 import { modifyHelper } from './modify.js'
 import { deleteHelper } from './delete.js'
 import { I64_MAX, I64_MIN, type Operation } from './operation.js'
@@ -36,9 +36,6 @@ const DIGEST_LENGTH = 32
 export type ProverOperationResult =
   | { success: true; value: Uint8Array | null }
   | { success: false }
-
-/** The public proof-cycle entry points that honor the fail-stop (P3). */
-type CycleMethod = 'performOneOperation' | 'performLookupWithNeighbors' | 'generateProof' | 'removedNodes'
 
 // ---------------------------------------------------------------------------
 // BatchAVLProver
@@ -101,7 +98,12 @@ export class BatchAVLProver {
   // found after the engine returned. restoreRoot() rebases the whole cycle and
   // clears the mark. A flag around the call, not a try/catch: nothing is
   // swallowed; the engine's throw propagates to the caller unchanged.
-  private cycleIndeterminate = false
+  //
+  // `protected` since 0.7.0: a subclass that owns a recorded entry point (e.g.
+  // the strict verifier) marks the cycle indeterminate on its own
+  // engine-inconsistency paths, with the same meaning. Not public: the mark is
+  // the engine's, not a per-op verdict.
+  protected cycleIndeterminate = false
 
   // -------------------------------------------------------------------------
   // Constructor — ports batch_avl_prover.rs:54-76 @568e7c3
@@ -205,7 +207,7 @@ export class BatchAVLProver {
    * Build prover-specific callbacks for the shared mutation engine.
    * Closes over mutable prover state (directions, found, replayIndex, etc.).
    */
-  private buildCallbacks(onLeaf?: (leaf: LeafNode, matches: boolean) => void): AvlTreeOpsCallbacks {
+  private buildCallbacks(onLeaf?: LeafCallback): AvlTreeOpsCallbacks {
     const self = this
     return {
       // Ports batch_avl_prover.rs:440-477 @568e7c3 — next_direction_is_left
@@ -309,11 +311,16 @@ export class BatchAVLProver {
    * (0.5.0). `onLeaf` observes the leaf the operation resolves at; it never
    * alters the operation. `method` names the public entry point in the
    * fail-stop error (P3).
+   *
+   * `protected` since 0.7.0: a subclass that owns a recorded entry point calls
+   * this with its own method name, so an engine throw's "proof cycle is
+   * indeterminate — call restoreRoot()" error names the right entry point.
+   * The subclass does not reimplement the body.
    */
-  private perform(
+  protected perform(
     op: Operation,
-    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
-    method: CycleMethod = 'performOneOperation',
+    onLeaf?: LeafCallback,
+    method: string = 'performOneOperation',
   ): ProverOperationResult {
     this.assertCycleUsable(method)
     this.validateShape(op)
@@ -334,8 +341,15 @@ export class BatchAVLProver {
     return result
   }
 
-  /** Throws when an earlier operation threw on an engine inconsistency (P3). */
-  private assertCycleUsable(method: CycleMethod): void {
+  /**
+   * Throws when an earlier operation threw on an engine inconsistency (P3).
+   *
+   * `protected` since 0.7.0, with the method parameter widened to `string`:
+   * a subclass's recorded entry point names itself (e.g.
+   * `StrictBatchAVLProver.performStrictLookup`) so the thrown message points at
+   * the right call. Internal use still passes a `CycleMethod` literal.
+   */
+  protected assertCycleUsable(method: string): void {
     if (this.cycleIndeterminate) {
       throw new Error(
         `BatchAVLProver.${method}: an earlier operation threw on an engine inconsistency, so this proof cycle is indeterminate — call restoreRoot() to rebase it, or discard the prover`,
@@ -380,7 +394,7 @@ export class BatchAVLProver {
    * is < −inf and fires here — same caller mistake, different code than the
    * length gate below. Faithful to both references; do not reorder.
    */
-  private validateKey(key: Uint8Array): void {
+  protected validateKey(key: Uint8Array): void {
     if (compareBytes(key, this.negInfKey) <= 0) {
       throw new AvlVerifyError(
         'Key is less than or equal to negative infinity',
@@ -409,7 +423,7 @@ export class BatchAVLProver {
    */
   private runOperation(
     op: Operation,
-    onLeaf?: (leaf: LeafNode, matches: boolean) => void,
+    onLeaf?: LeafCallback,
   ): ProverOperationResult {
     // Snapshot replay index (batch_avl_prover.rs:125 @568e7c3)
     this.replayIndex = this.directionsBitLength

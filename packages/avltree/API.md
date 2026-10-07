@@ -40,6 +40,19 @@ import {
   label,
   serializeNode,
   deserializeNode,
+
+  // Extension surface (0.7.0) — subclassing hooks for a downstream verifier
+  // of its own. Not Ergo consensus.
+  VerifierCore,
+  type AvlTreeOpsCallbacks,
+  type LeafCallback,
+  type KeyMatchesResult,
+  compareBytes,
+  negInfKey,
+  posInfKey,
+  validateConfig,
+  validateOperationShape,
+  validateStartingDigest,
 } from '@ergots/avltree';
 ```
 
@@ -718,6 +731,162 @@ type ProverOperationResult =
 ```
 
 Return type of `BatchAVLProver.performOneOperation`, (0.5.0) `BatchAVLVerifier.performOneOperation` and (0.6.0) `StrictBatchAVLVerifier.performOneOperation` — one type, so one interface can drive either side (see "One interface, two asymmetries" under `BatchAVLVerifier`). On success, `value` is the old value at the key (or `null` if absent). On failure the prover reports no reason; on a `BatchAVLVerifier`, `getLastFailReason()` says which check failed.
+
+---
+
+## Extension surface (0.7.0)
+
+**Not Ergo consensus paths; for downstream verifiers.** A subclass of
+`VerifierCore` or `BatchAVLProver` is for a downstream TS verifier of its
+own (e.g. `@dagsocial/avltree`, whose own neighbor-reporting and
+strict-consumption checks are kept outside this package). The two shipped
+verifiers (`BatchAVLVerifier`, `StrictBatchAVLVerifier`) and the batch
+functions remain the Ergo-consensus-faithful surface; a subclass must not
+be used on an Ergo validation path.
+
+The surface is **additive** across minor versions: existing names stay,
+new ones only arrive.
+
+### `VerifierCore`
+
+The shipped engine, re-exported as a subclassable base. It owns proof
+decoding, per-operation dispatch (`modifyHelper` → optional
+`deleteHelper`), the directions / replay / last-right-step cursors, the
+first-failure reason, and `digest()`.
+
+```ts
+class VerifierCore {
+  constructor(startingDigest: Uint8Array, proof: Uint8Array, config: AvlTreeConfig)
+  readonly proof: Uint8Array
+  root: AvlNode | null
+  height: number
+  lastFailReason: AvlVerifyFailReason | null
+  get isValid(): boolean
+  protected state: TraversalState
+  protected buildCallbacks(onLeaf?: LeafCallback): AvlTreeOpsCallbacks
+  protected perform(op: Operation, onLeaf?: LeafCallback): Uint8Array | null | { failed: true }
+  performOneOperation(op: Operation): Uint8Array | null | { failed: true }
+  lookupWithNeighbors(key: Uint8Array): NeighborLookup | { failed: true }
+  digest(): Uint8Array | null
+}
+```
+
+The constructor calls no overridable method, so a subclass's fields are
+safe to initialize **after** `super()` returns. A subclass that owns a
+recorded entry point of its own (e.g. a lookup variant that reads the leaf
+it resolves at) calls `this.perform(op, onLeaf)` to consume the next slice
+of the proof's directions with its own leaf observer; overriding
+`buildCallbacks` would observe every operation, not only the ones the
+entry point wants a leaf from.
+
+### `BatchAVLProver` — protected members
+
+For a prover subclass that owns a recorded entry point:
+
+```ts
+class BatchAVLProver {
+  // (existing public surface unchanged)
+  protected perform(op: Operation, onLeaf?: LeafCallback, method?: string): ProverOperationResult
+  protected assertCycleUsable(method: string): void
+  protected cycleIndeterminate: boolean
+  protected validateKey(key: Uint8Array): void
+  // (existing public `root` getter serves the subclass's root read)
+}
+```
+
+`method` names the entry point in the fail-stop `Error` thrown when the
+proof cycle is indeterminate — pass the subclass's own method name so the
+message points at the right call. `cycleIndeterminate = true` marks the
+cycle indeterminate, matching the engine's own fail-stop
+(`BatchAVLProver.performLookupWithNeighbors`'s "observed N leaves, not 1"
+path, 0.5.0).
+
+### Callback types
+
+```ts
+type LeafCallback = (leaf: LeafNode, matches: boolean) => void
+
+type KeyMatchesResult =
+  | { ok: true; matches: boolean }
+  | { ok: false; reason: AvlVerifyFailReason }
+
+interface AvlTreeOpsCallbacks {
+  nextDirectionIsLeft(key: Uint8Array, r: InternalNode): boolean
+  keyMatchesLeaf(key: Uint8Array, leaf: LeafNode): KeyMatchesResult
+  replayComparison(): -1 | 0 | 1
+  onNodeVisit(node: AvlNode, operation: Operation, isRotate: boolean): void
+  getFailedReason(): AvlVerifyFailReason | null
+}
+```
+
+`LeafCallback` fires once, from inside `keyMatchesLeaf`'s `ok` branch,
+after the leaf-position check approved the leaf. `matches` is true when
+`key === leaf.key`.
+
+### Validators
+
+```ts
+function validateConfig(config: AvlTreeConfig): void
+function validateOperationShape(op: Operation, config: AvlTreeConfig): void
+function validateStartingDigest(d: Uint8Array): void
+```
+
+The shipped Tier-1 shape checks, exported so a subclass's constructor and
+per-operation entry can enforce the same shapes. Each throws
+`AvlVerifyError` on violation; `validateConfig` throws
+`'invalid-config-*'`, `validateOperationShape` throws
+`'operation-key-length-mismatch'` /
+`'operation-value-length-mismatch'` / `'operation-delta-out-of-range'`,
+and `validateStartingDigest` throws `'invalid-starting-digest-length'`.
+
+### Sentinel keys and byte comparator
+
+```ts
+function compareBytes(a: Uint8Array, b: Uint8Array): number
+function negInfKey(keyLength: number): Uint8Array
+function posInfKey(keyLength: number): Uint8Array
+```
+
+- `compareBytes` is the lexicographic unsigned byte comparator (length
+  tie-break: shorter < longer); the engine uses it on every key path.
+- `negInfKey(keyLength)` returns a fresh buffer of `keyLength` zero
+  bytes. Every valid key sorts strictly above it — the engine rejects a
+  key `<= negInfKey(keyLength)` with `'key-out-of-bounds'`.
+- `posInfKey(keyLength)` returns a fresh buffer of `keyLength` 0xff
+  bytes. Every valid key sorts strictly below it — the engine rejects a
+  key `>= posInfKey(keyLength)` with `'key-out-of-bounds'`.
+
+### Lazy-node access invariant
+
+The prover and the verifier engine read a node's children (`left`,
+`right`) through plain property access, and only when descending into or
+labeling that node. **An unvisited sibling's `left` / `right` is not
+read.** Other fields the engine does read (`kind`, `key`, `balance`,
+`labelCache`) on any node it touches, including an unvisited sibling that
+gets labeled.
+
+A caller may back the tree with nodes whose `left` and `right` are
+getters that materialize on first access, provided unvisited siblings
+carry a precomputed label (via `labelCache` or a `LabelNode` stub). All
+public lookups, neighbor lookups, inserts and removes produce
+byte-identical proofs and digests to a fully loaded tree.
+
+Pinned by `test/lazy-node-access.test.ts`.
+
+### `LabelNode`-stub asymmetry
+
+A tree installed through `BatchAVLProver.restoreRoot` with `LabelNode`
+stubs on its lookup path behaves differently depending on the entry
+point:
+
+- `unauthenticatedLookupWithNeighbors` throws (it has no proof to appeal
+  to; a stub on its descent is a tree-invariant violation).
+- `performOneOperation` and `performLookupWithNeighbors` fail the
+  operation (the engine cannot distinguish a stub on descent from a
+  mismatched proof, and the recorded path routes that through its own
+  failure code).
+
+A caller that never installs stubs will not see this asymmetry.
 
 ---
 

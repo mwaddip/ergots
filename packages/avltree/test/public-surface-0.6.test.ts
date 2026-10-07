@@ -1,41 +1,11 @@
 import { describe, expect, it } from 'vitest'
-import * as avltree from '../src/index.js'
 import { BatchAVLProver, StrictBatchAVLVerifier } from '../src/index.js'
 
+// The exact 0.6.0 name set is now a lower bound. public-surface-0.7.test.ts
+// owns the current snapshot (adds the extension surface) and the engine
+// internals it either exports or still keeps internal.
+
 describe('0.6.0 public surface', () => {
-  it('adds StrictBatchAVLVerifier and nothing else', () => {
-    // Runtime exports only: types leave no trace here.
-    expect(Object.keys(avltree).sort()).toEqual([
-      'AvlVerifyError',
-      'BatchAVLProver',
-      'BatchAVLVerifier',
-      'PersistentBatchAVLProver',
-      'StrictBatchAVLVerifier',
-      'deserializeNode',
-      'label',
-      'newInternal',
-      'newLabel',
-      'newLeaf',
-      'serializeNode',
-      'verifyAvlBatch',
-      'verifyAvlBatchPartial',
-      'verifyAvlLookup',
-    ])
-  })
-
-  it('keeps the strict verifier\'s machinery internal', () => {
-    for (const name of [
-      'VerifierCore',
-      'RecordingVerifierCore',
-      'matchesCanonicalProof',
-      'validateConfig',
-      'validateStartingDigest',
-      'validateOperationShape',
-    ]) {
-      expect(name in avltree, name).toBe(false)
-    }
-  })
-
   it('StrictBatchAVLVerifier works through the package entry point', () => {
     const config = { keyLength: 32, valueLengthOpt: null }
     const insert = { tag: 'Insert', key: new Uint8Array(32).fill(7), value: new Uint8Array([1]) } as const

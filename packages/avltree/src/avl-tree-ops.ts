@@ -28,6 +28,15 @@ export type KeyMatchesResult =
   | { ok: true; matches: boolean }
   | { ok: false; reason: AvlVerifyFailReason }
 
+/**
+ * Observer the engine calls on the leaf an operation resolves at — fired once,
+ * from inside keyMatchesLeaf's `ok` branch, after the leaf-position check
+ * approved it. `matches` is true when `key === leaf.key`. Used by the recorded
+ * neighbor lookup (prover and verifier). Extension surface — not Ergo
+ * consensus.
+ */
+export type LeafCallback = (leaf: LeafNode, matches: boolean) => void
+
 export interface AvlTreeOpsCallbacks {
   /** Return true to go left, false to go right. */
   nextDirectionIsLeft(key: Uint8Array, r: InternalNode): boolean

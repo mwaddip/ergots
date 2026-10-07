@@ -12,7 +12,7 @@ checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identi
 
 ## Scope
 
-**Ships in this contract (v0.6.0):**
+**Ships in this contract (v0.7.0):**
 
 1. `verifyAvlBatch` — verify an authenticated batch of AVL+ operations against a serialized AD proof and return the resulting digest plus per-operation old values. All-or-nothing: any per-op failure collapses to `null`. Thin wrapper over `verifyAvlBatchPartial`.
 2. `verifyAvlBatchPartial` — partial-success variant. On per-op failure, returns `{ newDigest, results, opsCompleted }` reflecting state AFTER the last successful op. Backs `@ergots/ergoscript`'s V3+ `SAvlTree.insert/update` semantics (break-on-failure with state-after-last-success).
@@ -33,15 +33,14 @@ checksum identically), and this chain reaches `568e7c3` (pack/unpack byte-identi
 17. `AvlVerifyFailReason` (v0.5.0) — exported, reachable through `BatchAVLVerifier.getLastFailReason()`.
 18. A prover fix, and prover hardening (v0.5.0) — the fix: `newInternal` copies its key (P1). Before 0.5.0, a caller that reused a key buffer after an `Insert` silently rewrote an internal node's key; see `newInternal` under "Node types and constructors" for what 0.5.0 does not repair. The hardening: an operation never inherits `found` from a failed or thrown one (P2); a proof-cycle fail-stop after an engine throw (P3). No proof, digest or codec byte changes.
 19. `StrictBatchAVLVerifier` (v0.6.0) — a second step-by-step verifier: `BatchAVLVerifier`'s constructor, methods and behavior, plus `isFullyConsumed()`, which says whether the proof is byte-for-byte the proof `BatchAVLProver.generateProof()` writes for the operations performed. TS-only: neither reference has one. **Not Ergo consensus:** both references accept proofs it rejects, and no existing entry point runs any of its code.
+20. Extension surface (v0.7.0) — a stable set of exports and `protected` members for a downstream verifier of its own (e.g. `@dagsocial/avltree`). `VerifierCore` becomes a subclassable base, `BatchAVLProver.perform` / `assertCycleUsable` / `validateKey` / `cycleIndeterminate` become `protected`, and the three validators (`validateConfig`, `validateOperationShape`, `validateStartingDigest`), the byte comparator (`compareBytes`), the sentinel-key helpers (`negInfKey(keyLength)`, `posInfKey(keyLength)`) and the callback types (`AvlTreeOpsCallbacks`, `LeafCallback`, `KeyMatchesResult`) are re-exported from the package entry point. The surface is additive, carries the lazy-node access invariant (see "Lazy-node access invariant"), and is **not Ergo consensus**: a subclass is for a downstream verifier of its own, never for an Ergo validation path.
 
 **Does NOT ship:**
 
-- Direct exposure of the internal `VerifierCore` class. `BatchAVLVerifier` wraps it, so the core's mutable fields (`root`, `height`, `lastFailReason`) stay free to change.
 - A range operation or any ninth `Operation` variant. Range reads compose from neighbor-reporting `Lookup`s (see "Neighbor lookups").
 - Neighbor reporting on modifications, and neighbor lookups on the functional batch API (`verifyAvlBatch*`).
 - `AvlTreeData` wire-format MIR type. That stays in `@ergots/ergoscript`'s `mir/types.ts`; this package owns only the verifier-input shape `AvlTreeConfig`.
 - Cost accounting. Cost is an ergoscript concern, charged by the `SAvlTree.*` handlers.
-- `compareBytes`. A single internal module (`src/compare-bytes.ts`) consolidating what were four duplicate private byte-comparison implementations (prover, verifier, tree-traversal, persistent-prover); not exported from the package entry point.
 
 ## Public surface (v0.6.0)
 
@@ -495,6 +494,66 @@ A proof that is not exactly consumed is reported by `isFullyConsumed() === false
 1. Shape validation is sole and comprehensive at the public entry points (the batch functions, `BatchAVLVerifier`'s constructor, and each `BatchAVLVerifier` operation). After construction, `VerifierCore` trusts shapes and operates on bytes — with one reference-mandated exception (6g): the engine enforces the two strict ±inf bounds requires per op (`ensure!(key > -inf)`, `ensure!(key < +inf)` — `authenticated_tree_ops.rs:267-268` @568e7c3; scrypto's identical requires, bytecode-verified). An out-of-bounds key is a Tier-2 verification failure (`'key-out-of-bounds'`, fail-and-poison), NOT a thrown shape error, exactly where both references fail it. Without this gate a proof steered to the −inf sentinel leaf lets the all-zero key match it: dummy-value lookups, sentinel rewrites, and sentinel deletes producing digests no reference implementation can produce. The references' third entry check (key length) remains a Tier-1 wrapper throw — deliberately: converting the published `'operation-key-length-mismatch'` throw into a per-op failure would be a breaking change on a shipped package (observable as `opsCompleted` for `[goodOp, wrongLengthOp]`: references apply then fail at index 1; ergots throws before applying anything), and the consensus path is unaffected either way — `@ergots/ergoscript`'s `savltree` pre-scans op shapes (`keyShapeBad`/`firstShapeBadOpIndex`) and reproduces the JVM's per-op failure index and charging exactly.
 2. No throws from inside `VerifierCore` to the consumer. Verification failures set `root = null` (tree poisoned) and `performOneOperation` returns `{ failed: true }` on this and every subsequent call. One engine-level exception — stack exhaustion on a pathologically deep proof — is carved out under "No throws on verification failures" below. A second, unreachable one is the leaf-count invariant `Error` in `VerifierCore.lookupWithNeighbors`, thrown when a successful `Lookup` observed other than one leaf (see "Neighbor lookups"). Either leaves a `BatchAVLVerifier` indeterminate (see "Fail-stop after an engine throw").
 3. Internal panics from `@noble/hashes` bubble as plain `Error` — those are contract violations inside a dependency, not consumer-input issues.
+
+## Extension surface (v0.7.0)
+
+The extension surface lets a downstream verifier of its own share this
+package's engine without copying its code. The names below are **additive to
+the v0.6.0 surface**; existing users see no change. **Not Ergo consensus:** a
+subclass is for a downstream verifier of its own (e.g. `@dagsocial/avltree`,
+whose own neighbor-reporting and strict-consumption checks live outside this
+package), never for an Ergo validation path.
+
+Exports:
+
+- `VerifierCore` — the shipped engine class, subclassable from outside.
+  Members `state` and `buildCallbacks(onLeaf?)` are `protected`; so is
+  `perform(op, onLeaf?)`, which returns `Uint8Array | null | { failed: true }`
+  (the old value, `null` for absent, or a verification failure that poisoned
+  the verifier). The constructor calls no overridable method, so a subclass's
+  fields are safe to initialize after `super()` returns.
+- `BatchAVLProver` — `perform(op, onLeaf?, method?)`, `assertCycleUsable(method)`,
+  `cycleIndeterminate` and `validateKey(key)` are `protected`. The existing
+  public `root` getter serves the subclass's root read. A subclass's recorded
+  entry point names itself in `method` (a plain `string`), so the fail-stop
+  error points at the right call.
+- `AvlTreeOpsCallbacks`, `LeafCallback`, `KeyMatchesResult` — callback types,
+  for a subclass that reads or wraps the engine's callbacks. `LeafCallback`
+  is `(leaf: LeafNode, matches: boolean) => void`.
+- `validateConfig`, `validateOperationShape`, `validateStartingDigest` — the
+  shipped validators, exported so a subclass's constructor and
+  `performOneOperation`-of-its-own can enforce the same shapes.
+- `compareBytes(a, b)` — the lexicographic byte comparator the engine uses.
+- `negInfKey(keyLength)`, `posInfKey(keyLength)` — sentinel-key helpers:
+  fresh buffers of `keyLength` zero or `0xff` bytes, matching the engine's
+  ±inf gate. Every valid key sorts strictly between the two.
+
+The internals that **remain internal** are the modify / delete helpers, the
+rotation primitives, tree-traversal state, `strict-verifier.ts`'s recording
+core and `canonical-proof.ts`'s comparator, and `neighbors.ts`'s
+`neighborLookupOf`. Those stay free to change.
+
+### Lazy-node access invariant
+
+The prover and the verifier engine read a node's children (`left`, `right`)
+through plain property access, and only when descending into or labeling
+that node. An unvisited sibling's `left` / `right` is not read. Other
+fields the engine does read — `kind`, `key`, `balance`, `labelCache` — on
+any node it touches, including an unvisited sibling that gets labeled.
+
+A caller may back a tree with nodes whose `left` and `right` are getters
+that materialize on first access, provided unvisited siblings carry a
+precomputed label (via `labelCache` or a `LabelNode` stub). All public
+lookups, neighbor lookups, inserts and removes produce byte-identical
+proofs and digests to a fully loaded tree.
+
+Pinned by `test/lazy-node-access.test.ts`, which drives a 2 000-leaf tree
+backed by a Variant-A loader (65-byte keys, 40-byte values, lazy children,
+preset `labelCache`) through five workloads — one present-key Lookup, one
+absent-key Lookup, one neighbor Lookup, a 513-neighbor-lookup page, and an
+insert + remove pair — asserting proof + digest byte equality against a
+fully loaded reference prover for each, and bounding the single-key
+materialization at `height * 2 + 10` rows.
 
 ## Cross-cutting guarantees
 
