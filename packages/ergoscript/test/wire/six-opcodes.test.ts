@@ -72,8 +72,9 @@ describe('TrueLeaf 7f and FalseLeaf 80', () => {
   it('beside a placeholder in a constant-segregated tree', () => {
     // v0 segregated (header 0x10), one Boolean constant (count 01, type 01, value 01), body:
     //   d1 (BoolToSigmaProp) ed (BinAnd) 73 00 (ConstantPlaceholder id 0) 7f (TrueLeaf)
-    // SerializationSpecification.scala:52-57: the tree writer has no extraction store, so the
-    // Boolean constant goes in-line in the body, not into the constants section.
+    // SigmaSerializer.scala:52-57: `startWriter()` constructs the writer with
+    // `constantExtractionStore = None`, so the Boolean constant goes in-line in the body, not into
+    // the constants section.
     const withOp = hex('100101' + '01' + 'd1ed7300' + '7f')
     const withConst = hex('100101' + '01' + 'd1ed7300' + '0101')
     const ta = parseTree(withOp)

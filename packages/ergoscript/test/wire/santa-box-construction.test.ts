@@ -94,8 +94,9 @@ const ERRORS: Record<string, Reject> = {
   // Box.methodcall_type_id_order.json: a v3 size-flagged MethodCall with no arguments and obj TrueLeaf
   // fails the args-nonEmpty assert before the method lookup (MethodCallSerializer.scala:52-55); a
   // v1 sized SAny constant obj fails its data read before the method lookup
-  // (CoreDataSerializer.scala:144-146); a v0 unsized tree wraps the method-lookup soft failure
-  // (rule 1010, no methods for type 0xff) in 'soft-fork-without-size-bit'.
+  // (CoreDataSerializer.scala:149-151, the `case t` fallthrough that throws "Not defined
+  // DataSerializer for type $t"); a v0 unsized tree wraps the method-lookup soft failure (rule 1010,
+  // no methods for type 0xff) in 'soft-fork-without-size-bit'.
   'methodcall-type-id-order-v3-args-assert-box#0': { cls: ExprParseError, code: 'method-call-empty-args' },
   'methodcall-type-id-order-sany-obj-v1-box#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
   'methodcall-type-id-order-v1-unsized-box#3': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'method-type-no-methods' },
