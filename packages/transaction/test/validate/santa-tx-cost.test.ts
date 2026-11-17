@@ -12,7 +12,11 @@
 //    bytes x 2 (sigma-state 6.0.6 Interpreter.scala:99-107, 240-268);
 //  - deserialize-context-111927.json (vectors/transaction/v6/captured/, santa@e9ad8da): a testnet transaction at
 //    height 111,927 whose first input has a dead DeserializeContext in a 279-byte tree, so its cost carries 558 for
-//    those bytes.
+//    those bytes;
+//  - kept-tree-bytes-input.json (kept-tree-bytes-conformance.test.ts): 13 spends over a box whose tree carries
+//    bytes the writer would re-emit differently (an overlong constants count, an off-by-one declared size, or a
+//    TrueLeaf / FalseLeaf as the body's last opcode); the script compares `SELF.propositionBytes` against the
+//    encoding as received.
 import { describe, it, expect } from 'vitest';
 import fs from 'node:fs';
 import path from 'node:path';
@@ -52,6 +56,7 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'cost-limit-boundary.json',
       'deserialize-context-111927.json',
       'deserialize-substitution-spend.json',
+      'kept-tree-bytes-input.json',
       'storage-rent-dust.json',
       'storage-rent-fallback.json',
       'storage-rent-fee-wrap.json',
@@ -59,7 +64,7 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'storage-rent-mixed-inputs.json',
       'storage-rent-recreation.json',
     ]);
-    expect(graded.length).toBe(25);
+    expect(graded.length).toBe(30);
     for (const [file, names] of Object.entries(REJECTED_BY_ERGOTS)) {
       const valid = TX_FILES.find((f) => f.file === file)!.entries.filter((e) => e.expected.valid).map((e) => e.name);
       expect(names.filter((n) => !valid.includes(n))).toEqual([]);

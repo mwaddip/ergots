@@ -107,6 +107,7 @@ const CONSTRUCTION_FILES: [string, number][] = [
   ['Transaction.tree_parse_acceptance.json', 54],
   ['Transaction.tree_bool_pair_form.json', 14],
   ['Transaction.tree_nested_degrade.json', 20],
+  ['Transaction.methodcall_type_id_order.json', 4],
 ];
 
 const BIT_OP: Reject = { cls: ExprParseError, code: 'bit-op-operand-not-numeric' };
@@ -187,6 +188,16 @@ const ERRORS: Record<string, Reject> = {
   // Under the enclosing v3 the UnsignedBigInt data reader refuses a declared size over 32 before it reads the
   // bytes (CoreDataSerializer.scala:118-123), ahead of rule 1019.
   'transaction-nested-enclosing-v3-ubi-size-33-register-reject#17': { cls: SValueParseError, code: 'unsigned-bigint-too-large' },
+  // methodcall_type_id_order. Three ways the JVM fails on the same MethodCall body:
+  //  #0 size-flagged at v3, zero args: `assert(args.nonEmpty)` fires before SMethod.fromIds
+  //     (MethodCallSerializer.scala:53-55), an AssertionError that does not degrade;
+  //  #1 size-flagged at v1, obj is an SAny constant: the data reader throws "Not defined DataSerializer for type
+  //     SAny" (CoreDataSerializer.scala:151) before fromIds is reached, a SerializerException that does not degrade;
+  //  #3 unsized at v1, unknown type id 0xff: rule 1010 (CheckTypeWithMethods, SMethod.scala:344-349) fires, and
+  //     with no size bit `deserializeErgoTree` wraps it as SerializerException (ErgoTreeSerializer.scala:204-207).
+  'methodcall-type-id-order-v3-args-assert-tx#0': { cls: ExprParseError, code: 'method-call-empty-args' },
+  'methodcall-type-id-order-sany-obj-v1-tx#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
+  'methodcall-type-id-order-v1-unsized-tx#3': UNSIZED('method-type-no-methods'),
 };
 
 // The accepted entries whose output tree the JVM degrades, with the error ergots degrades it on; every other
@@ -220,21 +231,13 @@ const DEGRADES: Record<string, Reject> = {
   'transaction-nested-enclosing-v0-ubi-register-degrade-accept#11': { cls: STypeParseError, code: 'type-code-primitive-unknown' },
   'transaction-nested-enclosing-v0-func-register-degrade-accept#13': { cls: STypeParseError, code: 'type-code-unknown' },
   'transaction-nested-enclosing-v0-ubi-size-33-register-degrade-accept#18': { cls: STypeParseError, code: 'type-code-primitive-unknown' },
+  // methodcall_type_id_order. Size-flagged at v1 with type id 0xff: rule 1010 (CheckTypeWithMethods) fires at
+  // SMethod.fromIds (SMethod.scala:344-349) and the size bit degrades the carrier to UnparsedErgoTree.
+  'methodcall-type-id-order-v1-degrades-tx#2': { cls: ExprParseError, code: 'method-type-no-methods' },
 };
 
-// The entries ergots still diverges on, each with its residual, and what ergots does instead. The JVM parses
-// TrueLeaf (7f) and FalseLeaf (80) as Boolean constants and writes them back as such (a non-identity round-trip);
-// ergots rejects the opcodes, soft-forkably, so an unsized tree rejects the transaction.
-const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject }> = {
-  'transaction-c3-trueleaf-opcode-accept#2': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
-  'transaction-c3-falseleaf-opcode-accept#3': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
-};
+// The entries ergots still diverges on, each with its residual, and what ergots does instead.
+const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject }> = {};
 
 function expectReject(bytesHex: string, want: Reject): void {
   let err: unknown;
