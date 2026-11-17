@@ -417,6 +417,22 @@ const CHANGED: Record<string, { source: string; before: Status; after: Status; w
     after: { lenient: 'degraded ExprParseError:method-unknown', box: 'degraded ExprParseError:method-unknown' },
     why: 'SANTA getReg-v6-method-in-v2-tree-reject#2 (errored): Box.getReg (99:19) in a sized v2 tree; the JVM degrades it on rule 1016, lenient and under the box rules, and rejects its spend (a local sigma-state 6.0.6 probe: unparsed, rule 1016; the spend an InterpreterException over rule 1016)',
   },
+  // TrueLeaf (0x7f) and FalseLeaf (0x80) are the JVM's Boolean constants (ValueSerializer.scala:79-80);
+  // their on-wire bytes read as the node an inline `01 01` / `01 00` gives. A box whose unsized v0 tree
+  // is BoolToSigmaProp(TrueLeaf) / BoolToSigmaProp(FalseLeaf) parses where it had wrapped
+  // 'opcode-reserved' in 'soft-fork-without-size-bit'.
+  'box@3:135ff693ee4d735075c1b03c335cc6e3': {
+    source: 'packages/ergoscript/test/fixtures/conformance/wire/Box.tree_parse_acceptance.json#/entries/2/bytes_hex',
+    before: { box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:opcode-reserved' },
+    after: { box: 'parsed' },
+    why: 'SANTA box-c3-trueleaf-opcode-accept#2, accepted (jvm:sigma-state-6.0.6): the JVM parses 7f as the Boolean constant true',
+  },
+  'box@3:b074ad5d60bdea64f9fb84fef1b55cf8': {
+    source: 'packages/ergoscript/test/fixtures/conformance/wire/Box.tree_parse_acceptance.json#/entries/3/bytes_hex',
+    before: { box: 'ErgoTreeParseError:soft-fork-without-size-bit<-ExprParseError:opcode-reserved' },
+    after: { box: 'parsed' },
+    why: 'SANTA box-c3-falseleaf-opcode-accept#3, accepted (jvm:sigma-state-6.0.6): the JVM parses 80 as the Boolean constant false',
+  },
 }
 
 describe('the construction corpus sweep', () => {

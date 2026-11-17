@@ -1,0 +1,54 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Box.methodcall_type_id_order",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "methodcall-type-id-order-v3-args-assert-box#0",
+      "kind" : "Box",
+      "source" : "santa:authored-methodcall-type-id-order",
+      "description" : "Type id `0xff`, method 1, obj `TrueLeaf`, and NO arguments, size-flagged at v3. From v3 `MethodCallSerializer.parse` runs `assert(args.nonEmpty)` BEFORE `SMethod.fromIds`, so the JVM fails with an `AssertionError` (message: \"assertion failed\") and REJECTS. **THE SEPARATING ROW, and the half of the pair that matters:** its v1 twin below has the same body and DEGRADES. Nothing but the header's version byte differs, so a red here against a green there is read order and nothing else.",
+      "bytes_hex" : "c0843d0b05dcff017f00010000ed816ca6ec04b4943a2b745f56d4c1bcb46d3e3f5a3f5576cff8f60851f028e600",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "methodcall-type-id-order-sany-obj-v1-box#1",
+      "kind" : "Box",
+      "source" : "santa:authored-methodcall-type-id-order",
+      "description" : "Type id `0xff`, method 1, and an obj that is a CONSTANT of type `SAny` (`61`). Reading that constant's data fails first — `SerializerException: Not defined DataSerializer for type SAny` — so again the JVM never reaches `fromIds`, and again REJECTS. **SEPARATING ROW**, and a third distinct failure class.",
+      "bytes_hex" : "c0843d0905dcff01610001000038274bc6aaa426eb0ed4f721ef0736b40fb7007b390e2dd9916500ea69079c7400",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 1
+      }
+    },
+    {
+      "name" : "methodcall-type-id-order-v1-degrades-box#2",
+      "kind" : "Box",
+      "source" : "santa:authored-methodcall-type-id-order",
+      "description" : "THE CONTROL, and the row that makes the family mean something. The same body as the v3 row above, size-flagged at v1, where there is no args assert — so NOTHING fails before `SMethod.fromIds`, the unknown type id raises rule 1010 (`CheckTypeWithMethods`, a ValidationException), and the size bit DEGRADES it: the tree is kept as `UnparsedErgoTree` and the carrier round-trips to its own bytes. Both sides agree here, which is the point — it is what shows a red on its v3 twin is about WHEN the type id is checked, not about whether `0xff` is rejected at all.",
+      "bytes_hex" : "c0843d0905dcff017f00010000b8b3a2e85f02352fe3bffa7e3340a9d9ee1729fa380d8b9bbc6f283baec909f200",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 1
+      }
+    },
+    {
+      "name" : "methodcall-type-id-order-v1-unsized-box#3",
+      "kind" : "Box",
+      "source" : "santa:authored-methodcall-type-id-order",
+      "description" : "The same body UNSIZED. Rule 1010 fires exactly as in the control, but with no size bit there is nothing to degrade behind, so `deserializeErgoTree` wraps it: `SerializerException: Cannot handle ValidationException, ErgoTree serialized without size bit.` REJECTED. The third member of the degrade trio — it pins that the control's green is the SIZE BIT's doing and not rule 1010 being harmless.",
+      "bytes_hex" : "c0843d00dcff017f00010000bbc7847764310b509b61de2ce6aebd405154e15970a51da90f4c9ff831b5d63100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    }
+  ]
+}
