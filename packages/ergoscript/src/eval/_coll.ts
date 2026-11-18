@@ -120,9 +120,11 @@ export function mapped(c: CollValue, tRange: SType, items: SValue[]): CollValue 
   return guard(() => _mapped(c, tRange, items))
 }
 
-/** `Coll.flatMap` (`CollsOverArrays.scala:70`, `:410`). */
-export function flatMapped(c: CollValue, tRange: SType, items: SValue[]): CollValue {
-  return guard(() => _flatMapped(c, tRange, items))
+/** `Coll.flatMap` (`CollsOverArrays.scala:70`, `:410`). Each per-element body
+ *  result is one PART of `parts`; the module reads each part's length and
+ *  class to apply the JVM's `ArrayBuilder.++=` rule. */
+export function flatMapped(c: CollValue, tRange: SType, parts: CollValue[]): CollValue {
+  return guard(() => _flatMapped(c, tRange, parts))
 }
 
 /** `Coll.reverse` (`CollsOverArrays.scala:59`, `:384-394`). */

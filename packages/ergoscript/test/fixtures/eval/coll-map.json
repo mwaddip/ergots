@@ -179,12 +179,12 @@
       "expected_error_code": "lambda-not-callable"
     },
     {
-      "name": "coll_map_lambda_result_type_mismatch",
+      "name": "coll_map_lambda_result_boolean_into_int_array",
       "tree_bytes_hex": "00ad10020204d901010495937201040272010101",
       "opts_json": {},
       "expected_value_json": null,
       "expected_cost": 0,
-      "expected_error_code": "lambda-result-type-mismatch"
+      "expected_error_code": "coll-class-cast"
     }
   ]
 }

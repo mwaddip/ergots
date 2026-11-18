@@ -41,17 +41,11 @@
       "coll2-patch-Z.slice-tripleZ.direct-v0-a2#333"
     ]
   },
-  "v6/authored/Append.reference_array_store.json": {},
   "v6/authored/Box.getReg_adversarial.json": {
     "method-not-implemented": [
       "getRegV5-live-reject#0"
     ]
   },
-  "v6/authored/Coll.append_concat_v6.json": {},
-  "v6/authored/Coll.append_node_array_class.json": {},
-  "v6/authored/Coll.append_runtime_item_type.json": {},
-  "v6/authored/Coll.item_store_type_check.json": {},
-  "v6/authored/Coll.object_arrays_by_class_v6.json": {},
   "v6/authored/Coll.pair_shape_map.json": {
     "method-not-implemented": [
       "byindex_mapped_pair_bool_default-accept#5",
@@ -161,21 +155,11 @@
     ]
   },
   "v6/authored/Coll.reference_store_ops.json": {
-    "collection-class": [
-      "flatmap-coll-of-coll-long-accept#22",
-      "flatmap-empty-groupelement-part-accept#37",
-      "flatmap-empty-long-part-into-bytes-accept#38",
-      "flatmap-int-part-into-unit-accept#42",
+    "comparer": [
       "flatmap-unit-result-eq-accept#48",
-      "map-lambda-class-compatible-lie-accept#20",
-      "map-two-lambdas-groupelement-errored#53",
-      "map-two-lambdas-int-into-unit-errored#62",
-      "pair-flatmap-int-part-into-unit-accept#66",
-      "pair-map-lie-updated-accept#36",
-      "pair-map-pair-component-lie-accept#34",
-      "pair-map-two-lambdas-groupelement-errored#52",
-      "pair-map-two-lambdas-int-into-unit-errored#63",
-      "pair-map-two-lambdas-nonpair-errored#55",
+      "unit-patch-identity-map-eq-accept#56"
+    ],
+    "method-call-type": [
       "parse-unit-patch-eq-refused-at-parse#73",
       "unit-patch-eq-refused-at-parse#47"
     ],
@@ -192,9 +176,6 @@
       "parse-unit-coll-constant-refused-at-parse#80",
       "unit-coll-constant-patch-refused-at-parse#59",
       "unit-coll-constant-refused-at-parse#57"
-    ],
-    "cost": [
-      "unit-patch-identity-map-eq-accept#56"
     ]
   },
   "v6/authored/Coll.specialisation_pair_prefix.json": {
@@ -210,13 +191,10 @@
       "startswith_byte_concrete_long_arg-accept#1"
     ]
   },
-  "v6/authored/Coll.store_runtime_array_class.json": {},
-  "v6/authored/Coll.updateMany_runtime_item_type.json": {},
   "v6/authored/Coll.zip_unequal_sides_v6.json": {
-    "collection-class": [
+    "tuple-as-collection": [
       "arr-Xor-left-Triple-bytes-Int-v0-a3#229",
-      "arr-Xor-left-Triple-bytes-v0-a3#228",
-      "arr-Xor-right-lie-empty-CollInt-v0-a3#227"
+      "arr-Xor-left-Triple-bytes-v0-a3#228"
     ],
     "method-not-implemented": [
       "zip-ls-longer-map.method-v0-a3#4",

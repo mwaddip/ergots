@@ -167,7 +167,7 @@ describe('mapped (CollOverArray :28-31, PairOfCols :317-324)', () => {
 describe('flatMapped (CollOverArray :70-73, PairOfCols :410-411)', () => {
   it('is plain on a specialised receiver (:70-73, fromArray[B] at abstract B)', () => {
     const c = specColl(SBYTE, [byte(1)])
-    const r = flatMapped(c, SINT, [int(1), int(2)])
+    const r = flatMapped(c, SINT, [plainColl(SINT, [int(1), int(2)])])
     expect(classOf(r)).toEqual(PLAIN_INT)
     expect(r.elem).toEqual(SINT)
     expect(r.items).toEqual([int(1), int(2)])
@@ -176,13 +176,13 @@ describe('flatMapped (CollOverArray :70-73, PairOfCols :410-411)', () => {
   it('on a pairs receiver is plain for the tRange (:410-411)', () => {
     const items: SValue[] = [pair(int(1), byte(2))]
     const c = pairsColl(pairOf(SINT, SBYTE), items, PLAIN_INT, PLAIN_BYTE)
-    const r = flatMapped(c, SINT, [int(1), int(2)])
+    const r = flatMapped(c, SINT, [plainColl(SINT, [int(1), int(2)])])
     expect(classOf(r)).toEqual(PLAIN_INT)
   })
 
   it('with a pair tRange routes to pairs with plain sides (:70-73 and :410-411, fromArray pair routing)', () => {
     const c = plainColl(SINT, [int(1)])
-    const r = flatMapped(c, pairOf(SINT, SBYTE), [pair(int(10), byte(1))])
+    const r = flatMapped(c, pairOf(SINT, SBYTE), [plainColl(pairOf(SINT, SBYTE), [pair(int(10), byte(1))])])
     expect(classOf(r)).toEqual({ shape: 'pairs', ls: PLAIN_INT, rs: PLAIN_BYTE })
   })
 })

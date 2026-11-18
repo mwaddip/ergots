@@ -22,10 +22,6 @@ const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/red-table.j
 
 /** Reason ids and their tracking numbers. Each entry gives a numeric `item` and one sentence that says what ergots does on the rows listed under the id. */
 export const RED_REASONS: Record<string, { item: number; why: string }> = {
-  'collection-class': {
-    item: 22,
-    why: "The evaluator reads no collection class, so the row's verdict rests on one it does not have.",
-  },
   'tuple-as-collection': {
     item: 23,
     why: 'A tuple constant of three or more items is handed where a collection is wanted.',
@@ -41,6 +37,10 @@ export const RED_REASONS: Record<string, { item: number; why: string }> = {
   cost: {
     item: 22,
     why: 'The value is right and only the cost differs.',
+  },
+  'method-call-type': {
+    item: 6,
+    why: "ergots builds the tree and evaluates it; the JVM refuses it at parse because the call's return type keeps a type variable (the patch method's SFunc tRange is Coll[IV]) and the EQ's Constraints$SameType2 check fails on Coll[IV] against Coll[Unit] (data/shared/src/main/scala/sigma/ast/SigmaBuilder.scala Constraints$SameType2).",
   },
   'zero-width-collection': {
     item: 31,

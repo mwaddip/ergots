@@ -92,35 +92,93 @@ export function filtered(c: CollValue, kept: SValue[]): CollValue {
  * of `fromArray` is not picked — the result is plain. A pair `tRange` still
  * routes to pairs with plain sides.
  *
+ * `toArray.map(f)` builds through `ArrayBuilder.ofXXX.+=` (scala-library
+ * 2.12.20). A primitive builder's `+=(prim)` unboxes the item at the call
+ * site (`CollClassCast`). An `ofUnit`'s `+=(Unit)` casts the call-site
+ * argument to `BoxedUnit` (`CollClassCast`; SANTA row #62). An `ofRef`'s
+ * `+=(ref)` stores `elems(size) = elem` — a checked aastore
+ * (`CollArrayStore`; row #53).
+ *
  * `PairOfCols.map[V](f)` (:317-324):
+ *     val res = new Array[V](limit)
+ *     cfor(0)(_ < limit, _ + 1) { i => res(i) = f((ls(i), rs(i))) }
  *     new CollOverArray(res, builder)
  * Always plain, no pair routing: a pair `tRange` on a pairs receiver gives a
- * plain array of Tuple2.
+ * plain `Coll[Tuple2]` (row #34 takes any pair into `Array[Tuple2]`, row #55
+ * refuses a non-pair). `new Array[V](limit); res(i) = elem` is a direct
+ * aastore (`CollArrayStore`) for reference V (row #52 refuses a GroupElement
+ * into `Box[]`) and for V = Unit (`BoxedUnit[]`, row #63). For primitive V
+ * the aastore unboxes (`CollClassCast`).
  *
  * The caller (an evaluator arm) applies the lambda and passes the mapped
  * items at `tRange`.
+ *
+ * @throws CollClassCast / CollArrayStore under the rules above.
  */
 export function mapped(c: CollValue, tRange: SType, items: SValue[]): CollValue {
   const cls = classOf(c)
+  const resultArray = arrayClassOf(tRange)
+  const storeMode: StoreMode = cls.shape === 'pairs' ? 'astore' : 'builder-cast'
+  for (const item of items) {
+    storeOne(resultArray, item, storeMode)
+  }
   if (cls.shape === 'pairs') {
+    // `new CollOverArray(res, builder)` written out at :322 — always plain,
+    // no pair routing on a pair range.
     return collOverArray(tRange, items)
   }
+  // `builder.fromArray` at abstract B — plain; a pair tRange routes through
+  // `fromBoxedPairs` (:205-215) to `'pairs'` with plain sides.
   return fromArray(tRange, items, false)
 }
 
 /**
  * `CollOverArray.flatMap[B](f)` (:70-73):
  *     builder.fromArray(toArray.flatMap(x => f(x).toArray))
- * `B` is abstract — plain; a pair `tRange` still routes to pairs with plain
- * sides.
- *
  * `PairOfCols.flatMap[B](f)` (:410-411):
  *     builder.fromArray(toArray.flatMap(p => f(p).toArray))
- * Same rule — both shapes go through `fromArray[B]` at abstract B.
+ * Both shapes go through `Array.flatMap[B]` at abstract B.
+ *
+ * `Array.flatMap` builds through `ArrayBuilder[B].++=`. A `Unit` builder's
+ * `++=` (scala-library `ArrayBuilder.ofUnit`) runs `size += xs.size` and fills
+ * the result with units — the items are DROPPED (row #42, row #66; row #48
+ * compares the stored unit with `()`). An EMPTY part stores nothing, so the
+ * items' class is never read whatever the builder (row #37 empty GroupElement
+ * part into `Coll[Box]`, row #38 empty long part into `Coll[Byte]`). A
+ * primitive builder's `++=` falls to the generic `super.++=` which iterates
+ * and `+=(prim)` each item, unboxing at the call site (`CollClassCast` on
+ * mismatch; row #39's non-empty long part into `Coll[Byte]` throws). A
+ * reference builder's `+=` is an aastore on `elems(size) = elem`
+ * (`CollArrayStore` on mismatch; row #21's non-empty GroupElement part into
+ * `Coll[Box]` throws). Row #22 (`Coll[Coll[Int]]` + `Coll[Coll[Long]]` part)
+ * answers: `Array[Coll[_]]` takes any `Coll`.
+ *
+ * The caller (an evaluator arm) applies the lambda per element and passes the
+ * parts (one `CollValue` per per-element application) so each part's items
+ * and class are visible to the store rule.
+ *
+ * @throws CollClassCast / CollArrayStore under the rules above.
  */
-export function flatMapped(c: CollValue, tRange: SType, items: SValue[]): CollValue {
+export function flatMapped(c: CollValue, tRange: SType, parts: CollValue[]): CollValue {
   void c // the two shapes of the JVM method produce the same class rule
-  return fromArray(tRange, items, false)
+  const resultArray = arrayClassOf(tRange)
+  const outItems: SValue[] = []
+  if (resultArray === 'Unit') {
+    // `ArrayBuilder.ofUnit.++=` counts items and fills with units (scala-library
+    // 2.12.20). Items of any class are never read.
+    for (const part of parts) {
+      for (let i = 0; i < part.items.length; i++) outItems.push({ kind: 'Unit' })
+    }
+    return fromArray(tRange, outItems, false)
+  }
+  for (const part of parts) {
+    if (part.items.length === 0) continue // `++=` on an empty part is a no-op
+    for (const item of part.items) {
+      storeOne(resultArray, item, 'astore')
+      outItems.push(item)
+    }
+  }
+  return fromArray(tRange, outItems, false)
 }
 
 /**
@@ -373,8 +431,8 @@ export function patch(
   } else {
     // `Array.patch` on `Array[A]` builds through the A-class's
     // `ArrayBuilder` (scala-library 2.12.20): a `Unit` array's builder
-    // drops the stored value and keeps a unit, hence `viaOfUnit = true`.
-    stored = p.items.map((item) => storeOne(cls.array, item, true))
+    // drops the stored value and keeps a unit, hence `'drop-unit'`.
+    stored = p.items.map((item) => storeOne(cls.array, item, 'drop-unit'))
   }
   const fromC = Math.max(0, from)
   const replacedC = Math.max(0, replaced)
@@ -447,7 +505,7 @@ export function updated(c: CollValue, index: number, item: SValue): CollValue {
     }
     toStore = item
   } else {
-    toStore = storeOne(cls.array, item, false)
+    toStore = storeOne(cls.array, item, 'astore')
   }
   const items = c.items.slice()
   items[index] = toStore
@@ -521,7 +579,7 @@ export function updateMany(c: CollValue, indexes: number[], values: CollValue): 
       }
       items[indexes[k]!] = v
     } else {
-      items[indexes[k]!] = storeOne(cls.array, v, false)
+      items[indexes[k]!] = storeOne(cls.array, v, 'astore')
     }
   }
   return fromArray(c.elem, items, cls.specialised)
@@ -601,7 +659,7 @@ export function append(c: CollValue, other: CollValue): CollValue {
       )
     }
     for (const item of other.items) {
-      storeOne(cls.array, item, false)
+      storeOne(cls.array, item, 'astore')
     }
   }
   const items = [...c.items, ...other.items]
@@ -735,30 +793,16 @@ function isPrimitiveArrayClass(c: ArrayClass): boolean {
  * The function that says what an array of a class HOLDS after one store:
  * the item as given, a unit for an array of `'Unit'` on the `ofUnit` builder
  * path, or a refusal. Named `storeOne` after the JVM's per-store step so
- * `patch`, `updated`, `updateMany` and `append` share the body.
+ * `patch`, `updated`, `updateMany`, `append` and the map/flatMap arms share
+ * the body. The three `StoreMode` variants differ only in how an array of
+ * `Unit` handles an item of another class (see `StoreMode`'s doc below).
  *
- * `viaOfUnit = true` is the path through `scala.collection.mutable.ArrayBuilder.ofUnit`
- * (scala-library 2.12.20), which `++=` and `+=` COUNT the items and fill the
- * result with units — the stored value is DROPPED, so the array holds a unit
- * whatever the item was. Scala's `Array.patch` builds its result through this
- * builder for a `Unit` element type (SANTA `Coll.reference_store_ops` 3.R1
- * #40 and 3.R3 #41: `patch` of `Coll[Unit]` by `Coll[Int]` and `Coll[Box]`
- * each gives a `Coll[Unit]` of the right size, and 3.R7m #56 compares the
- * patch's result through an identity map against `Coll[Unit]((), ())`).
- *
- * `viaOfUnit = false` is a direct array store — `updated`'s `toArray.updated`
- * (Scala's `ArrayOps.updated` allocates `new Array[B]` and runs `dest(index)
- * = elem`), `updateMany`'s `resArr(pos) = values(i)`, and `append`'s
- * `System.arraycopy` per-element check on reference arrays. These check the
- * store against the array's class (SANTA `Coll.reference_store_ops` 3.R4
- * #44: `updated(0, 1)` on a `Coll[Unit]` throws; 3.R5 #45: `updateMany` on
- * a `Coll[Unit]` throws on an `Int` value; 3.R6 #46: `++` of `Coll[Unit]`
- * and a `Coll[Box]` throws on the first copied item).
- *
- * The rules per class, for a direct store:
+ * The rules per class, for a store that is NOT a Unit-drop:
  * - `'Object'` is `Array[AnyRef]`: anything stores.
- * - `'Unit'` is `Array[BoxedUnit]` on this path — only a Unit item stores
- *   (`ArrayStoreException` → `CollArrayStore`).
+ * - `'Unit'` is `Array[BoxedUnit]`. On `'astore'`: only a Unit item stores
+ *   (`CollArrayStore`; SANTA `Coll.reference_store_ops` #44 `updated`, #45
+ *   `updateMany`, #63 `PairOfCols.map`). On `'builder-cast'`: a Unit cast
+ *   from the call site (`CollClassCast`; row #62 `CollOverArray.map`).
  * - `'Coll'` takes any collection (`Array[Coll[_]]`, item type erased by the
  *   array's class tag). An item whose runtime class is not `'Coll'` is
  *   refused (`ArrayStoreException` → `CollArrayStore`).
@@ -795,15 +839,43 @@ function storeIntoClass(sideCls: CollClass, item: SValue): SValue {
     }
     return item
   }
-  return storeOne(sideCls.array, item, false)
+  return storeOne(sideCls.array, item, 'astore')
 }
 
-function storeOne(array: ArrayClass, item: SValue, viaOfUnit: boolean): SValue {
-  if (array === 'Unit' && viaOfUnit) return { kind: 'Unit' }
+/**
+ * The store mode a caller uses. The three modes differ only in how an array
+ * of `Unit` handles an item of another class, because scala-library
+ * 2.12.20's `Unit` builder is three different things on three paths:
+ *
+ *   - `'drop-unit'`: `ArrayBuilder.ofUnit.++=`, used by `Array.patch` on a
+ *     `Unit` element type, and by `Array.flatMap`'s per-part `++=`: counts
+ *     items and fills with units, DROPPING the stored value. A unit stands
+ *     in the result whatever the item was (SANTA `Coll.reference_store_ops`
+ *     rows #40, #41, #56 for patch; #42, #48 for flatMap).
+ *   - `'astore'`: a direct `res(i) = elem` into `new Array[Unit]`, which is
+ *     `BoxedUnit[]`: an aastore check (`CollArrayStore`; row #44 for
+ *     `updated`, #45 for `updateMany`, #63 for `PairOfCols.map`).
+ *   - `'builder-cast'`: `ArrayBuilder.ofUnit.+=(Unit)`, where the call site
+ *     inserts an unbox cast to `BoxedUnit` (`CollClassCast`; row #62 for
+ *     `CollOverArray.map`).
+ *
+ * The primitive and reference paths match across modes: primitive unbox is
+ * always `CollClassCast`; a reference class mismatch is always
+ * `CollArrayStore`.
+ */
+type StoreMode = 'drop-unit' | 'astore' | 'builder-cast'
+
+function storeOne(array: ArrayClass, item: SValue, mode: StoreMode): SValue {
+  if (array === 'Unit' && mode === 'drop-unit') return { kind: 'Unit' }
   if (array === 'Object') return item
   const itemClass = runtimeClassOf(item)
   if (array === 'Unit') {
     if (itemClass !== 'Unit') {
+      if (mode === 'builder-cast') {
+        throw new CollClassCast(
+          `Array[Unit].store: item of class ${itemClass} fails unbox-cast to BoxedUnit (ArrayBuilder.ofUnit.+=)`,
+        )
+      }
       throw new CollArrayStore(
         `Array[Unit].store: item of class ${itemClass} is not Unit`,
       )

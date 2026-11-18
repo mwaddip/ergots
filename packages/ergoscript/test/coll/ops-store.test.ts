@@ -313,6 +313,17 @@ describe('append — CollsOverArrays.scala:48-57 (CollOverArray) and :379-382 (P
     expect(() => append(recv, plainColl(SINT, [int(0)]))).toThrow(CollClassCast)
   })
 
+  it('EMPTY pairs receiver + non-pair operand still unzips first — the pairs branch runs before any empty-receiver return (PairOfCols.append CollsOverArrays.scala:379-382 has no empty short-circuit; unzip :245-259 reads other.tItem.tFst)', () => {
+    const empty = pairsColl(
+      pairOf(SBYTE, SLONG),
+      [],
+      { shape: 'array', specialised: false, array: 'byte' },
+      { shape: 'array', specialised: false, array: 'long' },
+    )
+    expect(() => append(empty, plainColl(SINT, [int(0)]))).toThrow(CollClassCast)
+    expect(() => append(empty, plainColl(SINT, []))).toThrow(CollClassCast)
+  })
+
   it('pairs receiver: a matching pairs operand appends per side, result is pairs', () => {
     const recv = pairsColl(
       pairOf(SBYTE, SLONG),

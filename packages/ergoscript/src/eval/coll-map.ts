@@ -1,52 +1,62 @@
 /**
- * Map evaluator arm — first lambda HOF (phase 2f Coll HOFs Task 6).
+ * Map evaluator arm.
  *
- * Applies a function (lambda) to each element of a collection, returning
- * a new collection of the same length with transformed elements.
+ * Applies a lambda to each element of a collection, returning a new
+ * collection of the same length with transformed elements. The result's
+ * class and array-store rule are the collection module's (see `mapped`
+ * in `src/coll/ops.ts`, mirroring JVM `CollOverArray.map`
+ * `CollsOverArrays.scala:28-31` and `PairOfCols.map` `:317-324` at 6.0.7):
+ * each item is stored through the range type's `ArrayBuilder` (plain
+ * receiver) or through a direct aastore (pairs receiver), and a failure is
+ * `EvalError('coll-class-cast')` or `EvalError('coll-array-store')`.
  *
- * Cost: Mixed pattern — outer + per-iter.
- *   Sigma-rust ref: ergotree-interpreter/src/eval/coll_map.rs:14-84
- *
- *   Outer (line 72, AFTER input/mapper eval, BEFORE loop):
- *     ctx.add_per_item_jit_cost(20, 1, 10, n)  where n = inputColl.length
- *
- *   Per-iter (line 31, inside closure, BEFORE body eval):
- *     ctx.add_jit_cost(5)
+ * Cost (Mixed pattern — outer `PerItemCost` + per-iter):
+ *   Outer, AFTER input/mapper eval, BEFORE the loop:
+ *     `addPerItemCost(20, 1, 10, inputColl.length)` — JVM
+ *     `MapCollection.eval` `transformers.scala:44`: `addSeqCostNoOp(
+ *       MapCollection.costKind, inputV.length)`; `costKind = PerItemCost(20,
+ *       1, 10)` (`transformers.scala:52-53`).
+ *   Per-iter, inside the closure, BEFORE body eval:
+ *     `addCost(5)` — JVM `FuncValue.eval` `values.scala:1076`:
+ *     `addFixedCost(AddToEnvironmentDesc_CostKind, ...)` = 5.
  *
  * Eval order (Mixed pattern):
- *   1. Eval input  → must be Coll  (throws 'coll-input-not-coll')
- *   2. Eval mapper → must be Lambda (throws 'lambda-not-callable')
- *   3. Elem-type check: input.elem vs mapper's declared arg type
- *      (throws 'coll-elem-tpe-mismatch'; skipped if mapper is not a FuncValue MIR node)
- *   4. Outer cost: addPerItemCost(20, 1, 10, n)
- *   5. Per item: addCost(5), env.extend(argId, item), eval body,
- *      result-type check (throws 'lambda-result-type-mismatch'), collect result
- *   6. Return `mapped(inputColl, outElem, outItems)` — the module decides
- *      the result's class per the JVM's `CollOverArray.map` /
- *      `PairOfCols.map` rules (`CollsOverArrays.scala:28-31` and `:317-324`:
- *      plain over the range type, no pair routing on a pairs receiver).
+ *   1. Eval input  → must be Coll (throws `'coll-input-not-coll'`).
+ *   2. Eval mapper → must be Lambda (throws `'lambda-not-callable'`).
+ *   3. Elem-type check: input.elem vs the mapper's declared arg type when
+ *      the MIR mapper node is a FuncValue (throws `'coll-elem-tpe-mismatch'`;
+ *      a shape mirror of the JVM's `FuncValue.eval`
+ *      `Value.checkType(arg0._2, vArg)` which runs `isValueOfType`
+ *      `SType.scala:187-213`). Skipped when the MIR mapper is no FuncValue.
+ *   4. Outer cost: `addPerItemCost(20, 1, 10, n)`.
+ *   5. Per item: `addCost(5)`, `env.extend(argId, item)`, eval body, read
+ *      the body's `tpe` (JVM `values.scala:1080` `checkType(body, res)`:
+ *      `isValueOfType` is a SHAPE check that any `Coll[_]` fits an
+ *      `SCollectionType`, any `Tuple2[_,_]` a pair `STuple`, etc.
+ *      `SType.scala:198-205`). Collect the result.
+ *   6. Return `mapped(inputColl, outElem, outItems)` — the module does the
+ *      store check per receiver shape and range class; each refusal is the
+ *      JVM's `ClassCastException` (`'coll-class-cast'`) or
+ *      `ArrayStoreException` (`'coll-array-store'`).
  *
- * Env-extend convention (establishes pattern for Tasks 7-10):
- *   TS Env is immutable (per phase 2b design). For each item we call
+ * Env-extend convention: TS Env is immutable. For each item we call
  *   env.extend(closure.argIds[0], item) to create a new scope — no
- *   save/restore needed, unlike sigma-rust's mutable env (coll_map.rs:30-38).
- *   Each iteration uses a fresh bodyEnv derived from the caller's `env`.
+ *   save/restore needed, unlike sigma-rust's mutable env.
  *
- * Input elem-type check (sigma-rust coll_map.rs:46-64):
- *   Sigma-rust uses `mapper_sfunc.t_dom.first()` (static type stored on the
- *   Map MIR struct). The TS Map MIR interface has no mapper_sfunc field; we
- *   derive the expected input type from the mapper Expr when it is a FuncValue
- *   node (accessing e.mapper.args[0].tpe). If the mapper is not a FuncValue
- *   (e.g. a Const or ValUse returning a Lambda), we skip the static check —
- *   the extractFuncValue guard still catches non-callable values at runtime.
+ * Output elem type (JVM `MapCollection.eval` `transformers.scala:43`:
+ *   `tResItem = Evaluation.stypeToRType(mapper.tpe.tRange)`; the store runs
+ *   at that type. `MapCollection.tpe` is `SCollection(mapper.tpe.tRange)`
+ *   `:38`, so the range comes from the mapper's type as the JVM reads it —
+ *   for a mapper that is an `If` of two lambdas, `If.tpe = trueBranch.tpe`
+ *   gives the first lambda's `SFunc` type (`values.scala:1066-1083` of
+ *   `If.eval` reads this in order).
  *
- * Output elem type (sigma-rust coll_map.rs:78 via CollKind::from_collection):
- *   We use exprTpe(e.mapper, ctx.treeVersion ?? 0) to derive the mapper's declared return type when
- *   the mapper is a FuncValue. If the mapper's type is SFunc, we use sfunc.result
- *   as outElemTpe and check each per-item result against it, throwing
- *   'lambda-result-type-mismatch' on mismatch. When outElemTpe is not derivable
- *   (mapper is not FuncValue or has SAny type), the per-item type check is skipped
- *   and we fall back to inferring from the first runtime result item.
+ *   We derive `outElem` from `exprTpe(e.mapper, ctx.treeVersion ?? 0)` on
+ *   every MIR mapper shape whose static type is an `SFunc`. For a mapper
+ *   whose `exprTpe` is `SAny` (unresolved method return types), the static
+ *   range is unknown; we take the first result's runtime type for the
+ *   result's `elem`, and the receiver's `elem` for an empty output — the
+ *   store then runs through `arrayClassOf(outElem)` with that fallback.
  */
 
 import type { Map, SType, SValue } from '../mir/types'
@@ -78,7 +88,7 @@ const COLL_MAP_PER_ITER = 5
  * @throws EvalError `'coll-input-not-coll'` if input does not eval to a Coll.
  * @throws EvalError `'lambda-not-callable'` if mapper does not eval to a callable Lambda.
  * @throws EvalError `'coll-elem-tpe-mismatch'` if input's elem type doesn't match mapper's declared arg type.
- * @throws EvalError `'lambda-result-type-mismatch'` if a body result doesn't match mapper's declared return type.
+ * @throws EvalError `'coll-class-cast'` / `'coll-array-store'` if a mapped item's class fails the result array's store (through `mapped`).
  * @throws EvalError `'cost-limit-exceeded'` if any cost charge exceeds the limit.
  */
 export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
@@ -92,45 +102,42 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // 3. Guard: mapper must be a callable Lambda with at least one arg.
   const closure = extractFuncValue(mapperVal)
 
-  // 3b. Elem-type check: input.elem must match mapper's declared arg type.
-  // Sigma-rust coll_map.rs:46-64: `self.mapper_sfunc.t_dom.first()` gives the declared
-  // input type from the Map MIR struct. TS MIR has no mapper_sfunc field; we derive it
-  // from e.mapper when it is a FuncValue MIR node (i.e., e.mapper.args[0].tpe).
-  // When mapper is not a FuncValue node (ValUse etc.), skip — the extractFuncValue guard
-  // above already enforces callable-at-runtime.
+  // 3b. Elem-type check: input.elem must match the mapper's declared arg type
+  // (a shape mirror of the JVM's `FuncValue.eval` `Value.checkType(arg0._2,
+  // vArg)` = `isValueOfType`, `SType.scala:187-213`, which rejects a wrong
+  // kind at each application). The TS MIR has no `mapper_sfunc` field; we
+  // derive the expected input type from the mapper Expr when it is a
+  // FuncValue node (e.mapper.args[0].tpe). When the mapper is not a FuncValue
+  // node (ValUse, If, etc.), skip — `extractFuncValue` above already enforces
+  // callable-at-runtime, and the per-item application charges arg-bind via
+  // addCost(5).
   //
-  // SAny tolerance: when the RUNTIME input collection's elem is SAny we skip the
-  // check rather than reject. SAny is our phase-2a placeholder for an element
-  // type we couldn't resolve statically (it flows from un-resolved MethodCall
-  // return types — see `exprTpe` — through ValDef/ValUse/Map-output). sigma-rust
-  // never has SAny here: it tracks concrete types, so its check (on the runtime
-  // coll's concrete elem_tpe) passes; rejecting on our lossy SAny is a false
-  // positive. Mirrors the existing SAny-tolerance in ByIndex/OptionGet/SelectField
-  // and the Map per-item result-type check below.
-  //
-  // Iter-19 (mainnet h=972,235 tx 5 input 0): an EMPTY collection produced by an
-  // earlier Map (whose mapper result was SAny) is sliced and fed here against a
-  // concrete `Coll[SByte]` mapper arg. With no items the type can't be recovered
-  // at runtime, so the check must tolerate SAny. A genuine mismatch always has
-  // concrete types on both sides and is still caught.
-  let outElemTpe: SType | null = null
+  // SAny tolerance: when the RUNTIME input collection's elem is SAny we skip
+  // the check rather than reject. SAny is our placeholder for an element type
+  // we couldn't resolve statically (it flows from unresolved MethodCall return
+  // types — see `exprTpe` — through ValDef/ValUse/Map-output). The JVM never
+  // has SAny here; its check (on the concrete runtime type) passes, so
+  // rejecting on our lossy SAny is a false positive. Mirrors the
+  // SAny-tolerance in ByIndex/OptionGet/SelectField.
   if (e.mapper.tag === 'FuncValue' && e.mapper.args.length > 0) {
     const mapperInputTpe = e.mapper.args[0]!.tpe
-    // SAny-tolerant (wildcard at any depth) — see stype-helpers
-    // sTypeEqualsModuloSAny. Generalizes the original top-level-only SAny skip
-    // to nested SAny (iter-22).
     if (!sTypeEqualsModuloSAny(inputColl.elem, mapperInputTpe)) {
       throw new EvalError(
         `Map: input elem type ${JSON.stringify(inputColl.elem)} does not match mapper declared arg type ${JSON.stringify(mapperInputTpe)}`,
         'coll-elem-tpe-mismatch'
       )
     }
-    // Derive outElemTpe from exprTpe(e.mapper, v) — mirrors mapper_sfunc.t_range.
-    // exprTpe(FuncValue, v) returns SFunc { args, result, tpeParams }; result = body type.
-    const mapperTpe = exprTpe(e.mapper, ctx.treeVersion ?? 0)
-    if (mapperTpe.tag === 'SFunc') {
-      outElemTpe = mapperTpe.result
-    }
+  }
+  // Derive outElemTpe from `exprTpe(e.mapper, v)` on every mapper whose
+  // static type is an SFunc (not just a FuncValue MIR node). JVM
+  // `MapCollection.eval` reads `mapper.tpe.tRange` with no gate on the MIR
+  // shape (`transformers.scala:43`): for an If of two lambdas the type is
+  // the true branch's lambda type (`If.tpe = trueBranch.tpe`), so the range
+  // is known at every well-typed shape.
+  let outElemTpe: SType | null = null
+  const mapperTpe = exprTpe(e.mapper, ctx.treeVersion ?? 0)
+  if (mapperTpe.tag === 'SFunc') {
+    outElemTpe = mapperTpe.result
   }
 
   // 4. Outer cost: add_per_item_jit_cost(20, 1, 10, n) — BEFORE the loop.
@@ -144,95 +151,63 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
 
   const argId = closure.argIds[0]!
 
-  // 5. Loop: per-iter cost + env-extend + body eval + result-type check.
-  // Sigma-rust coll_map.rs:73-82: iter().map(|item| mapper_call(item)).collect()
-  // where mapper_call: add_jit_cost(5), env.insert(argId, item), body.eval, env restore.
-  // TS uses immutable Env.extend — no save/restore needed.
-  // Result-type check mirrors CollKind::from_collection(self.out_elem_tpe(), values) which
-  // validates each item's type implicitly. TS makes it explicit per-item.
+  // 5. Loop: per-iter cost + env-extend + body eval + body-tpe read.
+  // Mirrors JVM `FuncValue.eval` `values.scala:1069-1086`: for each item
+  // bind the arg (charging 5 for `AddToEnvironmentDesc`), evaluate the body,
+  // then `Value.checkType(body, res)` = `isValueOfType` — a SHAPE check that
+  // any `Coll[_]` fits an `SCollectionType`, any `Tuple2[_,_]` fits a pair
+  // `STuple`, etc. (`SType.scala:198-205`). The per-element RANGE check
+  // that the JVM makes is shape-only; the strict elem-type-level test an
+  // earlier revision made here rejected trees the JVM accepts (row #20's
+  // `Coll[Long]` into a `Coll[Coll[Int]]` lambda range, row #37's empty
+  // `Coll[GroupElement]` into `Coll[Coll[Box]]`, and so on). The ACTUAL
+  // JVM rejection for a misfit is the per-item array store in
+  // `MapCollection.eval` (`transformers.scala:45`): that moved to the
+  // module's `mapped` call below.
   const outItems: SValue[] = []
   for (const item of inputColl.items) {
-    // Per-iter cost (sigma-rust coll_map.rs:31).
+    // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
     ctx.addCost(COLL_MAP_PER_ITER)
-    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
-    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_map.rs:32:
-    // env.insert(func_arg.idx, arg)). For inline mapper lambdas (the only kind
-    // on mainnet) capturedEnv == the caller env, so this is a no-op; it differs
-    // only for lambdas returned/captured out of their definition scope.
+    // Extend the lambda's CAPTURED (definition-site) env with the arg
+    // binding — lexical scoping, JVM-faithful for v6. For inline mapper
+    // lambdas capturedEnv == the caller env, so this is a no-op.
     // v6 P6: reject a type-var arg type at the per-element apply (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    // "Unknown type T"). Per-element ⇒ an empty input never binds.
     assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
-    // Eval body (sigma-rust coll_map.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
+    // The JVM's closure reads the body's type after each application
+    // (values.scala:1080; spec §5 item 5).
     readCheckedType(closure.body, ctx)
-    // Result-type check: if outElemTpe is known AND not SAny, verify itemRes matches.
-    // SAny is the "any type" placeholder used when the mapper's static return
-    // type isn't constrainable (e.g. polymorphic lambdas, mappers whose result
-    // type can't be inferred without a substitution). Sigma-rust treats SAny
-    // as accepting any concrete runtime type, so we mirror that by skipping
-    // the per-item check in that case (matches the doc-comment policy at the
-    // top of this file: "When outElemTpe is not derivable (mapper is not
-    // FuncValue or has SAny type), the per-item type check is skipped").
-    // Iter-16 closure: mainnet h=727,604 tx 11 input 0 has a Map whose mapper
-    // statically returns SAny but runtime yields SLong; pre-fix this halted
-    // with 'lambda-result-type-mismatch'.
-    // Result-type check, SAny-tolerant at any depth. Skips comparison against
-    // any SAny position (top-level OR nested, e.g. declared STuple[Coll[SByte],
-    // SAny] vs runtime STuple[Coll[SByte], SLong] — iter-22, h=1,012,685).
-    // A genuine mismatch (concrete vs concrete, no SAny) is still caught.
-    if (outElemTpe !== null) {
-      const itemTpe = sValueType(itemRes)
-      if (!sTypeEqualsModuloSAny(itemTpe, outElemTpe)) {
-        throw new EvalError(
-          `Map: lambda body returned type ${JSON.stringify(itemTpe)} but mapper declared return type ${JSON.stringify(outElemTpe)}`,
-          'lambda-result-type-mismatch'
-        )
-      }
-    }
     outItems.push(itemRes)
   }
 
-  // 6. Determine output elem type for the result Coll.
+  // 6. Determine the output's elem type for the result Coll, and the store
+  // runs at it in `mapped` (which the module turns into the correct class
+  // via `arrayClassOf(outElem)`).
   //
-  // Prefer the statically-derived outElemTpe (= mapper_sfunc.t_range). But when
-  // it is SAny we must NOT use it verbatim: SAny is the placeholder our
-  // phase-2a `exprTpe` emits for values whose static type isn't resolvable
-  // (notably MethodCall/PropertyCall return types — there is no SMethod
-  // return-type resolver yet). The RUNTIME items, however, are concretely
-  // typed, so for a non-empty output we recover the true elem type from the
-  // first item — exactly the type sigma-rust derives statically.
-  //
-  // Iter-19 (mainnet h=972,235 tx 5 input 0): a Map's mapper body was
-  // `Slice(getMany(...))`, statically SAny (getMany's return type isn't
-  // resolved) but runtime-concrete `Coll[Byte]`. Pre-fix, this Map emitted a
-  // `Coll[SAny]`; the result was sliced and fed to a second Map declaring a
-  // `Coll[SByte]` arg, whose runtime elem-type check then rejected
-  // SAny ≠ Coll[SByte]. Mirrors the iter-16 SAny-tolerance already applied to
-  // the per-item result-type check above.
-  //
-  // Empty-output behavior is unchanged: with no item to infer from we keep the
-  // static outElemTpe (incl. SAny, matching sigma-rust's empty Coll[SAny])
-  // when present, else fall back to the input elem type.
-  // Use the static outElemTpe only when it is FULLY concrete (no SAny at any
-  // depth). When it carries SAny — top-level or nested (iter-22) — recover the
-  // concrete elem from the first runtime item; for an empty output fall back to
-  // the static type (incl. its SAny) or the input elem.
+  // Prefer the static outElemTpe (= `exprTpe(mapper).result` = JVM
+  // `mapper.tpe.tRange`, `values.scala:1050-1064`). If that is wholly
+  // concrete (no SAny at any depth), use it. Otherwise recover the concrete
+  // elem from the first runtime item; for an empty output fall back to the
+  // static type (incl. its SAny) or the receiver's elem.
+  const staticConcrete = outElemTpe !== null && !hasSAny(outElemTpe)
   const outElem: SType =
-    outElemTpe !== null && !hasSAny(outElemTpe)
-      ? outElemTpe
+    staticConcrete
+      ? outElemTpe!
       : outItems.length > 0
         ? sValueType(outItems[0]!)
         : (outElemTpe ?? inputColl.elem)
 
-  // `MapCollection.eval` (transformers.scala:40-46) calls `inputV.map(mapperV)`
-  // at the mapper's declared range type (`Evaluation.stypeToRType(mapper.tpe.tRange)`).
-  // On an array-shape receiver (`CollOverArray.map[B]`, CollsOverArrays.scala:28-31):
-  // `builder.fromArray(toArray.map(f))` at abstract B gives the plain subclass,
-  // with pair routing for a pair range. On a pairs receiver (`PairOfCols.map`,
-  // :317-324): `new CollOverArray(res, builder)` — always plain, drops the pair
-  // shape even for a pair range.
+  // `MapCollection.eval` (transformers.scala:40-46) calls
+  // `inputV.map(mapperV)(tResItem)` at the mapper's declared range type —
+  // the collection module's `mapped` does the per-item store at
+  // `arrayClassOf(tRange)` by the JVM's rules:
+  //   array-shape receiver → `CollOverArray.map` through
+  //   `ArrayBuilder.ofXXX.+=` (CollsOverArrays.scala:28-31); plain result,
+  //   pair routing on a pair range.
+  //   pairs-shape receiver → `PairOfCols.map` writes `new Array[V](n);
+  //   res(i) = f(..)` directly, a plain `CollOverArray` (`:317-324`).
   if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
   return mapped(inputVal, outElem, outItems)
 }
