@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **85 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **87 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -299,7 +299,7 @@ type SValue =
   | { kind: 'Box';          value: ErgoBox }
   | { kind: 'AvlTree';      value: AvlTreeData }
   | { kind: 'Unit' }
-  | { kind: 'Coll';         elem: SType; items: SValue[] }
+  | { kind: 'Coll';         elem: SType; items: SValue[]; cls?: CollClass }
   | { kind: 'Tuple';        items: SValue[] }
   | { kind: 'Option';       elem: SType; value: SValue | null }
   | { kind: 'Lambda';       closure: Closure }
@@ -459,7 +459,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 85 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
+- **Postcondition (failure):** Throws `EvalError` with one of the 87 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
 - **Behaviour changes (2026-09-30; `docs/specs/2026-09-30-jvm-node-construction-design.md`):**
   - **No pre-eval pass.** `evaluate` no longer runs `validateBinOpTypes`, `validateMethodCallArity` or `validateV6Types` over the tree before evaluating it. The JVM makes those checks only at parse, and so does `parseTree` now (see "`ExprParseError` codes"): a relation's operand types (`'relation-operand-not-numeric'`, `'relation-operand-type-mismatch'`, which were `EvalError`s `'bin-op-not-numeric'` and `'bin-op-kind-mismatch'` from the pass), a v3 `MethodCall` without arguments (`'method-call-empty-args'`, retired as an `EvalError` code) and a v6 type below v3 (see `parseSType`). So a relation rebuilt around a substituted script is not checked by `check2` again, as in the JVM. `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired: a parsed tree below v3 cannot carry one (a size-flagged tree degrades, and its spend fails `'unparsed-ergotree'`; an unsized one rejects). Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written, as it evaluates a relation or a method call it builds.
   - **Nodes the JVM does not evaluate.** Every raw `BitOp` (`BitOr`, `BitAnd`, `BitXor` and the three shifts) and `BitInversion` rejects when evaluated, with `'unsupported-eval-node'`, charging nothing and evaluating no operand, as `TreeLookup` and `CreateAvlTree` already did. Before, `BitOr`, `BitAnd`, `BitXor` and `BitInversion` evaluated and the shifts threw `'not-implemented-yet'`. A tree that holds one only in a branch never evaluated still evaluates. The v6 methods (`bitwiseOr`, `shiftLeft` and the rest) are unchanged. `ModQ` (`0xe7`), `ModQArith` (`0xe8` `PlusModQ`, `0xe9` `MinusModQ`) and `TaggedVariable` (`0x71`) reject the same way: `'unsupported-eval-node'`, nothing charged, no operand evaluated.
@@ -558,13 +558,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 85 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 87 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 85 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 87 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
