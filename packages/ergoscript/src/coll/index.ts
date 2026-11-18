@@ -32,6 +32,7 @@ export {
   getOrElse,
   indices,
   mapped,
+  patch,
   reversed,
   slice,
   startsWith,

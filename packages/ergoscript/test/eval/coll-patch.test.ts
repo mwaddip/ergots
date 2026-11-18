@@ -56,14 +56,13 @@ function patchCall(obj: SValue, from: number, patch: SValue, replaced: number): 
 }
 
 describe('SColl.patch handler (iter-28)', () => {
-  it('clamps negative `from` to 0 independently of `replaced` (sigma-rust, NOT Scala patch)', () => {
+  it('clamps negative `from` to 0 independently of `replaced` (Scala Array.patch semantics)', () => {
     // [1,2,3].patch(-1, [4,5], 1): from→max(0,-1)=0, replaced=1.
     // take(0) ++ [4,5] ++ skip(0+1) = [] ++ [4,5] ++ [2,3] = [4,5,2,3].
-    // A naive Scala patch would skip(-1+1)=skip(0) → [4,5,1,2,3]; this pins the divergence.
     const ctx = makeContext({})
     const result = evalMethodCall(patchCall(longColl(1, 2, 3), -1, longColl(4, 5), 1), Env.empty(), ctx)
-    expect(result).toEqual(longColl(4, 5, 2, 3))
-    // dispatcher 4 + 4×Const 20 + handler (30 + ceil(3/10)*2=2) → 56
+    expect(withoutClass(result)).toEqual(longColl(4, 5, 2, 3))
+    // dispatcher 4 + 4×Const 20 + handler (30 + chunks(xs=3 + patch=2 = 5)*2 = 32) → 56
     expect(ctx.jitCost).toBe(56)
   })
 
@@ -71,16 +70,16 @@ describe('SColl.patch handler (iter-28)', () => {
     // [1,2,3].patch(1, [9], -5): replaced→0. take(1) ++ [9] ++ skip(1+0) = [1] ++ [9] ++ [2,3].
     const ctx = makeContext({})
     const result = evalMethodCall(patchCall(longColl(1, 2, 3), 1, longColl(9), -5), Env.empty(), ctx)
-    expect(result).toEqual(longColl(1, 9, 2, 3))
+    expect(withoutClass(result)).toEqual(longColl(1, 9, 2, 3))
     expect(ctx.jitCost).toBe(56)
   })
 
-  it('charges handler base 30 at n=0 (empty input)', () => {
-    // [].patch(0, [7,8], 0) → [7,8]; handler 30 + ceil(0/10)*2=0.
+  it('charges handler base 30 at nItems = 0 + patchLen (empty input)', () => {
+    // [].patch(0, [7,8], 0) → [7,8]; nItems = 0 + 2 = 2, chunks = 1, handler 30+2 = 32.
     const ctx = makeContext({})
     const result = evalMethodCall(patchCall(longColl(), 0, longColl(7, 8), 0), Env.empty(), ctx)
-    expect(result).toEqual(longColl(7, 8))
-    // dispatcher 4 + 4×Const 20 + handler 32 (base 30 + n=0 ⇒ 1 chunk ×2) → 56
+    expect(withoutClass(result)).toEqual(longColl(7, 8))
+    // dispatcher 4 + 4×Const 20 + handler 32 → 56
     expect(ctx.jitCost).toBe(56)
   })
 
@@ -88,7 +87,7 @@ describe('SColl.patch handler (iter-28)', () => {
     // [1,2,3].patch(9, [4,5], 9): take(9)=all ++ [4,5] ++ skip(18)=[] → [1,2,3,4,5].
     const ctx = makeContext({})
     const result = evalMethodCall(patchCall(longColl(1, 2, 3), 9, longColl(4, 5), 9), Env.empty(), ctx)
-    expect(result).toEqual(longColl(1, 2, 3, 4, 5))
+    expect(withoutClass(result)).toEqual(longColl(1, 2, 3, 4, 5))
     expect((result as { elem: SType }).elem).toEqual(SLONG)
   })
 

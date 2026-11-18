@@ -29,7 +29,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { classOf, CollClassCast, runtimeClassOf, type ArrayClass, type CollClass, type CollValue } from './class'
+import { arrayClassOf, classOf, CollArrayStore, CollClassCast, runtimeClassOf, type ArrayClass, type CollClass, type CollValue } from './class'
 import { collOverArray, fromArray, withClass } from './build'
 
 /**
@@ -300,6 +300,92 @@ export function endsWith(
   return matchPrefix(c, ys, itemEq, 'end')
 }
 
+/**
+ * `CollOverArray.patch(from, patch, replaced)` (`CollsOverArrays.scala:94-98`):
+ *     val res = toArray.patch(from, patch.toArray, replaced).toArray
+ *     builder.fromArray(res)
+ * The class is `@specialized`. On a SPECIALISED receiver `patch.toArray` is cast
+ * to the receiver's primitive array AT THE CALL, before any store, so a patch
+ * whose array is of another class throws, empty included and whether anything
+ * is replaced or not. The patch's object class is irrelevant — a plain
+ * collection over the same primitive array passes; a `'pairs'` patch's
+ * `toArray` is `Array[Tuple2]` (`:299`), a reference array, so it throws.
+ *
+ * On a PLAIN receiver `toArray.patch` allocates the result in the receiver's
+ * class tag and stores each PATCH item into it. A primitive array fails the
+ * store on an item of another class (`BoxesRunTime.unboxTo<T>`, mirrored by
+ * `CollClassCast`); a reference array of `'Object'` takes anything; `'Coll'`
+ * takes any collection, whatever its item type; another reference class takes
+ * only its own (`ArrayStoreException`, mirrored by `CollArrayStore`). An EMPTY
+ * patch stores nothing, so an empty patch of another class is answered on a
+ * plain receiver — the row that separates the plain rule from the specialised
+ * one.
+ *
+ * `PairOfCols.patch` (`CollsOverArrays.scala:423-428`):
+ *     val (lsPatch, rsPatch) = builder.unzip(patch)
+ *     builder.pairColl(ls.patch(from, lsPatch, replaced), rs.patch(from, rsPatch, replaced))
+ * `unzip` (`:245-259`) takes the two sides of a `'pairs'` patch as they are and,
+ * for any other patch, reads `xs.tItem.tFst`/`tSnd` and builds two plain-side
+ * collections from the patch's items (`fromArray[A]`/`fromArray[B]` at erased A,
+ * B — the sides come out plain). A patch whose `tItem` is no pair type fails
+ * the `tFst` read (mirrored by `CollClassCast`). Each side then runs through
+ * `CollOverArray.patch` with the receiver's side's class, so a specialised side
+ * casts the patch's side's array.
+ *
+ * The result's items are `receiver[0, from) ++ patch ++ receiver[from+replaced, )`,
+ * with `from` and `replaced` each clamped to `>= 0` (Scala's `Array.patch`:
+ * `[1,2,3].patch(-1, [9], 1) = [9, 2, 3]`). The class is
+ * `builder.fromArray(res)` from inside the receiver's class — specialised stays
+ * specialised, plain stays plain, and a plain collection over `Tuple2[]` comes
+ * back as `'pairs'` with plain sides through `fromBoxedPairs` (`:205-215`).
+ *
+ * @throws CollClassCast when a specialised receiver's array differs from the
+ *   patch's, when a plain primitive receiver meets a patch item of another
+ *   class, when a non-pair patch meets a pairs receiver, and when a side
+ *   delegation hits one of these.
+ * @throws CollArrayStore when a plain reference receiver meets a patch item
+ *   whose class the array does not take.
+ */
+export function patch(
+  c: CollValue,
+  from: number,
+  p: CollValue,
+  replaced: number,
+): CollValue {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    const sides = splitSides(c, cls)
+    const patchSides = unzipForPatch(p)
+    return pairColl(
+      patch(sides.ls, from, patchSides.ls, replaced),
+      patch(sides.rs, from, patchSides.rs, replaced),
+    )
+  }
+  if (cls.specialised) {
+    const pArray = argArrayClass(p)
+    if (pArray !== cls.array) {
+      throw new CollClassCast(
+        `Coll[${cls.array}].patch: Array of ${pArray} is not of the receiver's class`,
+      )
+    }
+  } else {
+    for (const item of p.items) {
+      checkStore(cls.array, item)
+    }
+  }
+  const fromC = Math.max(0, from)
+  const replacedC = Math.max(0, replaced)
+  const items = [
+    ...c.items.slice(0, fromC),
+    ...p.items,
+    ...c.items.slice(fromC + replacedC),
+  ]
+  // `builder.fromArray(res)` from inside the receiver's class: specialised
+  // stays specialised, and a pair elem routes through `fromBoxedPairs` to
+  // `'pairs'` with plain sides.
+  return fromArray(c.elem, items, cls.specialised)
+}
+
 // ----- internals -----------------------------------------------------------
 
 /** Build a pair-shape result from two side collections, using `pairColl`'s
@@ -421,6 +507,82 @@ function argArrayClass(ys: CollValue): ArrayClass {
 /** The five primitive array kinds Scala specialises arrays on. */
 function isPrimitiveArrayClass(c: ArrayClass): boolean {
   return c === 'boolean' || c === 'byte' || c === 'short' || c === 'int' || c === 'long'
+}
+
+/**
+ * The class of a value for an array store, the rule `toArray.patch` runs on
+ * each PATCH item against the new array's class (`CollsOverArrays.scala:94`
+ * with `Array.ofDim[A]` at the receiver's class tag). Named after the JVM's
+ * store check so `updated`, `updateMany` and `append` share the body.
+ *
+ * - `'Object'` is `Array[AnyRef]`: anything stores.
+ * - `'Unit'` is Scala's `ArrayBuilder.ofUnit`, whose `++=` COUNTS what it is
+ *   given and fills the result with units — the item is never looked at, and
+ *   a Unit array takes anything (SANTA `Coll.reference_store_ops` 3.R1, 3.R3
+ *   and 3.Q1; `scala-library-2.12.20 ArrayBuilder.ofUnit`).
+ * - `'Coll'` takes any collection (`Array[Coll[_]]`, item type erased by the
+ *   array's class tag). An item whose runtime class is not `'Coll'` is refused
+ *   (`ArrayStoreException` → `CollArrayStore`).
+ * - A primitive array tries to UNBOX each item; an item of another class
+ *   fails the unbox (`BoxesRunTime.unboxTo<T>` → `ClassCastException` →
+ *   `CollClassCast`).
+ * - A reference array of one named class refuses an item whose runtime class
+ *   is not that one (`ArrayStoreException` → `CollArrayStore`).
+ */
+function checkStore(array: ArrayClass, item: SValue): void {
+  const itemClass = runtimeClassOf(item)
+  if (array === 'Object' || array === 'Unit') return
+  if (array === 'Coll') {
+    if (itemClass !== 'Coll') {
+      throw new CollArrayStore(
+        `Array[Coll].store: item of class ${itemClass} is not a Coll`,
+      )
+    }
+    return
+  }
+  if (isPrimitiveArrayClass(array)) {
+    if (itemClass !== array) {
+      throw new CollClassCast(
+        `Array[${array}].store: item of class ${itemClass} fails unbox to ${array}`,
+      )
+    }
+    return
+  }
+  if (itemClass !== array) {
+    throw new CollArrayStore(
+      `Array[${array}].store: item of class ${itemClass} is not ${array}`,
+    )
+  }
+}
+
+/**
+ * `builder.unzip(patch)` (`CollsOverArrays.scala:245-259`), specialised for
+ * `patch`'s side split. A `'pairs'` patch returns its two sides as they are
+ * (the `case pa: PairColl` arm). Any other patch runs through the `case _`
+ * arm, which reads `xs.tItem.tFst`/`tSnd` and builds two plain-side
+ * collections from the patch's items — a patch whose `tItem` is no pair type
+ * fails the read (mirrored by `CollClassCast`).
+ */
+function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
+  const pcls = classOf(p)
+  if (pcls.shape === 'pairs') {
+    return splitSides(p, pcls)
+  }
+  if (p.elem.tag !== 'STuple' || p.elem.items.length !== 2) {
+    throw new CollClassCast(
+      `unzip: Coll[${p.elem.tag}] is not a Coll of pairs; tItem.tFst throws`,
+    )
+  }
+  const [lsElem, rsElem] = p.elem.items as [SType, SType]
+  const [lsItems, rsItems] = splitPairItems(p.items)
+  return {
+    ls: withClass(lsElem, lsItems, {
+      shape: 'array', specialised: false, array: arrayClassOf(lsElem),
+    }),
+    rs: withClass(rsElem, rsItems, {
+      shape: 'array', specialised: false, array: arrayClassOf(rsElem),
+    }),
+  }
 }
 
 /** Split an array of pair values into two arrays of components. */

@@ -37,6 +37,7 @@ import {
   getOrElse as _getOrElse,
   indices as _indices,
   mapped as _mapped,
+  patch as _patch,
   reversed as _reversed,
   slice as _slice,
   startsWith as _startsWith,
@@ -139,6 +140,16 @@ export function zip(c: CollValue, ys: CollValue): CollValue {
 /** `Coll.getOrElse` (`CollsOverArrays.scala:26`, `:309-315`). */
 export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
   return guard(() => _getOrElse(c, i, d))
+}
+
+/** `Coll.patch` (`CollsOverArrays.scala:94-98`, `:423-428`). */
+export function patch(
+  c: CollValue,
+  from: number,
+  p: CollValue,
+  replaced: number,
+): CollValue {
+  return guard(() => _patch(c, from, p, replaced))
 }
 
 /** `Coll.startsWith` (`CollsOverArrays.scala:44`, `:398-401`). */

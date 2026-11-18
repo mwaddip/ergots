@@ -76,6 +76,7 @@ import {
   collOverArray,
   fromArray,
   indices as collIndices,
+  patch as collPatch,
   zip as collZip,
 } from './_coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
@@ -892,17 +893,17 @@ function registerHandlers(): void {
     },
   })
 
-  // SColl.patch (MethodCall, typeId=12, methodId=19) — campaign iter-28
-  // Source: ergotree-interpreter/src/eval/scoll.rs:195-236 — PATCH_EVAL_FN
-  // Pattern A cost: addPerItemCost(30, 2, 10, n) on INPUT length n, charged
-  // BEFORE pulling args (after the obj-is-Coll check), matching sigma-rust.
-  // `from` and `replaced` are each INDEPENDENTLY clamped to >=0 via Math.max(0),
-  // then: result = input.slice(0, from) ++ patch ++ input.slice(from + replaced).
-  // JS slice saturates out-of-bounds exactly like Rust take/skip. Result elem
-  // type = input's elem type. This is NOT generic Scala IndexedSeq.patch:
-  // sigma-rust clamps `from` to 0 BEFORE the skip(from+replaced) (upstream fix
-  // fc88669e), so e.g. [1,2,3].patch(-1,[4,5],1) → [4,5,2,3], not [4,5,1,2,3].
-  // V0+ (no version gate — scoll.rs PATCH_METHOD min_version: V0).
+  // SColl.patch (MethodCall, typeId=12, methodId=19). V0+.
+  // JVM: data/shared/src/main/scala/sigma/ast/methods.scala:1024-1030 (patch_eval);
+  // the body is `CollOverArray.patch` (CollsOverArrays.scala:94-98) and
+  // `PairOfCols.patch` (:423-428). Pattern A cost: addPerItemCost(30, 2, 10,
+  // n) on the receiver's length. `from` and `replaced` each clamp to >= 0 as
+  // Scala's `Array.patch` does: `[1,2,3].patch(-1, [9], 1) = [9, 2, 3]`. The
+  // module (coll/ops.ts `patch`) builds the result — a specialised receiver
+  // casts the patch's array, a plain receiver stores each patch item, a pair
+  // receiver unzips the patch and patches each side — and the receiver's
+  // class decides the result's class (`builder.fromArray(res)` from inside
+  // the receiver).
   HANDLERS.set(handlerKey(12, 19), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -911,7 +912,7 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(30, 2, 10, n) // Pattern A; source: scoll.rs:204
+    ctx.addPerItemCost(30, 2, 10, n) // Pattern A
     if (args.length !== 3) {
       throw new EvalError(
         `SColl.patch expects 3 args; got ${args.length}`,
@@ -937,18 +938,7 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // Independent clamp-to-0 (NOT clamped on the sum) — see doc-comment above.
-    const from = Math.max(0, fromArg.value)
-    const replaced = Math.max(0, replacedArg.value)
-    return {
-      kind: 'Coll',
-      elem: obj.elem,
-      items: [
-        ...obj.items.slice(0, from),
-        ...patchArg.items,
-        ...obj.items.slice(from + replaced),
-      ],
-    }
+    return collPatch(obj, fromArg.value, patchArg, replacedArg.value)
   } })
 
   // SColl.updated (MethodCall, typeId=12, methodId=20) — v5 method
