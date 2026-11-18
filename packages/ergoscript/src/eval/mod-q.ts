@@ -1,7 +1,7 @@
 /**
  * ModQ, PlusModQ and MinusModQ arms — unconditional eval-reject.
  *
- * The JVM 6.0.6 has NO eval for `ModQ` or `ModQArithOp`. Neither class
+ * The JVM 6.0.7 has NO eval for `ModQ` or `ModQArithOp`. Neither class
  * (ast/trees.scala:954-970) overrides `eval`, and each companion carries a
  * `FixedCost(JitCost(1))` alone; no site invokes `Value.eval`'s override, so
  * the default fires and throws (ast/values.scala:101-102). EVERY evaluation

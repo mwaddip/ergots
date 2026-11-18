@@ -1,10 +1,10 @@
 /**
  * TaggedVariable arm — unconditional eval-reject.
  *
- * The JVM 6.0.6 has NO eval for `TaggedVariableNode` (ast/values.scala:455-460).
+ * The JVM 6.0.7 has NO eval for `TaggedVariableNode` (ast/values.scala:455-460).
  * The class inherits `Value.eval`'s default, which throws
  * (ast/values.scala:101-102). The companion `TaggedVariable.apply` is
- * `@deprecated` (ast/values.scala:467-473, "scheduled for retirement in v7.0"),
+ * `@deprecated` (ast/values.scala:474, "scheduled for retirement in v7.0"),
  * but the companion itself stays reachable so `TaggedVariableSerializer` can
  * look up its `opCode`: the node PARSES (the JVM keeps it in the serializer
  * dispatch table, `ValueSerializer.scala:97`).
