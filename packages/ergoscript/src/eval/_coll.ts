@@ -26,6 +26,7 @@
 
 import type { SType, SValue } from '../mir/types'
 import {
+  append as _append,
   byteColl as _byteColl,
   classOf as _classOf,
   collOverArray as _collOverArray,
@@ -41,6 +42,8 @@ import {
   reversed as _reversed,
   slice as _slice,
   startsWith as _startsWith,
+  updateMany as _updateMany,
+  updated as _updated,
   zip as _zip,
   CollArrayStore,
   CollClassCast,
@@ -168,6 +171,25 @@ export function endsWith(
   itemEq: (a: SValue, b: SValue) => boolean,
 ): boolean {
   return guard(() => _endsWith(c, ys, itemEq))
+}
+
+/** `Coll.updated` (`CollsOverArrays.scala:100-104`, `:430-434`). */
+export function updated(c: CollValue, index: number, item: SValue): CollValue {
+  return guard(() => _updated(c, index, item))
+}
+
+/** `Coll.updateMany` (`CollsOverArrays.scala:106-117`, `:436-450`). */
+export function updateMany(
+  c: CollValue,
+  indexes: number[],
+  values: CollValue,
+): CollValue {
+  return guard(() => _updateMany(c, indexes, values))
+}
+
+/** `Coll.append` (`CollsOverArrays.scala:48-57`, `:379-382`). */
+export function append(c: CollValue, other: CollValue): CollValue {
+  return guard(() => _append(c, other))
 }
 
 /**

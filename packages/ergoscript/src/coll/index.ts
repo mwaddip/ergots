@@ -26,6 +26,7 @@ export {
 } from './class'
 export { byteColl, collOverArray, fromArray, fromData } from './build'
 export {
+  append,
   endsWith,
   filtered,
   flatMapped,
@@ -36,5 +37,7 @@ export {
   reversed,
   slice,
   startsWith,
+  updateMany,
+  updated,
   zip,
 } from './ops'

@@ -42,6 +42,10 @@ export const RED_REASONS: Record<string, { item: number; why: string }> = {
     item: 22,
     why: 'The value is right and only the cost differs.',
   },
+  'zero-width-collection': {
+    item: 31,
+    why: 'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
+  },
 }
 
 /** The red-table JSON shape: file path → reason id → list of entry names. */

@@ -361,6 +361,7 @@ export function patch(
       patch(sides.rs, from, patchSides.rs, replaced),
     )
   }
+  let stored: SValue[]
   if (cls.specialised) {
     const pArray = argArrayClass(p)
     if (pArray !== cls.array) {
@@ -368,21 +369,242 @@ export function patch(
         `Coll[${cls.array}].patch: Array of ${pArray} is not of the receiver's class`,
       )
     }
+    stored = p.items
   } else {
-    for (const item of p.items) {
-      checkStore(cls.array, item)
-    }
+    // `Array.patch` on `Array[A]` builds through the A-class's
+    // `ArrayBuilder` (scala-library 2.12.20): a `Unit` array's builder
+    // drops the stored value and keeps a unit, hence `viaOfUnit = true`.
+    stored = p.items.map((item) => storeOne(cls.array, item, true))
   }
   const fromC = Math.max(0, from)
   const replacedC = Math.max(0, replaced)
   const items = [
     ...c.items.slice(0, fromC),
-    ...p.items,
+    ...stored,
     ...c.items.slice(fromC + replacedC),
   ]
   // `builder.fromArray(res)` from inside the receiver's class: specialised
   // stays specialised, and a pair elem routes through `fromBoxedPairs` to
   // `'pairs'` with plain sides.
+  return fromArray(c.elem, items, cls.specialised)
+}
+
+/**
+ * `CollOverArray.updated(index, elem)` (`CollsOverArrays.scala:100-104`):
+ *     val res = toArray.updated(index, elem)
+ *     builder.fromArray(res)
+ * `toArray.updated` is Scala's `ArrayOps.updated`: a new `Array[A]` of the
+ * receiver's class tag, `Array.copy` from the receiver's array, then
+ * `dest(index) = elem`. On the specialised subclass `elem` arrives unboxed —
+ * an item of another class fails the unbox at the call (`CollClassCast`).
+ * On a plain receiver the item is stored into the new array of the
+ * receiver's class tag — a primitive array refuses an item of another class
+ * (unbox → `CollClassCast`); a reference array of `'Object'` takes
+ * anything; `'Unit'` on this direct-store path refuses an item of another
+ * class (SANTA row #44); `'Coll'` takes any collection; another reference
+ * class takes only its own (`ArrayStoreException` → `CollArrayStore`).
+ *
+ * `PairOfCols.updated(index, elem)` (`:430-434`):
+ *     val lu = ls.updated(index, elem._1)
+ *     val ru = rs.updated(index, elem._2)
+ *     builder.pairColl(lu, ru)
+ * The item is read as a pair (`CollClassCast` when it is not); each side's
+ * `updated` runs by that side's class, and `builder.pairColl` keeps each
+ * side's class.
+ *
+ * The caller (an evaluator handler) checks the index is in range and the
+ * cost is charged; this function assumes `0 <= index < c.items.length`.
+ *
+ * @throws CollClassCast when a specialised receiver's primitive class
+ *   refuses the item (unbox), when a pairs receiver reads a non-pair item
+ *   or one of its sides' specialised-primitive rule rejects, and through
+ *   a side delegation when the side's rule rejects.
+ * @throws CollArrayStore when a plain reference receiver refuses the item
+ *   by its array's class (Unit, Coll, or a named reference class).
+ */
+export function updated(c: CollValue, index: number, item: SValue): CollValue {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    if (item.kind !== 'Tuple' || item.items.length !== 2) {
+      throw new CollClassCast(
+        `PairOfCols.updated: item of kind ${item.kind} is no pair`,
+      )
+    }
+    const sides = splitSides(c, cls)
+    const [lhs, rhs] = item.items as [SValue, SValue]
+    return pairColl(
+      updated(sides.ls, index, lhs),
+      updated(sides.rs, index, rhs),
+    )
+  }
+  let toStore: SValue
+  if (cls.specialised) {
+    const itemClass = runtimeClassOf(item)
+    if (itemClass !== cls.array) {
+      throw new CollClassCast(
+        `Coll[${cls.array}].updated: item of class ${itemClass} fails unbox to ${cls.array}`,
+      )
+    }
+    toStore = item
+  } else {
+    toStore = storeOne(cls.array, item, false)
+  }
+  const items = c.items.slice()
+  items[index] = toStore
+  return fromArray(c.elem, items, cls.specialised)
+}
+
+/**
+ * `CollOverArray.updateMany(indexes, values)` (`CollsOverArrays.scala:106-117`):
+ *     requireSameLength(indexes, values)
+ *     val resArr = toArray.clone()
+ *     while (i < indexes.length) {
+ *       val pos = indexes(i)
+ *       if (pos < 0 || pos >= toArray.length) throw IndexOutOfBoundsException
+ *       resArr(pos) = values(i)
+ *     }
+ *     builder.fromArray(resArr)
+ * The clone has the receiver's class tag. Each store checks the value
+ * against the array's class (same rules as `updated`).
+ *
+ * `PairOfCols.updateMany(indexes, values)` (`:436-450`):
+ *     requireSameLength(indexes, values)
+ *     resL = ls.toArray.clone(); resR = rs.toArray.clone()
+ *     while (i < indexes.length) {
+ *       val pos = indexes(i); bounds check
+ *       resL(pos) = values(i)._1
+ *       resR(pos) = values(i)._2
+ *     }
+ *     builder.pairColl(builder.fromArray(resL), builder.fromArray(resR))
+ * `builder.fromArray` runs at erased L and R, so the result's sides come
+ * out PLAIN whatever the receiver's sides were.
+ *
+ * The caller (an evaluator handler) checks index/values length match, each
+ * index's kind and bounds, and charges the cost; this function assumes
+ * `indexes.length === values.items.length` and each index is in range.
+ *
+ * @throws CollClassCast / CollArrayStore under the same rules as `updated`.
+ */
+export function updateMany(c: CollValue, indexes: number[], values: CollValue): CollValue {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    const sides = splitSides(c, cls)
+    const { ls: lsElem, rs: rsElem } = sideElems(c)
+    const newLs = sides.ls.items.slice()
+    const newRs = sides.rs.items.slice()
+    for (let k = 0; k < indexes.length; k++) {
+      const v = values.items[k]!
+      if (v.kind !== 'Tuple' || v.items.length !== 2) {
+        throw new CollClassCast(
+          `PairOfCols.updateMany: value of kind ${v.kind} is no pair`,
+        )
+      }
+      const lhs = storeIntoClass(cls.ls, v.items[0]!)
+      const rhs = storeIntoClass(cls.rs, v.items[1]!)
+      newLs[indexes[k]!] = lhs
+      newRs[indexes[k]!] = rhs
+    }
+    return pairColl(
+      fromArray(lsElem, newLs, false),
+      fromArray(rsElem, newRs, false),
+    )
+  }
+  const items = c.items.slice()
+  for (let k = 0; k < indexes.length; k++) {
+    const v = values.items[k]!
+    if (cls.specialised) {
+      const vClass = runtimeClassOf(v)
+      if (vClass !== cls.array) {
+        throw new CollClassCast(
+          `Coll[${cls.array}].updateMany: value of class ${vClass} fails unbox to ${cls.array}`,
+        )
+      }
+      items[indexes[k]!] = v
+    } else {
+      items[indexes[k]!] = storeOne(cls.array, v, false)
+    }
+  }
+  return fromArray(c.elem, items, cls.specialised)
+}
+
+/**
+ * `CollOverArray.append(other)` (`CollsOverArrays.scala:48-57`):
+ *     if (toArray.length <= 0) return other
+ *     val result = safeConcatArrays_v5(toArray, other.toArray)(tA.classTag)
+ *     builder.fromArray(result)
+ * An EMPTY receiver returns the operand UNREAD, with ITS class and `elem`,
+ * whatever they are (`:49`; the SANTA row `append_empty_box_recv_ge_arg-
+ * accept#2` carries it). Otherwise `safeConcatArrays_v5` (`sigma/util/
+ * package.scala:25-29`) allocates `new Array[A]` at the receiver's class
+ * tag and `System.arraycopy`s each array in (`CollectionUtil.scala:34-45`,
+ * two bare `System.arraycopy`s into one new array):
+ *   - A SPECIALISED receiver's A is a primitive type; the method's
+ *     specialised variant checkcasts the parameter `other: Coll[A]` to the
+ *     receiver's primitive array class — an operand over another array
+ *     fails even when empty (`CollClassCast`; SANTA
+ *     `Append.reference_array_store` and `Coll.append_concat_v6`).
+ *   - A PLAIN receiver over a PRIMITIVE array has `tA.classTag` of that
+ *     primitive. `new Array[A]` is the primitive array and
+ *     `System.arraycopy` from another-typed source fails the component-type
+ *     check upfront, empty included (`CollArrayStore`).
+ *   - A PLAIN receiver over a REFERENCE array: `new Array[A]` is a
+ *     reference array. `System.arraycopy` from a reference source does a
+ *     per-element check when the component types are not assignment-
+ *     compatible — an EMPTY source has no items to check and is accepted
+ *     (SANTA `append_ge_empty_box_arg-accept#0`); a non-empty source with
+ *     items of another class throws `ArrayStoreException` on the first
+ *     item (`CollArrayStore`; SANTA `unit-coll-append-box-errored#46`).
+ *   - A PLAIN receiver over a REFERENCE array + PRIMITIVE source: the
+ *     component types' incompatibility fails `System.arraycopy` upfront,
+ *     empty included (`CollArrayStore`).
+ *
+ * `PairOfCols.append(other)` (`:379-382`):
+ *     val arrs = builder.unzip(other)
+ *     builder.pairColl(ls.append(arrs._1), rs.append(arrs._2))
+ * `unzip` (`:245-259`) reads the operand's `tItem.tFst`/`tSnd` on a non-
+ * pair operand — a `tItem` that is no pair fails (`CollClassCast`); each
+ * side's `append` then runs.
+ *
+ * The caller (an evaluator arm) charges the cost; this function builds the
+ * result.
+ *
+ * @throws CollClassCast / CollArrayStore under the rules above.
+ */
+export function append(c: CollValue, other: CollValue): CollValue {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    const sides = splitSides(c, cls)
+    const otherSides = unzipForPatch(other)
+    return pairColl(
+      append(sides.ls, otherSides.ls),
+      append(sides.rs, otherSides.rs),
+    )
+  }
+  if (c.items.length === 0) return other
+  const otherArray = argArrayClass(other)
+  if (cls.specialised) {
+    if (otherArray !== cls.array) {
+      throw new CollClassCast(
+        `Coll[${cls.array}].append: operand's array ${otherArray} is not of the receiver's class`,
+      )
+    }
+  } else if (isPrimitiveArrayClass(cls.array)) {
+    if (otherArray !== cls.array) {
+      throw new CollArrayStore(
+        `Array[${cls.array}].append: operand's array ${otherArray} fails the component-type check`,
+      )
+    }
+  } else {
+    if (isPrimitiveArrayClass(otherArray)) {
+      throw new CollArrayStore(
+        `Array[${cls.array}].append: operand's primitive array ${otherArray} fails the component-type check`,
+      )
+    }
+    for (const item of other.items) {
+      storeOne(cls.array, item, false)
+    }
+  }
+  const items = [...c.items, ...other.items]
   return fromArray(c.elem, items, cls.specialised)
 }
 
@@ -510,35 +732,91 @@ function isPrimitiveArrayClass(c: ArrayClass): boolean {
 }
 
 /**
- * The class of a value for an array store, the rule `toArray.patch` runs on
- * each PATCH item against the new array's class (`CollsOverArrays.scala:94`
- * with `Array.ofDim[A]` at the receiver's class tag). Named after the JVM's
- * store check so `updated`, `updateMany` and `append` share the body.
+ * The function that says what an array of a class HOLDS after one store:
+ * the item as given, a unit for an array of `'Unit'` on the `ofUnit` builder
+ * path, or a refusal. Named `storeOne` after the JVM's per-store step so
+ * `patch`, `updated`, `updateMany` and `append` share the body.
  *
+ * `viaOfUnit = true` is the path through `scala.collection.mutable.ArrayBuilder.ofUnit`
+ * (scala-library 2.12.20), which `++=` and `+=` COUNT the items and fill the
+ * result with units — the stored value is DROPPED, so the array holds a unit
+ * whatever the item was. Scala's `Array.patch` builds its result through this
+ * builder for a `Unit` element type (SANTA `Coll.reference_store_ops` 3.R1
+ * #40 and 3.R3 #41: `patch` of `Coll[Unit]` by `Coll[Int]` and `Coll[Box]`
+ * each gives a `Coll[Unit]` of the right size, and 3.R7m #56 compares the
+ * patch's result through an identity map against `Coll[Unit]((), ())`).
+ *
+ * `viaOfUnit = false` is a direct array store — `updated`'s `toArray.updated`
+ * (Scala's `ArrayOps.updated` allocates `new Array[B]` and runs `dest(index)
+ * = elem`), `updateMany`'s `resArr(pos) = values(i)`, and `append`'s
+ * `System.arraycopy` per-element check on reference arrays. These check the
+ * store against the array's class (SANTA `Coll.reference_store_ops` 3.R4
+ * #44: `updated(0, 1)` on a `Coll[Unit]` throws; 3.R5 #45: `updateMany` on
+ * a `Coll[Unit]` throws on an `Int` value; 3.R6 #46: `++` of `Coll[Unit]`
+ * and a `Coll[Box]` throws on the first copied item).
+ *
+ * The rules per class, for a direct store:
  * - `'Object'` is `Array[AnyRef]`: anything stores.
- * - `'Unit'` is Scala's `ArrayBuilder.ofUnit`, whose `++=` COUNTS what it is
- *   given and fills the result with units — the item is never looked at, and
- *   a Unit array takes anything (SANTA `Coll.reference_store_ops` 3.R1, 3.R3
- *   and 3.Q1; `scala-library-2.12.20 ArrayBuilder.ofUnit`).
- * - `'Coll'` takes any collection (`Array[Coll[_]]`, item type erased by the
- *   array's class tag). An item whose runtime class is not `'Coll'` is refused
+ * - `'Unit'` is `Array[BoxedUnit]` on this path — only a Unit item stores
  *   (`ArrayStoreException` → `CollArrayStore`).
+ * - `'Coll'` takes any collection (`Array[Coll[_]]`, item type erased by the
+ *   array's class tag). An item whose runtime class is not `'Coll'` is
+ *   refused (`ArrayStoreException` → `CollArrayStore`).
  * - A primitive array tries to UNBOX each item; an item of another class
  *   fails the unbox (`BoxesRunTime.unboxTo<T>` → `ClassCastException` →
  *   `CollClassCast`).
  * - A reference array of one named class refuses an item whose runtime class
  *   is not that one (`ArrayStoreException` → `CollArrayStore`).
  */
-function checkStore(array: ArrayClass, item: SValue): void {
+/**
+ * The store rule a pair-side of class `sideCls` applies to a component.
+ * Specialised side → the specialised unbox check (`CollClassCast`); plain
+ * side → `storeOne` on the side's array class. A pair-of-pairs side is
+ * rare; for completeness, a nested `'pairs'` side only verifies the item
+ * is itself a pair and returns it (the per-component rules of a pairs
+ * receiver's `updateMany` are applied by the recursive pairs branch when
+ * reached directly, not through this helper).
+ */
+function storeIntoClass(sideCls: CollClass, item: SValue): SValue {
+  if (sideCls.shape === 'pairs') {
+    if (item.kind !== 'Tuple' || item.items.length !== 2) {
+      throw new CollClassCast(
+        `Array[Tuple2].store: item of kind ${item.kind} is no pair`,
+      )
+    }
+    return item
+  }
+  if (sideCls.specialised) {
+    const itemClass = runtimeClassOf(item)
+    if (itemClass !== sideCls.array) {
+      throw new CollClassCast(
+        `Coll[${sideCls.array}].store: item of class ${itemClass} fails unbox to ${sideCls.array}`,
+      )
+    }
+    return item
+  }
+  return storeOne(sideCls.array, item, false)
+}
+
+function storeOne(array: ArrayClass, item: SValue, viaOfUnit: boolean): SValue {
+  if (array === 'Unit' && viaOfUnit) return { kind: 'Unit' }
+  if (array === 'Object') return item
   const itemClass = runtimeClassOf(item)
-  if (array === 'Object' || array === 'Unit') return
+  if (array === 'Unit') {
+    if (itemClass !== 'Unit') {
+      throw new CollArrayStore(
+        `Array[Unit].store: item of class ${itemClass} is not Unit`,
+      )
+    }
+    return item
+  }
   if (array === 'Coll') {
     if (itemClass !== 'Coll') {
       throw new CollArrayStore(
         `Array[Coll].store: item of class ${itemClass} is not a Coll`,
       )
     }
-    return
+    return item
   }
   if (isPrimitiveArrayClass(array)) {
     if (itemClass !== array) {
@@ -546,13 +824,14 @@ function checkStore(array: ArrayClass, item: SValue): void {
         `Array[${array}].store: item of class ${itemClass} fails unbox to ${array}`,
       )
     }
-    return
+    return item
   }
   if (itemClass !== array) {
     throw new CollArrayStore(
       `Array[${array}].store: item of class ${itemClass} is not ${array}`,
     )
   }
+  return item
 }
 
 /**

@@ -21,7 +21,10 @@
  *   4. Outer cost: addPerItemCost(20, 1, 10, n)
  *   5. Per item: addCost(5), env.extend(argId, item), eval body,
  *      result-type check (throws 'lambda-result-type-mismatch'), collect result
- *   6. Return { kind: 'Coll', elem: inferred from items or fallback, items }
+ *   6. Return `mapped(inputColl, outElem, outItems)` — the module decides
+ *      the result's class per the JVM's `CollOverArray.map` /
+ *      `PairOfCols.map` rules (`CollsOverArrays.scala:28-31` and `:317-324`:
+ *      plain over the range type, no pair routing on a pairs receiver).
  *
  * Env-extend convention (establishes pattern for Tasks 7-10):
  *   TS Env is immutable (per phase 2b design). For each item we call

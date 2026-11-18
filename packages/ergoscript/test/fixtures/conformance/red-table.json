@@ -1,47 +1,5 @@
 {
   "v5/authored/Coll.patch_array_class.json": {
-    "collection-class": [
-      "coll-patch-I.indices.append-Bconst0-v0-a2#272",
-      "coll-patch-I.indices.append-Bmap0-v0-a2#281",
-      "coll-patch-I.indices.append-Cconst0-v0-a2#280",
-      "coll-patch-I.indices.append-Lconst0-v0-a2#276",
-      "coll-patch-I.indices.append-Lmap0-v0-a2#287",
-      "coll-patch-I.indices.append-Nconst0-v0-a2#278",
-      "coll-patch-I.indices.append-Pconst0-v0-a2#279",
-      "coll-patch-I.indices.append-Pzip0-v0-a2#288",
-      "coll-patch-I.indices.append-Sconst0-v0-a2#277",
-      "coll-patch-I.indices.append-Zconst0-v0-a2#273",
-      "coll-patch-I.indices.append-Zmap0-v0-a2#282",
-      "coll2-patch-I.indices.append-Binner0-v0-a2#359",
-      "coll2-patch-I.indices.append-Zinner0-v0-a2#360",
-      "coll3-patch-I.indices.append-Qconst0-v0-a2#482",
-      "coll3-patch-I.indices.append-Qzip0-v0-a2#483",
-      "coll3-patch-I.indices.append-QzipBZmap0-v0-a2#486",
-      "coll3-patch-I.indices.append-QzipBmapZ0-v0-a2#485",
-      "coll3-patch-I.indices.append-Qzipmap0-v0-a2#484",
-      "coll5-patch-I.indices.updated-Bconst0-v0-a2#803",
-      "coll5-patch-I.indices.updated-Bmap0-v0-a2#812",
-      "coll5-patch-I.indices.updated-Cconst0-v0-a2#811",
-      "coll5-patch-I.indices.updated-Lconst0-v0-a2#807",
-      "coll5-patch-I.indices.updated-Lmap0-v0-a2#818",
-      "coll5-patch-I.indices.updated-Nconst0-v0-a2#809",
-      "coll5-patch-I.indices.updated-Pconst0-v0-a2#810",
-      "coll5-patch-I.indices.updated-Pzip0-v0-a2#819",
-      "coll5-patch-I.indices.updated-Sconst0-v0-a2#808",
-      "coll5-patch-I.indices.updated-Zconst0-v0-a2#804",
-      "coll5-patch-I.indices.updated-Zmap0-v0-a2#813",
-      "coll6-patch-I.indices.append-Bconst0.direct-v0-a2#1019",
-      "coll6-patch-I.indices.append-Bmap0.direct-v0-a2#1026",
-      "coll6-patch-I.indices.append-Cconst0.direct-v0-a2#1025",
-      "coll6-patch-I.indices.append-Lconst0.direct-v0-a2#1021",
-      "coll6-patch-I.indices.append-Lmap0.direct-v0-a2#1032",
-      "coll6-patch-I.indices.append-Nconst0.direct-v0-a2#1023",
-      "coll6-patch-I.indices.append-Pconst0.direct-v0-a2#1024",
-      "coll6-patch-I.indices.append-Pzip0.direct-v0-a2#1033",
-      "coll6-patch-I.indices.append-Sconst0.direct-v0-a2#1022",
-      "coll6-patch-I.indices.append-Zconst0.direct-v0-a2#1020",
-      "coll6-patch-I.indices.append-Zmap0.direct-v0-a2#1027"
-    ],
     "method-not-implemented": [
       "coll5-patch-B.globalxor-Bconst0-v0-a2#670",
       "coll5-patch-B.globalxor-Bconst1-v0-a2#671",
@@ -83,68 +41,17 @@
       "coll2-patch-Z.slice-tripleZ.direct-v0-a2#333"
     ]
   },
-  "v6/authored/Append.reference_array_store.json": {
-    "collection-class": [
-      "append_context_empty_global_item-accept#11",
-      "append_empty_box_recv_ge_arg-accept#2",
-      "append_ge_empty_box_arg-accept#0"
-    ]
-  },
+  "v6/authored/Append.reference_array_store.json": {},
   "v6/authored/Box.getReg_adversarial.json": {
     "method-not-implemented": [
       "getRegV5-live-reject#0"
     ]
   },
-  "v6/authored/Coll.append_concat_v6.json": {
-    "collection-class": [
-      "store-BigInts-appended-empty-right-updateMany-foreign-v0-a3#322",
-      "store-BigInts-appended-updateMany-foreign-v0-a3#320",
-      "store-BigInts-filtered-appended-updateMany-foreign-v0-a3#327",
-      "store-BigInts-sliced-appended-updateMany-foreign-v0-a3#325",
-      "store-Colls-appended-empty-right-updateMany-foreign-v0-a3#334",
-      "store-Colls-appended-updateMany-foreign-v0-a3#332",
-      "store-Colls-filtered-appended-updateMany-foreign-v0-a3#339",
-      "store-Colls-sliced-appended-updateMany-foreign-v0-a3#337",
-      "store-SPs-appended-empty-right-updateMany-foreign-v0-a3#310",
-      "store-SPs-appended-updateMany-foreign-v0-a3#308",
-      "store-SPs-filtered-appended-updateMany-foreign-v0-a3#315",
-      "store-SPs-sliced-appended-updateMany-foreign-v0-a3#313"
-    ]
-  },
-  "v6/authored/Coll.append_node_array_class.json": {
-    "collection-class": [
-      "box-coll-append-empty-groupelement-accept#3"
-    ]
-  },
-  "v6/authored/Coll.append_runtime_item_type.json": {
-    "collection-class": [
-      "append-empty-left-accept#2",
-      "append-reference-items-accept#4"
-    ]
-  },
-  "v6/authored/Coll.item_store_type_check.json": {
-    "collection-class": [
-      "updated_coll_of_box_incompatible_reference_item-errored#11",
-      "updated_generic_bool_coll_int_item-errored#0",
-      "updated_generic_byte_coll_bool_item-errored#2",
-      "updated_generic_int_coll_bool_item-errored#6",
-      "updated_generic_long_coll_bool_item-errored#8",
-      "updated_generic_short_coll_bool_item-errored#4"
-    ]
-  },
-  "v6/authored/Coll.object_arrays_by_class_v6.json": {
-    "collection-class": [
-      "append2-Pairs-map-empty-Boxes-apply-last-v0-a3#71",
-      "append2-Pairs-map-empty-Boxes-size-v0-a3#70",
-      "append2-Pairs-map-empty-Boxes-value-v0-a3#69",
-      "append2-Pairs-map-empty-SPs-apply-last-v0-a3#74",
-      "append2-Pairs-map-empty-SPs-size-v0-a3#73",
-      "append2-Pairs-map-empty-SPs-value-v0-a3#72",
-      "append2-Pairs-map-objects-empty-apply-last-v0-a3#92",
-      "append2-Pairs-map-objects-empty-size-v0-a3#91",
-      "append2-Pairs-map-objects-empty-value-v0-a3#90"
-    ]
-  },
+  "v6/authored/Coll.append_concat_v6.json": {},
+  "v6/authored/Coll.append_node_array_class.json": {},
+  "v6/authored/Coll.append_runtime_item_type.json": {},
+  "v6/authored/Coll.item_store_type_check.json": {},
+  "v6/authored/Coll.object_arrays_by_class_v6.json": {},
   "v6/authored/Coll.pair_shape_map.json": {
     "method-not-implemented": [
       "byindex_mapped_pair_bool_default-accept#5",
@@ -176,88 +83,6 @@
     ]
   },
   "v6/authored/Coll.patch_array_class_v6.json": {
-    "collection-class": [
-      "coll-patch-I.indices.append-Bconst0-v0-a3#544",
-      "coll-patch-I.indices.append-Bconst0-v3-a3#545",
-      "coll-patch-I.indices.append-Bmap0-v0-a3#562",
-      "coll-patch-I.indices.append-Bmap0-v3-a3#563",
-      "coll-patch-I.indices.append-Cconst0-v0-a3#560",
-      "coll-patch-I.indices.append-Cconst0-v3-a3#561",
-      "coll-patch-I.indices.append-Lconst0-v0-a3#552",
-      "coll-patch-I.indices.append-Lconst0-v3-a3#553",
-      "coll-patch-I.indices.append-Lmap0-v0-a3#574",
-      "coll-patch-I.indices.append-Lmap0-v3-a3#575",
-      "coll-patch-I.indices.append-Nconst0-v0-a3#556",
-      "coll-patch-I.indices.append-Nconst0-v3-a3#557",
-      "coll-patch-I.indices.append-Pconst0-v0-a3#558",
-      "coll-patch-I.indices.append-Pconst0-v3-a3#559",
-      "coll-patch-I.indices.append-Pzip0-v0-a3#576",
-      "coll-patch-I.indices.append-Pzip0-v3-a3#577",
-      "coll-patch-I.indices.append-Sconst0-v0-a3#554",
-      "coll-patch-I.indices.append-Sconst0-v3-a3#555",
-      "coll-patch-I.indices.append-Zconst0-v0-a3#546",
-      "coll-patch-I.indices.append-Zconst0-v3-a3#547",
-      "coll-patch-I.indices.append-Zmap0-v0-a3#564",
-      "coll-patch-I.indices.append-Zmap0-v3-a3#565",
-      "coll2-patch-I.indices.append-Binner0-v0-a3#718",
-      "coll2-patch-I.indices.append-Binner0-v3-a3#719",
-      "coll2-patch-I.indices.append-Zinner0-v0-a3#720",
-      "coll2-patch-I.indices.append-Zinner0-v3-a3#721",
-      "coll3-patch-I.indices.append-Qconst0-v0-a3#964",
-      "coll3-patch-I.indices.append-Qconst0-v3-a3#965",
-      "coll3-patch-I.indices.append-Qzip0-v0-a3#966",
-      "coll3-patch-I.indices.append-Qzip0-v3-a3#967",
-      "coll3-patch-I.indices.append-QzipBZmap0-v0-a3#972",
-      "coll3-patch-I.indices.append-QzipBZmap0-v3-a3#973",
-      "coll3-patch-I.indices.append-QzipBmapZ0-v0-a3#970",
-      "coll3-patch-I.indices.append-QzipBmapZ0-v3-a3#971",
-      "coll3-patch-I.indices.append-Qzipmap0-v0-a3#968",
-      "coll3-patch-I.indices.append-Qzipmap0-v3-a3#969",
-      "coll5-patch-I.indices.updated-Bconst0-v0-a3#1663",
-      "coll5-patch-I.indices.updated-Bconst0-v3-a3#1664",
-      "coll5-patch-I.indices.updated-Bmap0-v0-a3#1681",
-      "coll5-patch-I.indices.updated-Bmap0-v3-a3#1682",
-      "coll5-patch-I.indices.updated-Cconst0-v0-a3#1679",
-      "coll5-patch-I.indices.updated-Cconst0-v3-a3#1680",
-      "coll5-patch-I.indices.updated-Lconst0-v0-a3#1671",
-      "coll5-patch-I.indices.updated-Lconst0-v3-a3#1672",
-      "coll5-patch-I.indices.updated-Lmap0-v0-a3#1693",
-      "coll5-patch-I.indices.updated-Lmap0-v3-a3#1694",
-      "coll5-patch-I.indices.updated-Nconst0-v0-a3#1675",
-      "coll5-patch-I.indices.updated-Nconst0-v3-a3#1676",
-      "coll5-patch-I.indices.updated-Pconst0-v0-a3#1677",
-      "coll5-patch-I.indices.updated-Pconst0-v3-a3#1678",
-      "coll5-patch-I.indices.updated-Pzip0-v0-a3#1695",
-      "coll5-patch-I.indices.updated-Pzip0-v3-a3#1696",
-      "coll5-patch-I.indices.updated-Sconst0-v0-a3#1673",
-      "coll5-patch-I.indices.updated-Sconst0-v3-a3#1674",
-      "coll5-patch-I.indices.updated-Zconst0-v0-a3#1665",
-      "coll5-patch-I.indices.updated-Zconst0-v3-a3#1666",
-      "coll5-patch-I.indices.updated-Zmap0-v0-a3#1683",
-      "coll5-patch-I.indices.updated-Zmap0-v3-a3#1684",
-      "coll6-patch-I.indices.append-Bconst0.direct-v0-a3#2115",
-      "coll6-patch-I.indices.append-Bconst0.direct-v3-a3#2116",
-      "coll6-patch-I.indices.append-Bmap0.direct-v0-a3#2129",
-      "coll6-patch-I.indices.append-Bmap0.direct-v3-a3#2130",
-      "coll6-patch-I.indices.append-Cconst0.direct-v0-a3#2127",
-      "coll6-patch-I.indices.append-Cconst0.direct-v3-a3#2128",
-      "coll6-patch-I.indices.append-Lconst0.direct-v0-a3#2119",
-      "coll6-patch-I.indices.append-Lconst0.direct-v3-a3#2120",
-      "coll6-patch-I.indices.append-Lmap0.direct-v0-a3#2141",
-      "coll6-patch-I.indices.append-Lmap0.direct-v3-a3#2142",
-      "coll6-patch-I.indices.append-Nconst0.direct-v0-a3#2123",
-      "coll6-patch-I.indices.append-Nconst0.direct-v3-a3#2124",
-      "coll6-patch-I.indices.append-Pconst0.direct-v0-a3#2125",
-      "coll6-patch-I.indices.append-Pconst0.direct-v3-a3#2126",
-      "coll6-patch-I.indices.append-Pzip0.direct-v0-a3#2143",
-      "coll6-patch-I.indices.append-Pzip0.direct-v3-a3#2144",
-      "coll6-patch-I.indices.append-Sconst0.direct-v0-a3#2121",
-      "coll6-patch-I.indices.append-Sconst0.direct-v3-a3#2122",
-      "coll6-patch-I.indices.append-Zconst0.direct-v0-a3#2117",
-      "coll6-patch-I.indices.append-Zconst0.direct-v3-a3#2118",
-      "coll6-patch-I.indices.append-Zmap0.direct-v0-a3#2131",
-      "coll6-patch-I.indices.append-Zmap0.direct-v3-a3#2132"
-    ],
     "method-not-implemented": [
       "coll5-patch-B.globalxor-Bconst0-v0-a3#1340",
       "coll5-patch-B.globalxor-Bconst0-v3-a3#1341",
@@ -337,48 +162,39 @@
   },
   "v6/authored/Coll.reference_store_ops.json": {
     "collection-class": [
-      "bigint-coll-groupelement-errored#28",
-      "box-coll-groupelement-updatemany-errored#14",
-      "box-coll-int-item-errored#3",
-      "byte-coll-groupelement-errored#31",
-      "empty-unit-coll-constant-refused-at-parse#58",
       "flatmap-coll-of-coll-long-accept#22",
       "flatmap-empty-groupelement-part-accept#37",
       "flatmap-empty-long-part-into-bytes-accept#38",
       "flatmap-int-part-into-unit-accept#42",
       "flatmap-unit-result-eq-accept#48",
-      "function-coll-groupelement-errored#30",
-      "inputs-groupelement-errored#32",
       "map-lambda-class-compatible-lie-accept#20",
       "map-two-lambdas-groupelement-errored#53",
       "map-two-lambdas-int-into-unit-errored#62",
-      "option-coll-groupelement-errored#29",
-      "pair-box-side-groupelement-errored#0",
-      "pair-coll-groupelement-side-updatemany-errored#17",
       "pair-flatmap-int-part-into-unit-accept#66",
       "pair-map-lie-updated-accept#36",
       "pair-map-pair-component-lie-accept#34",
       "pair-map-two-lambdas-groupelement-errored#52",
       "pair-map-two-lambdas-int-into-unit-errored#63",
       "pair-map-two-lambdas-nonpair-errored#55",
-      "pair-unit-side-int-updated-errored#65",
-      "pair-unit-side-int-updatemany-errored#64",
-      "parse-empty-unit-coll-constant-refused-at-parse#81",
-      "parse-unit-coll-constant-patch-refused-at-parse#82",
-      "parse-unit-coll-constant-refused-at-parse#80",
       "parse-unit-patch-eq-refused-at-parse#73",
-      "unit-coll-constant-patch-refused-at-parse#59",
-      "unit-coll-constant-refused-at-parse#57",
-      "unit-coll-int-updated-errored#44",
-      "unit-coll-int-updatemany-errored#45",
-      "unit-patch-eq-refused-at-parse#47",
-      "unit-patch-identity-map-eq-accept#56"
+      "unit-patch-eq-refused-at-parse#47"
     ],
     "method-not-implemented": [
       "generic-int-coll-tuple-patch-accept#9",
       "int-coll-tuple-patch-accept#8",
       "tuple-receiver-groupelement-accept#2",
       "unit-coll-append-method-errored#67"
+    ],
+    "zero-width-collection": [
+      "empty-unit-coll-constant-refused-at-parse#58",
+      "parse-empty-unit-coll-constant-refused-at-parse#81",
+      "parse-unit-coll-constant-patch-refused-at-parse#82",
+      "parse-unit-coll-constant-refused-at-parse#80",
+      "unit-coll-constant-patch-refused-at-parse#59",
+      "unit-coll-constant-refused-at-parse#57"
+    ],
+    "cost": [
+      "unit-patch-identity-map-eq-accept#56"
     ]
   },
   "v6/authored/Coll.specialisation_pair_prefix.json": {
@@ -394,18 +210,8 @@
       "startswith_byte_concrete_long_arg-accept#1"
     ]
   },
-  "v6/authored/Coll.store_runtime_array_class.json": {
-    "collection-class": [
-      "empty-box-coll-append-groupelement-accept#0",
-      "long-backed-int-coll-int-item-errored#2"
-    ]
-  },
-  "v6/authored/Coll.updateMany_runtime_item_type.json": {
-    "collection-class": [
-      "updatemany-receiver-lies-errored#0",
-      "updatemany-values-lie-errored#1"
-    ]
-  },
+  "v6/authored/Coll.store_runtime_array_class.json": {},
+  "v6/authored/Coll.updateMany_runtime_item_type.json": {},
   "v6/authored/Coll.zip_unequal_sides_v6.json": {
     "collection-class": [
       "arr-Xor-left-Triple-bytes-Int-v0-a3#229",

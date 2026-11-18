@@ -77,6 +77,8 @@ import {
   fromArray,
   indices as collIndices,
   patch as collPatch,
+  updateMany as collUpdateMany,
+  updated as collUpdated,
   zip as collZip,
 } from './_coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
@@ -945,14 +947,23 @@ function registerHandlers(): void {
     return collPatch(obj, fromArg.value, patchArg, replacedArg.value)
   } })
 
-  // SColl.updated (MethodCall, typeId=12, methodId=20) — v5 method
-  // Source: sigma-rust UPDATED_EVAL_FN (eval/scoll.rs, branch ergo-node-integration).
-  // Cost PerItemCost(20,1,10) on INPUT length n (sigma/ast/methods.scala:1035,
-  // canonical), charged BEFORE arg handling. Returns a copy
-  // with index i replaced by v. sigma-rust does `i as i32 as usize` then
-  // `res.get_mut(idx)` → None ⇒ err, so a NEGATIVE i wraps to a huge usize and is
-  // OOB as well. Result elem type = input's elem type. V0+ (UPDATED_METHOD min
-  // V0). Unused on mainnet — a valid v5 language method (SANTA conformance only).
+  // SColl.updated (MethodCall, typeId=12, methodId=20).
+  // Source: `data/shared/src/main/scala/sigma/ast/methods.scala:1033-1050`
+  // (`UpdatedMethod` + `updated_eval`) at sigma-state 6.0.7:
+  //     val costKind = m.costKind.asInstanceOf[PerItemCost]
+  //     E.addSeqCost(costKind, coll.length, m.opDesc) { () =>
+  //       coll.updated(index, elem)
+  //     }
+  // Cost `PerItemCost(baseCost = 20, perChunkCost = 1, chunkSize = 10)`
+  // (:1035) on `coll.length`. `addSeqCost` charges the cost before invoking
+  // the operation (`CErgoTreeEvaluator.scala:370-392`:
+  // `coster.add(costKind.cost(nItems))` runs before `block()`).
+  //
+  // A negative index on the JVM throws `IndexOutOfBoundsException` from
+  // `Array.updated` (`Array.copy` + `dest(index) = elem`); the handler
+  // mirrors it with `'coll-update-index-out-of-range'`. The item's store
+  // against the receiver's array class is applied by the module's
+  // `updated`, which gives the result its class.
   HANDLERS.set(handlerKey(12, 20), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -961,7 +972,7 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(20, 1, 10, n) // PerItemCost(20,1,10); source: methods.scala:1035
+    ctx.addPerItemCost(20, 1, 10, n)
     if (args.length !== 2) {
       throw new EvalError(
         `SColl.updated expects 2 args; got ${args.length}`,
@@ -975,33 +986,30 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // sigma-rust: `i as usize` + get_mut(idx) → None on OOB; a negative i wraps
-    // to a huge usize and is OOB. So reject index < 0 OR index >= n.
     if (indexArg.value < 0 || indexArg.value >= n) {
       throw new EvalError(
         `SColl.updated: index ${indexArg.value} out of bounds for Coll of length ${n}`,
         'coll-update-index-out-of-range'
       )
     }
-    const items = obj.items.slice()
-    items[indexArg.value] = valueArg
-    return { kind: 'Coll', elem: obj.elem, items }
+    return collUpdated(obj, indexArg.value, valueArg)
   } })
 
-  // SColl.updateMany (MethodCall, typeId=12, methodId=21) — v5 method
-  // Source: sigma-rust UPDATE_MANY_EVAL_FN (eval/scoll.rs, branch
-  // ergo-node-integration — the clean reference; the vendored integration/ergots
-  // checkout is stale on this method's cost). Cost PerItemCost(20,2,10) on INPUT
-  // length n: perChunkCost is 2, NOT 1 (sigma/ast/methods.scala:1055, canonical;
-  // sigma-rust ergo-node-integration agrees). The n=14 vector (cost 160) pins it —
-  // perChunk=1 would give 159. Charged BEFORE arg handling. Replaces each
-  // indexes[k] with values[k] (sequential ⇒ last write wins on a repeated index).
-  // Errors: indexes/values length mismatch, then per-index OOB (a negative index
-  // wraps to a huge usize ⇒ OOB too). The sigma-rust input/values elem-type-
-  // mismatch check is intentionally OMITTED: unreachable for type-checked trees,
-  // untested, and a strict SType compare would false-positive against SAny-typed
-  // colls (the iter-19 skip-don't-fail rule). Result elem type = input's. V0+.
-  // Unused on mainnet — valid v5 language (SANTA conformance only).
+  // SColl.updateMany (MethodCall, typeId=12, methodId=21).
+  // Source: `data/shared/src/main/scala/sigma/ast/methods.scala:1052-1070`
+  // (`UpdateManyMethod` + `updateMany_eval`) at sigma-state 6.0.7:
+  //     val costKind = mc.method.costKind.asInstanceOf[PerItemCost]
+  //     E.addSeqCost(costKind, coll.length, mc.method.opDesc) { () =>
+  //       coll.updateMany(indexes, values)
+  //     }
+  // Cost `PerItemCost(baseCost = 20, perChunkCost = 2, chunkSize = 10)`
+  // (:1055) on `coll.length`. `addSeqCost` charges the cost before the
+  // operation. Sequential writes: last write wins on a repeated index.
+  //
+  // A negative index on the JVM throws `IndexOutOfBoundsException`
+  // (`CollsOverArrays.scala:112`); the handler mirrors it with
+  // `'coll-update-index-out-of-range'`. Each value's store against the
+  // receiver's array class is applied by the module's `updateMany`.
   HANDLERS.set(handlerKey(12, 21), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -1010,7 +1018,7 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(20, 2, 10, n) // perChunk=2 (JVM); source: methods.scala:1055
+    ctx.addPerItemCost(20, 2, 10, n)
     if (args.length !== 2) {
       throw new EvalError(
         `SColl.updateMany expects 2 args; got ${args.length}`,
@@ -1030,7 +1038,6 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // sigma-rust order: length mismatch (scoll.rs:308) before the per-index OOB loop.
     if (indexesArg.items.length !== valuesArg.items.length) {
       throw new EvalError(
         `SColl.updateMany: indexes/values length mismatch ` +
@@ -1038,7 +1045,7 @@ function registerHandlers(): void {
         'coll-update-many-length-mismatch'
       )
     }
-    const items = obj.items.slice()
+    const indexNumbers: number[] = new Array(indexesArg.items.length)
     for (let k = 0; k < indexesArg.items.length; k++) {
       const idx = indexesArg.items[k]!
       if (idx.kind !== 'Int') {
@@ -1047,16 +1054,15 @@ function registerHandlers(): void {
           'method-not-implemented'
         )
       }
-      // negative wraps to a huge usize ⇒ OOB; idx >= n ⇒ OOB (scoll.rs:328).
       if (idx.value < 0 || idx.value >= n) {
         throw new EvalError(
           `SColl.updateMany: index ${idx.value} out of bounds for Coll of length ${n}`,
           'coll-update-index-out-of-range'
         )
       }
-      items[idx.value] = valuesArg.items[k]!
+      indexNumbers[k] = idx.value
     }
-    return { kind: 'Coll', elem: obj.elem, items }
+    return collUpdateMany(obj, indexNumbers, valuesArg)
   } })
 
   // SOption.map (MethodCall, typeId=36, methodId=7) — campaign iter-29

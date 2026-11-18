@@ -1,17 +1,27 @@
 /**
- * Append SAny elem-type tolerance (iter-21 regression).
+ * `Append` arm — outputs and refusals under the JVM's rule.
  *
- * Root cause (mainnet h=974,407 tx 8 input 1): `Append(input, col2)` where one
- * operand's runtime elem is concrete (`Coll[SByte]`) and the other's is `SAny`
- * (an unresolved-type collection — e.g. an empty coll produced by a getMany/Map
- * chain whose element type our phase-2a `exprTpe` couldn't resolve). Both
- * sigma-rust and our evaluator check elem-type equality at eval time
- * (coll_append.rs), but sigma-rust tracks concrete types so its check passes;
- * ours rejected the `Coll[SByte]` vs `SAny` pair → `coll-elem-tpe-mismatch`.
+ * Source: `data/shared/src/main/scala/sigma/ast/transformers.scala:59-70`
+ * and `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:48-57`
+ * at sigma-state 6.0.7.
  *
- * Fix: tolerate SAny in the check (skip when either elem is SAny) and prefer the
- * concrete side for the output elem. Same SAny-tolerance principle as iter-19
- * (Map) and the ByIndex/OptionGet/SelectField arms.
+ * The three cases below rest on the module's `append`:
+ *   - A concrete `Coll[Coll[SByte]]` receiver appended with an empty
+ *     `Coll[SAny]` operand reads as `Coll[Coll[SByte]].append(Coll[Object])`.
+ *     The receiver has one item (non-empty), so `safeConcatArrays_v5`
+ *     allocates a new reference array of the receiver's class tag
+ *     (`'Coll'`), and `System.arraycopy` from an empty Object-reference
+ *     source does nothing — no exception. The result's class and `elem`
+ *     come from the receiver.
+ *   - An empty `Coll[SAny]` receiver appended with a `Coll[Coll[SByte]]`
+ *     operand returns the operand UNREAD (`CollsOverArrays.scala:49`), so
+ *     the result's `elem` is `Coll[SByte]`.
+ *   - Two concrete but mismatched element types: `Coll[SInt]` (plain int
+ *     array, non-empty) appended with `Coll[SByte]`: `safeConcatArrays_v5`
+ *     allocates `new Array[Int]` and `System.arraycopy` from an
+ *     `Array[Byte]` source fails the component-type check upfront. The
+ *     module raises `CollArrayStore`, the facade turns it into
+ *     `EvalError('coll-array-store')`.
  */
 
 import { describe, it, expect } from 'vitest'
@@ -19,11 +29,10 @@ import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { Append, SValue } from '../../src/mir/types'
+import { captureEvalError } from '../_helpers'
 
-describe('Append SAny elem-type tolerance (iter-21)', () => {
-  it('does not reject concrete Coll[Coll[SByte]] appended with an SAny-elem coll', () => {
-    // input: Coll[Coll[SByte]] with one inner coll. col2: empty Coll whose elem
-    // is the unresolved SAny placeholder (mirrors an empty getMany/Map result).
+describe('Append — the module applies the JVM rule', () => {
+  it('concrete Coll[Coll[SByte]] appended with an empty Coll[SAny] returns the receiver`s elem', () => {
     const innerByteColl: SValue = { kind: 'Coll', elem: { tag: 'SByte' }, items: [{ kind: 'Byte', value: 1 }] }
     const expr: Append = {
       tag: 'Append',
@@ -42,13 +51,12 @@ describe('Append SAny elem-type tolerance (iter-21)', () => {
     const ctx = makeContext()
     const result = evalExpr(expr, Env.empty(), ctx)
     expect(result.kind).toBe('Coll')
-    // Output elem comes from the concrete (input) side, NOT SAny.
+    // Output elem comes from the non-empty input (the receiver), not SAny.
     expect((result as { elem: unknown }).elem).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
-    // Items = input's items + col2's (empty) = 1.
     expect((result as { items: unknown[] }).items).toHaveLength(1)
   })
 
-  it('prefers the concrete elem when the FIRST operand is the SAny one', () => {
+  it('empty receiver returns the operand UNREAD — its own elem', () => {
     const innerByteColl: SValue = { kind: 'Coll', elem: { tag: 'SByte' }, items: [{ kind: 'Byte', value: 2 }] }
     const expr: Append = {
       tag: 'Append',
@@ -68,7 +76,7 @@ describe('Append SAny elem-type tolerance (iter-21)', () => {
     expect((result as { elem: unknown }).elem).toEqual({ tag: 'SColl', elem: { tag: 'SByte' } })
   })
 
-  it('still rejects two concrete but mismatched elem types', () => {
+  it('a Coll[SInt] appended with a Coll[SByte]: coll-array-store (CollOverArray.append → safeConcatArrays_v5 refuses the source component type)', () => {
     const expr: Append = {
       tag: 'Append',
       input: {
@@ -83,6 +91,7 @@ describe('Append SAny elem-type tolerance (iter-21)', () => {
       },
     }
     const ctx = makeContext()
-    expect(() => evalExpr(expr, Env.empty(), ctx)).toThrow(/same elem type/)
+    const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
+    expect(err.code).toBe('coll-array-store')
   })
 })

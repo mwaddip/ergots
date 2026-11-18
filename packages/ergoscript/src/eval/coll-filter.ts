@@ -28,7 +28,9 @@
  *      result-type check MUST be Boolean (throws 'lambda-result-type-mismatch'),
  *      collect item if true
  *   6. No short-circuit — all items visited (cost determinism)
- *   7. Return { kind: 'Coll', elem: inputColl.elem, items: kept }
+ *   7. Return `filtered(inputColl, kept)` — the module decides the result's
+ *      class per the JVM's `builder.fromArray` / `builder.pairCollFromArrays`
+ *      rules (`CollsOverArrays.scala:36` and `:348-363`).
  *
  * Key difference from Map (Task 6):
  *   - Elem-type check: Filter's check is against `self.elem_tpe` (the declared
