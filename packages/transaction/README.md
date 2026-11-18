@@ -53,6 +53,14 @@ Full transaction envelope with each input's proof replaced by an empty proof (VL
 
 `blake2b256(signingMessage(tx))` — exactly 32 bytes. Equals the node-reported transaction id (lowercase base16 of these bytes). Confirmed byte-correct against the fixture corpus.
 
+### `parseContextExtension(r: ByteReader): ContextExtension`
+
+Read one `ContextExtension` from a shared `@ergots/scorex` `ByteReader` as the JVM's `ContextExtension.serializer.parse` does (sigma-state 6.0.6 `ContextExtension.scala:52-66`). Exposed for consumers that rebuild a transaction's context from raw bytes outside the `Input` envelope. Throws `TxParseError` with `'count-out-of-range'`, `'extension-id-out-of-range'` or `'extension-v6-type'`, and the inner codec errors unwrapped.
+
+### `ArrayClass` / `CollClass` (re-exported)
+
+The class the JVM's `Coll[A]` object carries beyond its items, carried by an `SValue` of kind `Coll` on its optional `cls` field and read by the evaluator wherever the JVM reads the class. Re-exported from `@ergots/ergoscript`; its API.md defines the two types and the rule for a value handed in without `cls`.
+
 ### `TxParseError`
 
 ```ts

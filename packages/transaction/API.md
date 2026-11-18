@@ -15,6 +15,7 @@ import {
   serializeTransaction,
   signingMessage,
   transactionId,
+  parseContextExtension,
   TxParseError,
   type TxParseErrorCode,
   type ErgoLikeTransaction,
@@ -22,6 +23,8 @@ import {
   type SpendingProof,
   type DataInput,
   type ErgoBoxCandidate,
+  type ArrayClass,
+  type CollClass,
   // Phase 2 — validation
   validateStateless,
   validateStateful,
@@ -45,6 +48,7 @@ import {
 | `serializeTransaction` | function | `ErgoLikeTransaction` → wire bytes |
 | `signingMessage` | function | Full envelope with proofs zeroed; pre-image of transaction id |
 | `transactionId` | function | `blake2b256(signingMessage(tx))`; 32-byte id |
+| `parseContextExtension` | function | Read one `ContextExtension` from a `ByteReader`, as the JVM's `ContextExtension.serializer.parse` does (sigma-state 6.0.6 `ContextExtension.scala:52-66`) |
 | `validateStateless` | function | Stateless checks (non-empty, no dup inputs, output sum no overflow) |
 | `validateStateful` | function | Full structural + per-input verify; requires `StatefulDeps`; returns the transaction's block cost |
 | `TxParseError` | class | Typed parse / serialize error; `.code: TxParseErrorCode` |
@@ -61,6 +65,7 @@ import {
 | `SpendingProof` | interface | Sigma proof bytes + context extension |
 | `DataInput` | interface | Read-only input (boxId only) |
 | `ErgoBoxCandidate` | interface | Output box before assignment of txId/index |
+| `ArrayClass` / `CollClass` | types | The class the JVM's `Coll[A]` object carries beyond its items (re-exported from `@ergots/ergoscript`); carried by an `SValue` of kind `Coll` through the `cls?` field, read by the evaluator wherever the JVM reads the class. See `@ergots/ergoscript`'s API.md |
 
 ---
 
@@ -131,6 +136,22 @@ Compute the transaction id: `blake2b256(signingMessage(tx))`, returning exactly 
 Confirmed byte-correct: `transactionId(parseTransaction(b))` equals the node-reported id for every fixture in the test corpus.
 
 **Throws:** Same as `signingMessage`.
+
+---
+
+### `parseContextExtension(r)`
+
+```ts
+function parseContextExtension(r: ByteReader): ContextExtension
+```
+
+Read one `ContextExtension` from a shared `@ergots/scorex` `ByteReader` as the JVM's `ContextExtension.serializer.parse` does (sigma-state 6.0.6 `ContextExtension.scala:52-66`): a one-byte count below `0x80`, then each entry a one-byte id below `0x80`, its `SType` and its value, with rule-1019 `CheckV6Type` applied to the declared type. Exposed for consumers that rebuild a transaction's context from raw bytes outside the `Input` envelope.
+
+**Throws:**
+- `TxParseError('count-out-of-range')` — the entry count byte is ≥ `0x80`.
+- `TxParseError('extension-id-out-of-range')` — a variable id byte is ≥ `0x80`.
+- `TxParseError('extension-v6-type')` — a value's declared type contains `Option`, `Header` or `UnsignedBigInt` (rule-1019 `CheckV6Type`).
+- Inner codec errors unwrapped: `STypeParseError`, `SValueParseError`, `ReaderError` and the ergoscript parse classes for a malformed type or value.
 
 ---
 

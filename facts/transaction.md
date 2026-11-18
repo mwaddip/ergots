@@ -50,6 +50,8 @@ type TxParseErrorCode =
 
 `parseContextExtension` reads one `ContextExtension` from a shared `@ergots/scorex` `ByteReader` as the JVM's `ContextExtension.serializer.parse` does (`ContextExtension.scala:52-66`): a one-byte count below `0x80`, then each entry a one-byte id below `0x80`, its `SType` and its value, with rule-1019 `CheckV6Type` applied to the declared type. It throws `TxParseError` with `'count-out-of-range'`, `'extension-id-out-of-range'` or `'extension-v6-type'`, and the inner codec errors unwrapped. Its signature uses `ByteReader` and the `ContextExtension` data-model type below.
 
+The types `ArrayClass` and `CollClass` are re-exported from `@ergots/ergoscript` at the package root — the class an `SValue` of kind `Coll` carries on its optional `cls` field, consumed by the evaluator a stateful validation calls (`facts/ergoscript-eval.md`, "A collection's class").
+
 ### `parseTransaction(bytes)`
 
 - **Precondition:** `bytes` is a `Uint8Array` containing exactly one complete `ErgoLikeTransaction` in sigma-serialized wire form. The function calls `ByteReader.isExhausted` after parsing and rejects any trailing bytes.
