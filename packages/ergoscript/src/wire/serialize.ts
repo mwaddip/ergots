@@ -83,6 +83,8 @@ import { serializeDeserializeRegister } from './mir/deserialize-register'
 import { serializeOptionGet } from './mir/option-get'
 import { serializeOptionGetOrElse } from './mir/option-get-or-else'
 import { serializeOptionIsDefined } from './mir/option-is-defined'
+import { serializeModQ, serializeModQArith } from './mir/mod-q'
+import { serializeTaggedVariable } from './mir/tagged-variable'
 
 export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void {
   switch (e.tag) {
@@ -380,6 +382,18 @@ export function serializeExpr(e: Expr, w: ByteWriter, treeVersion: number): void
     case 'CreateAvlTree':
       w.writeU8(OP.OP_AVL_TREE)
       serializeCreateAvlTree(e, w, treeVersion)
+      return
+    case 'ModQ':
+      w.writeU8(OP.OP_MOD_Q)
+      serializeModQ(e, w, treeVersion)
+      return
+    case 'ModQArith':
+      w.writeU8(e.op === 'PlusModQ' ? OP.OP_PLUS_MOD_Q : OP.OP_MINUS_MOD_Q)
+      serializeModQArith(e, w, treeVersion)
+      return
+    case 'TaggedVariable':
+      w.writeU8(OP.OP_TAGGED_VARIABLE)
+      serializeTaggedVariable(e, w)
       return
     default: {
       // Every case throws above; TypeScript will narrow `e` to `never` here.

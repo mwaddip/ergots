@@ -368,6 +368,7 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr, v: number): Expr {
     case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
+    case 'TaggedVariable':
     case 'DeserializeContext':
       return e
 
@@ -401,7 +402,8 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr, v: number): Expr {
     case 'SelectField':
     case 'Upcast':
     case 'Downcast':
-    case 'ZkProofBlock': {
+    case 'ZkProofBlock':
+    case 'ModQ': {
       const input = fn(e.input)
       return input === e.input ? e : { ...e, input }
     }
@@ -414,7 +416,8 @@ function mapChildren(e: Expr, fn: (child: Expr) => Expr, v: number): Expr {
     }
     case 'Xor':
     case 'MultiplyGroup':
-    case 'Exponentiate': {
+    case 'Exponentiate':
+    case 'ModQArith': {
       const left = fn(e.left)
       const right = fn(e.right)
       return left === e.left && right === e.right ? e : { ...e, left, right }
@@ -582,6 +585,7 @@ export function* childrenOf(e: Expr): Generator<Expr, void, void> {
     case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
+    case 'TaggedVariable':
     case 'DeserializeContext':
       return
 
@@ -611,6 +615,7 @@ export function* childrenOf(e: Expr): Generator<Expr, void, void> {
     case 'ByteArrayToLong':
     case 'ByteArrayToBigInt':
     case 'XorOf':
+    case 'ModQ':
       yield e.input
       return
 
@@ -662,6 +667,10 @@ export function* childrenOf(e: Expr): Generator<Expr, void, void> {
       yield e.right
       return
     case 'Xor':
+      yield e.left
+      yield e.right
+      return
+    case 'ModQArith':
       yield e.left
       yield e.right
       return

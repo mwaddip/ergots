@@ -1,16 +1,23 @@
 // The six opcodes above LastConstantCode (0x70) that the JVM registers a serializer for
 // (ValueSerializer.scala:79-80, 97, 145-147): TrueLeaf (0x7f) and FalseLeaf (0x80) are Boolean
 // constants, TaggedVariable (0x71) reads a byte id and a type, the three ModQ operations
-// (0xe7, 0xe8, 0xe9) read one or two values. This file pins the JVM wire for the two the
-// JVM reads as Boolean constants: parse-equivalent to an inline `01 01` / `01 00`, written
-// back through the constant path (`ValueSerializer.scala:362-370`).
+// (0xe7, 0xe8, 0xe9) read one or two values. All six parse here, as in the JVM. TrueLeaf and
+// FalseLeaf write back through the constant path (`ValueSerializer.scala:362-370`), so a tree
+// holding one comes back with `01 01` / `01 00` in its place; the other four write back to
+// their own bytes.
 import { describe, it, expect } from 'vitest'
 import { ByteReader, ByteWriter, ReaderError } from '@ergots/scorex'
 import { parseExpr, ExprParseError } from '../../src/wire/parse'
 import { parseTree, serializeTree, ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
+import { serializeExpr } from '../../src/wire/serialize'
+import { exprTpe } from '../../src/mir/expr-tpe'
+import { ExprSerializeError } from '../../src/wire/errors'
+import { childrenOf } from '../../src/eval/_substitute-deserialize'
 import { isUnparsedTree } from '../../src/mir/types'
+import { sp, EQ, int, bool, bigInt, ModQ, PlusModQ, MinusModQ, TaggedVariable, T } from '../_helpers/mir-build'
+import type { Expr } from '../../src/mir/types'
 
 const hex = (s: string) => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)))
 const toHex = (b: Uint8Array) => Array.from(b, (x) => x.toString(16).padStart(2, '0')).join('')
@@ -140,6 +147,221 @@ describe('TrueLeaf 7f and FalseLeaf 80', () => {
           expect(((err as Error).cause as { code?: string }).code).toBe(row.expect.cause)
         }
       })
+    }
+  })
+})
+
+describe('ModQ e7, PlusModQ e8, MinusModQ e9', () => {
+  it('parse to their nodes and round-trip', () => {
+    // SANTA unevaluated-mod_q-v0-box#3, -plus_mod_q-v0-box#4, -minus_mod_q-v0-box#5: the trees in the
+    // boxes `c0843d00d193e7060101060101…` etc. `sp(EQ(ModQ(bigInt(1)), bigInt(1)))` is the parsed body.
+    const cases: Array<[string, Expr]> = [
+      ['00d193e7060101060101', sp(EQ(ModQ(bigInt(1)), bigInt(1)))],
+      ['00d193e8060101060101060101', sp(EQ(PlusModQ(bigInt(1), bigInt(1)), bigInt(1)))],
+      ['00d193e9060101060101060101', sp(EQ(MinusModQ(bigInt(1), bigInt(1)), bigInt(1)))],
+    ]
+    for (const [bytes, body] of cases) {
+      const t = parseTree(hex(bytes))
+      if (isUnparsedTree(t)) throw new Error(`unreachable: ${bytes}`)
+      expect(t.body).toEqual(body)
+      expect(toHex(serializeTree(t))).toBe(bytes)
+    }
+  })
+
+  // No operand check. `ModQSerializer.parse` and `ModQArithOpSerializer.parse` cast the operand(s)
+  // through the erased `asBigInt` (`ast/syntax.scala:144`), so an operand of any type is accepted.
+  // Neither constructor has a `require` (`ast/trees.scala:954-972`).
+  it('no operand check', () => {
+    // sp(EQ(ModQ(true), bigInt(1))): tree `00d193e70101060101`; the JVM parses it.
+    const modq = parseTree(hex('00d193e70101060101'))
+    if (isUnparsedTree(modq)) throw new Error('unreachable')
+    expect(modq.body).toEqual(sp(EQ(ModQ(bool(true)), bigInt(1))))
+    // sp(EQ(PlusModQ(true, false), bigInt(1))): tree `00d193e801010100060101`.
+    const plus = parseTree(hex('00d193e801010100060101'))
+    if (isUnparsedTree(plus)) throw new Error('unreachable')
+    expect(plus.body).toEqual(sp(EQ(PlusModQ(bool(true), bool(false)), bigInt(1))))
+  })
+
+  it('the static type is BigInt', () => {
+    // ModQ at v3 (reads do not matter for static type) and PlusModQ at v0.
+    expect(exprTpe(ModQ(bool(true)), 3)).toEqual({ tag: 'SBigInt' })
+    expect(exprTpe(PlusModQ(int(1), int(2)), 0)).toEqual({ tag: 'SBigInt' })
+  })
+
+  it('one reader level each', () => {
+    // n × `e7` with a trailing `06 01 01` (Const SBigInt 1), and n × `f1` (BitInversion) with a
+    // trailing `04 02` (Const SInt 1): ModQ's one-level enterDepth matches BitInversion's, so the
+    // largest n for which parseExpr accepts is the same.
+    const maxFor = (opcode: string, tail: string): number => {
+      let n = 1
+      for (;;) {
+        const body = opcode.repeat(n) + tail
+        try {
+          parseExpr(new ByteReader(hex(body)), [], [], new Map(), 0)
+          n++
+        } catch {
+          return n - 1
+        }
+        if (n > 1000) throw new Error('unexpected: parseExpr never halted')
+      }
+    }
+    expect(maxFor('e7', '060101')).toBe(maxFor('f1', '0402'))
+  })
+
+  it('a size-flagged tree parses', () => {
+    // 0b (v3 sized) + 09 (body size 9) + the 9-byte body of the ModQ tree above.
+    const bytes = '0b09d193e7060101060101'
+    const t = parseTree(hex(bytes))
+    expect(isUnparsedTree(t)).toBe(false)
+    expect(toHex(serializeTree(t))).toBe(bytes)
+  })
+})
+
+describe('TaggedVariable 71', () => {
+  it('parses to its node and round-trips', () => {
+    // SANTA unevaluated-tagged_variable-v0-box#7: `sp(TaggedVariable(1, Boolean))`, tree `00d1710101`.
+    const t = parseTree(hex('00d1710101'))
+    if (isUnparsedTree(t)) throw new Error('unreachable')
+    expect(t.body).toEqual(sp(TaggedVariable(1, T.Bool)))
+    expect(toHex(serializeTree(t))).toBe('00d1710101')
+  })
+
+  it('keeps a byte above 7f', () => {
+    // The JVM reads the id with a signed `getByte()` (`TaggedVariableSerializer.scala`,
+    // `TaggedVariableNode(varId, tpe)`, `values.scala:455`); ergots keeps it as an unsigned byte
+    // in [0, 255]. ff is a valid id byte and round-trips verbatim.
+    const t = parseTree(hex('00d171ff01'))
+    if (isUnparsedTree(t)) throw new Error('unreachable')
+    expect(t.body).toEqual(sp(TaggedVariable(255, T.Bool)))
+    expect(toHex(serializeTree(t))).toBe('00d171ff01')
+  })
+
+  it('a size-flagged tree parses', () => {
+    // 0b (v3 sized) + 04 (body size 4) + `d1 71 01 01` (sp(TaggedVariable(1, Bool))).
+    const bytes = '0b04d1710101'
+    const t = parseTree(hex(bytes))
+    expect(isUnparsedTree(t)).toBe(false)
+    expect(toHex(serializeTree(t))).toBe(bytes)
+  })
+
+  it('the static type is the type read', () => {
+    expect(exprTpe(TaggedVariable(1, T.Int), 0)).toEqual(T.Int)
+  })
+
+  // The type is read at the tree's version. 0x09 is SUnsignedBigInt (id 9), which is embeddable
+  // from v3 only (rule 1017 CheckPrimitiveTypeCodeV6). An unsized v0 tree wraps the soft type-read
+  // failure in 'soft-fork-without-size-bit'.
+  it('the type is read at the tree version', () => {
+    let err: unknown
+    try {
+      parseTree(hex('00d1710109'))
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ErgoTreeParseError)
+    expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit')
+    const cause = (err as Error).cause
+    expect((cause as { name?: string }).name).toBe('STypeParseError')
+    expect((cause as { code?: string }).code).toBe('type-code-primitive-unknown')
+  })
+
+  // The writer refuses an id that is no byte. The JVM holds the id as a signed Byte and emits it
+  // via `put(varId)`; ergots keeps the unsigned byte [0, 255] and rejects at the write otherwise,
+  // as `serializeGetVar` does for its id.
+  it('the writer refuses an id that is no byte', () => {
+    for (const id of [256, -1, 1.5]) {
+      let err: unknown
+      try {
+        serializeExpr(TaggedVariable(id, T.Bool), new ByteWriter(), 0)
+      } catch (e) {
+        err = e
+      }
+      expect(err).toBeInstanceOf(ExprSerializeError)
+      expect((err as ExprSerializeError).code).toBe('tagged-variable-id-out-of-range')
+    }
+  })
+})
+
+describe('all four', () => {
+  // A payload that ends early is a hard error. The operand reads (and the varId / type reads)
+  // use the standard `parseExpr` / `r.readU8` / `parseSType` paths, which raise
+  // `ReaderError('truncated')` on an empty read. The code is not in the degrade set, so a sized
+  // tree does not degrade on it.
+  it('a payload that ends early is a hard error', () => {
+    for (const bytes of ['e7', 'e8060101', '7101']) {
+      let err: unknown
+      try {
+        parseExpr(new ByteReader(hex(bytes)), [], [], new Map(), 0)
+      } catch (e) {
+        err = e
+      }
+      expect(err, `parseExpr(${bytes})`).toBeInstanceOf(ReaderError)
+      expect((err as ReaderError).code).toBe('truncated')
+    }
+    // Inside a size-flagged tree the hard error propagates and the tree does not degrade.
+    let err: unknown
+    try {
+      parseTree(hex('0b01e7'))
+    } catch (e) {
+      err = e
+    }
+    expect(err).toBeInstanceOf(ReaderError)
+    expect((err as ReaderError).code).toBe('truncated')
+  })
+
+  it('the substitution walks reach the operands', () => {
+    const a: Expr = bigInt(1)
+    const b: Expr = bigInt(2)
+    expect([...childrenOf(ModQ(a))]).toEqual([a])
+    expect([...childrenOf(PlusModQ(a, b))]).toEqual([a, b])
+    expect([...childrenOf(TaggedVariable(1, T.Bool))]).toEqual([])
+  })
+
+  it('no byte of the node is ignored', () => {
+    // For each of the four trees, and for each node-position byte, every other value of that
+    // byte either fails `parseTree` or writes back to bytes different from the original. For
+    // TaggedVariable's id byte every value also round-trips as the identity (the writer emits
+    // the raw byte).
+    type Case = { name: string; bytes: string; positions: number[]; identityIdPos?: number }
+    const cases: Case[] = [
+      { name: 'ModQ', bytes: '00d193e7060101060101', positions: [2] },
+      { name: 'PlusModQ', bytes: '00d193e8060101060101060101', positions: [2] },
+      { name: 'MinusModQ', bytes: '00d193e9060101060101060101', positions: [2] },
+      // Node bytes: 71 (opcode), 01 (id), 01 (type). The id writer is the identity for every value.
+      { name: 'TaggedVariable', bytes: '00d1710101', positions: [2, 3, 4], identityIdPos: 3 },
+    ]
+    for (const c of cases) {
+      const orig = hex(c.bytes)
+      for (const pos of c.positions) {
+        const origByte = orig[pos]
+        for (let v = 0; v <= 255; v++) {
+          if (v === origByte) continue
+          const changed = new Uint8Array(orig)
+          changed[pos] = v
+          let parsed: ReturnType<typeof parseTree> | undefined
+          try {
+            parsed = parseTree(changed)
+          } catch {
+            continue
+          }
+          let out: Uint8Array
+          try {
+            out = serializeTree(parsed)
+          } catch {
+            continue
+          }
+          expect(
+            toHex(out),
+            `${c.name}: changing byte ${pos} from 0x${origByte!.toString(16)} to 0x${v.toString(16)} round-trips to the original bytes`,
+          ).not.toBe(c.bytes)
+          if (pos === c.identityIdPos) {
+            expect(
+              toHex(out),
+              `${c.name}: changing id byte ${pos} to 0x${v.toString(16)} should round-trip as itself`,
+            ).toBe(toHex(changed))
+          }
+        }
+      }
     }
   })
 })

@@ -3,29 +3,29 @@ import { parseTree, ErgoTreeParseError } from '../src/wire/ergo-tree'
 import { ExprParseError } from '../src/wire/parse'
 
 /**
- * Completeness test — asserts each of the 19 reserved wire opcodes (in sigma-rust's OpCode enum but
+ * Completeness test — asserts each of the 16 reserved wire opcodes (in sigma-rust's OpCode enum but
  * never dispatched at the wire-Expr layer or implemented in `ergotree-interpreter/src/eval/`; the
- * JVM rejects them via `CheckValidOpCode`, rule 1002, since `getSerializer` returns null — ModQ×3
- * it parses, a known residual) hits the parse-reject path with code 'opcode-reserved' and a
- * message containing the human-readable opcode name.
+ * JVM rejects them via `CheckValidOpCode`, rule 1002, since `getSerializer` returns null) hits the
+ * parse-reject path with code 'opcode-reserved' and a message containing the human-readable opcode
+ * name.
  *
- * Was 18 — FlatMap (0xb8), TrivialPropFalse (0xd2), TrivialPropTrue (0xd3) were reclassified into
- * this group: they had thrown 'not-implemented-yet', but the JVM rejects all three via the SAME
- * reserved-opcode path as the other 18 (no registered serializer → CheckValidOpCode). FlatMap's
- * `flatMap` METHOD dispatches as a MethodCall/PropertyCall (handled elsewhere); the TrivialProp
- * pair ALSO exists at the SigmaBoolean-LEAF layer (`SigmaPropCodes`, read by parseSigmaBoolean
- * inside a SigmaPropConstant — a wholly separate, legitimate path in wire/sigma-boolean.ts). Only
- * the bare Expr opcode is rejected here. Before that it was 19 — `FunDef` (0xd7) was removed in
- * v6 P6: it is now PARSED as a polymorphic ValDef carrying `tpeArgs` (see test/wire/fun-def.test.ts
- * and facts/ergoscript-wire.md's P6 wire section). TrueLeaf (0x7f) and FalseLeaf (0x80) left this
- * group alongside the JVM's own Boolean-constant reads (ValueSerializer.scala:79-80; see
- * test/wire/six-opcodes.test.ts and facts/ergoscript-wire.md's "The six opcodes the JVM parses").
+ * The three ModQ opcodes (0xe7, 0xe8, 0xe9) left this group when ergots learned to read them, as
+ * the JVM does (see test/wire/six-opcodes.test.ts and facts/ergoscript-wire.md's "The six opcodes
+ * the JVM parses"). TrueLeaf (0x7f) and FalseLeaf (0x80) left it earlier for the Boolean-constant
+ * arms. FlatMap (0xb8), TrivialPropFalse (0xd2) and TrivialPropTrue (0xd3) had thrown
+ * 'not-implemented-yet' but were reclassified here: the JVM rejects all three via the same
+ * reserved-opcode path. FlatMap's `flatMap` METHOD dispatches as a MethodCall/PropertyCall
+ * (handled elsewhere); the TrivialProp pair ALSO exists at the SigmaBoolean-LEAF layer
+ * (`SigmaPropCodes`, read by parseSigmaBoolean inside a SigmaPropConstant — a wholly separate,
+ * legitimate path in wire/sigma-boolean.ts). Only the bare Expr opcode is rejected here. `FunDef`
+ * (0xd7) left in v6 P6: it is now PARSED as a polymorphic ValDef carrying `tpeArgs`
+ * (see test/wire/fun-def.test.ts).
  *
  * Defensive regression test — proves against silent regression if anyone later wires a stray
  * dispatch arm for these opcodes.
  *
  * Envelope form: `[0x00, opcode]` — header byte 0x00 (V0, no hasSize, no constant segregation)
- * followed by the bare opcode byte. All 19 opcode values are ≥ 129, well above LAST_CONSTANT_CODE
+ * followed by the bare opcode byte. All 16 opcode values are ≥ 129, well above LAST_CONSTANT_CODE
  * (112), so the inline-constant early-return in parseExpr does not intercept; dispatch fires on the
  * bare opcode. Matches the convention used by ergo-tree.test.ts:180. Without the size bit, the
  * tree parse wraps the soft-forkable reject as `ErgoTreeParseError('soft-fork-without-size-bit')`
@@ -58,9 +58,6 @@ const opcodes: OpEntry[] = [
   // FunDef (0xd7) removed in v6 P6 — now parsed as a tpeArgs-carrying ValDef.
   { name: 'SomeValue', opcode: 0xde },
   { name: 'NoneValue', opcode: 0xdf },
-  { name: 'ModQ', opcode: 0xe7 },
-  { name: 'PlusModQ', opcode: 0xe8 },
-  { name: 'MinusModQ', opcode: 0xe9 },
   { name: 'CollShiftRight', opcode: 0xf9 },
   { name: 'CollShiftLeft', opcode: 0xfa },
   { name: 'CollShiftRightZeroed', opcode: 0xfb },
@@ -68,9 +65,9 @@ const opcodes: OpEntry[] = [
   { name: 'CollRotateRight', opcode: 0xfd },
 ]
 
-describe("parse-reject completeness — 19 'opcode-reserved' wire sites", () => {
-  it('the fixture set has exactly 19 entries (guard against silent regression)', () => {
-    expect(opcodes.length).toBe(19)
+describe("parse-reject completeness — 16 'opcode-reserved' wire sites", () => {
+  it('the fixture set has exactly 16 entries (guard against silent regression)', () => {
+    expect(opcodes.length).toBe(16)
   })
 
   describe.each(opcodes)(

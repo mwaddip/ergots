@@ -34,6 +34,7 @@ const FILES: [string, number][] = [
   ['Box.tree_parse_acceptance.json', 54],
   ['Box.tree_bool_pair_form.json', 14],
   ['Box.methodcall_type_id_order.json', 4],
+  ['Box.unevaluated_node_kinds.json', 32],
 ]
 
 // Each errored entry's reject: the construction check that fails, as each entry's description gives it.
@@ -100,6 +101,15 @@ const ERRORS: Record<string, Reject> = {
   'methodcall-type-id-order-v3-args-assert-box#0': { cls: ExprParseError, code: 'method-call-empty-args' },
   'methodcall-type-id-order-sany-obj-v1-box#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
   'methodcall-type-id-order-v1-unsized-box#3': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'method-type-no-methods' },
+  // Box.unevaluated_node_kinds.json rows #26-#31: boxes whose trees the JVM rejects before reaching
+  // the unevaluated node kind. ergots' rejects are those `master` gives today for these rows; rows
+  // #3, #4, #5 and #7 are the ones this task turns green.
+  'unevaluated-create-avl-tree-v0-reject-box#26': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'soption-tree-version-too-low' },
+  'unevaluated-old-layout-v0-reject-box#27': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-old-layout-v3-reject-box#28': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-bool-operand-v0-reject-box#29': BIT_OP,
+  'unevaluated-bool-operand-v3-reject-box#30': BIT_OP,
+  'unevaluated-spip-filter-v0-reject-box#31': { cls: ExprTpeError, code: 'filter-input-not-scoll' },
 }
 
 // The accepted entries whose tree the JVM degrades, with the ergots error of the rule it degrades on, a

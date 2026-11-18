@@ -67,7 +67,8 @@ describe('a nested register lead the JVM parses stays a hard reject', () => {
   for (const [name, r4] of [
     // JVM: ClassCastException, Height$ cannot be cast to EvaluatedValue.
     ['lead 0xa3, HEIGHT', 'a3'],
-    // JVM: ClassCastException for ModQ and TaggedVariableNode (residual 5: parseExpr rejects both).
+    // JVM: ClassCastException for ModQ and TaggedVariableNode too — the register parse rejects on
+    // the lead byte and never reaches the cast (residual 4: ergots accepts a Constant or a Tuple).
     ['lead 0xe7, ModQ(BigInt 5)', 'e7060105'],
     ['lead 0x71, TaggedVariable(1, Int)', '710104'],
   ] as const) {
@@ -78,13 +79,13 @@ describe('a nested register lead the JVM parses stays a hard reject', () => {
   }
 })
 
-describe('documented divergences at the register lead (residuals 4 and 5)', () => {
-  // Pinned so a change to either is deliberate. Each JVM verdict is the probe's.
+describe('documented divergences at the register lead (residual 4)', () => {
+  // Pinned so a change is deliberate. Each JVM verdict is the probe's.
   for (const [name, r4, jvm] of [
-    ['lead 0x7f, TrueLeaf (residual 5)', '7f', 'the JVM parses T and accepts R4 as a Boolean constant'],
-    ['lead 0x80, FalseLeaf (residual 5)', '80', 'the JVM parses T and accepts R4 as a Boolean constant'],
+    ['lead 0x7f, TrueLeaf (residual 4)', '7f', 'the JVM parses T and accepts R4 as a Boolean constant'],
+    ['lead 0x80, FalseLeaf (residual 4)', '80', 'the JVM parses T and accepts R4 as a Boolean constant'],
     ['lead 0xd1 over a payload led by 0x84 (residual 4)', 'd184', 'the JVM reads the payload and degrades T'],
-    ['lead 0xe7, ModQ, over a payload led by 0x84 (residual 5)', 'e784', 'the JVM reads the payload and degrades T'],
+    ['lead 0xe7, ModQ, over a payload led by 0x84 (residual 4)', 'e784', 'the JVM reads the payload and degrades T'],
     ['a Tuple item led by 0xa3, HEIGHT (residual 4)', '860204' + '00' + 'a3', 'the JVM parses T: it casts only the Tuple node'],
   ] as const) {
     it(`${name}: ergots rejects, where ${jvm}`, () => {
