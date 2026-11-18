@@ -29,6 +29,7 @@ import {
   byteColl as _byteColl,
   classOf as _classOf,
   collOverArray as _collOverArray,
+  endsWith as _endsWith,
   filtered as _filtered,
   flatMapped as _flatMapped,
   fromArray as _fromArray,
@@ -38,6 +39,7 @@ import {
   mapped as _mapped,
   reversed as _reversed,
   slice as _slice,
+  startsWith as _startsWith,
   zip as _zip,
   CollArrayStore,
   CollClassCast,
@@ -137,6 +139,24 @@ export function zip(c: CollValue, ys: CollValue): CollValue {
 /** `Coll.getOrElse` (`CollsOverArrays.scala:26`, `:309-315`). */
 export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
   return guard(() => _getOrElse(c, i, d))
+}
+
+/** `Coll.startsWith` (`CollsOverArrays.scala:44`, `:398-401`). */
+export function startsWith(
+  c: CollValue,
+  ys: CollValue,
+  itemEq: (a: SValue, b: SValue) => boolean,
+): boolean {
+  return guard(() => _startsWith(c, ys, itemEq))
+}
+
+/** `Coll.endsWith` (`CollsOverArrays.scala:46`, `:403-406`). */
+export function endsWith(
+  c: CollValue,
+  ys: CollValue,
+  itemEq: (a: SValue, b: SValue) => boolean,
+): boolean {
+  return guard(() => _endsWith(c, ys, itemEq))
 }
 
 /**

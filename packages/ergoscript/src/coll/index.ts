@@ -25,4 +25,15 @@ export {
   runtimeClassOf,
 } from './class'
 export { byteColl, collOverArray, fromArray, fromData } from './build'
-export { filtered, flatMapped, getOrElse, indices, mapped, reversed, slice, zip } from './ops'
+export {
+  endsWith,
+  filtered,
+  flatMapped,
+  getOrElse,
+  indices,
+  mapped,
+  reversed,
+  slice,
+  startsWith,
+  zip,
+} from './ops'

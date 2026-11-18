@@ -2361,14 +2361,6 @@
     ]
   },
   "v6/authored/Coll.specialisation_pair_prefix.json": {
-    "collection-class": [
-      "endswith_pair_empty_primitive_arg-errored#11",
-      "pair_spec_side_endswith_lie_ls-errored#4",
-      "pair_spec_side_startswith_lie_ls-errored#0",
-      "startswith_pair_empty_primitive_arg-errored#6",
-      "startswith_pair_nonempty_primitive_arg-errored#7",
-      "startswith_pair_specialised_byte_arg-errored#8"
-    ],
     "comparer": [
       "pair_gen_side_startswith_lie_ls-accept#1"
     ],
@@ -2377,13 +2369,6 @@
     ]
   },
   "v6/authored/Coll.specialisation_prefix_suffix.json": {
-    "collection-class": [
-      "endswith_byte_constant_long_arg-errored#10",
-      "startswith_bool_constant_long_arg-errored#2",
-      "startswith_byte_constant_empty_long_arg-errored#6",
-      "startswith_byte_constant_long_arg-errored#0",
-      "startswith_indices_long_arg-errored#4"
-    ],
     "comparer": [
       "startswith_byte_concrete_long_arg-accept#1"
     ]

@@ -29,7 +29,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { classOf, CollClassCast, runtimeClassOf, type CollClass, type CollValue } from './class'
+import { classOf, CollClassCast, runtimeClassOf, type ArrayClass, type CollClass, type CollValue } from './class'
 import { collOverArray, fromArray, withClass } from './build'
 
 /**
@@ -247,6 +247,59 @@ export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
   return inBounds ? c.items[i]! : d
 }
 
+/**
+ * `CollOverArray.startsWith(ys)` (`CollsOverArrays.scala:44`) and `endsWith`
+ * (`:46`):
+ *     toArray.startsWith(ys.toArray)   /   toArray.endsWith(ys.toArray)
+ * The class is `@specialized`. On a SPECIALISED receiver `ys.toArray` is cast
+ * to the receiver's primitive array AT THE CALL, before any length test or
+ * item read, so an argument whose array is of another class throws, an empty
+ * one and a longer one included. On a PLAIN receiver (whatever its array)
+ * nothing is cast: the items are compared pairwise with `itemEq`; a longer
+ * argument gives `false`.
+ *
+ * `PairOfCols.startsWith(ys)` (`CollsOverArrays.scala:398-401`) and `endsWith`
+ * (`:403-406`):
+ *     ys match {
+ *       case yp: PairOfCols[L, R] => ls.startsWith(yp.ls) && rs.startsWith(yp.rs)
+ *       case _ => toArray.startsWith(ys.toArray)
+ *     }
+ * With a `'pairs'` argument: each side by its own class's rule, `&&` short-
+ * circuiting — when the left sides give `false` the right sides are not read,
+ * so a right-side cast that would throw does not throw here. With any other
+ * argument: `this.toArray` is `Array[Tuple2]` (`:299`), so the fallback casts
+ * the ARGUMENT's array to `Tuple2[]`. A primitive argument array throws, an
+ * empty one included; a reference argument array passes the cast, and the
+ * items are then compared pairwise by `itemEq` — the receiver's items are the
+ * pairs, so an argument item that is no pair reduces to `false`.
+ *
+ * A plain `CollOverArray[Tuple2]` (the class of `Box.tokens` and of a `map`
+ * over a pair collection) is an `'array'` shape: the plain rule applies.
+ *
+ * The caller (an evaluator arm) passes `sValueStructuralEq` as `itemEq`; this
+ * module decides which items meet, in what order, and when to throw.
+ *
+ * @throws CollClassCast when a specialised receiver's array differs from the
+ *   argument's, and when a pairs receiver's fallback meets a primitive
+ *   argument. The evaluator's facade turns it into
+ *   `EvalError('coll-class-cast')`.
+ */
+export function startsWith(
+  c: CollValue,
+  ys: CollValue,
+  itemEq: (a: SValue, b: SValue) => boolean,
+): boolean {
+  return matchPrefix(c, ys, itemEq, 'start')
+}
+
+export function endsWith(
+  c: CollValue,
+  ys: CollValue,
+  itemEq: (a: SValue, b: SValue) => boolean,
+): boolean {
+  return matchPrefix(c, ys, itemEq, 'end')
+}
+
 // ----- internals -----------------------------------------------------------
 
 /** Build a pair-shape result from two side collections, using `pairColl`'s
@@ -294,6 +347,80 @@ function sideElems(c: CollValue): { ls: SType; rs: SType } {
     throw new Error('coll/ops: pairs elem is not an STuple of 2 items')
   }
   return { ls: c.elem.items[0]!, rs: c.elem.items[1]! }
+}
+
+/**
+ * The shared body of `startsWith` and `endsWith`. `from = 'end'` compares the
+ * last `ys.length` items of the receiver against the argument.
+ */
+function matchPrefix(
+  c: CollValue,
+  ys: CollValue,
+  itemEq: (a: SValue, b: SValue) => boolean,
+  from: 'start' | 'end',
+): boolean {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    const ysCls = classOf(ys)
+    if (ysCls.shape === 'pairs') {
+      const { ls, rs } = splitSides(c, cls)
+      const { ls: yls, rs: yrs } = splitSides(ys, ysCls)
+      // ls.<op>(yp.ls) && rs.<op>(yp.rs), with the `&&` short-circuit: when
+      // `ls` returns `false`, `rs` is not read, so a right side that would
+      // throw does not throw here.
+      if (!matchPrefix(ls, yls, itemEq, from)) return false
+      return matchPrefix(rs, yrs, itemEq, from)
+    }
+    // Non-pair argument: the fallback casts the argument's array to `Tuple2[]`.
+    if (isPrimitiveArrayClass(ysCls.array)) {
+      throw new CollClassCast(
+        `PairOfCols.${from === 'start' ? 'startsWith' : 'endsWith'}: Array of ${ysCls.array} is not a Tuple2[]`,
+      )
+    }
+    return compareItems(c.items, ys.items, itemEq, from)
+  }
+  if (cls.specialised) {
+    const ysArray = argArrayClass(ys)
+    if (ysArray !== cls.array) {
+      throw new CollClassCast(
+        `Coll[${cls.array}].${from === 'start' ? 'startsWith' : 'endsWith'}: Array of ${ysArray} is not of the receiver's class`,
+      )
+    }
+  }
+  return compareItems(c.items, ys.items, itemEq, from)
+}
+
+/**
+ * Walk `ys.items` against `recv.items`: from the start, or from the offset
+ * that aligns their ends.
+ */
+function compareItems(
+  recv: SValue[],
+  ys: SValue[],
+  itemEq: (a: SValue, b: SValue) => boolean,
+  from: 'start' | 'end',
+): boolean {
+  if (ys.length > recv.length) return false
+  const offset = from === 'start' ? 0 : recv.length - ys.length
+  for (let i = 0; i < ys.length; i++) {
+    if (!itemEq(recv[offset + i]!, ys[i]!)) return false
+  }
+  return true
+}
+
+/**
+ * The class of the argument's underlying array. A `'pairs'` value's `toArray`
+ * is `Array[Tuple2]` (`CollsOverArrays.scala:299`), a reference array.
+ */
+function argArrayClass(ys: CollValue): ArrayClass {
+  const cls = classOf(ys)
+  if (cls.shape === 'pairs') return 'Tuple2'
+  return cls.array
+}
+
+/** The five primitive array kinds Scala specialises arrays on. */
+function isPrimitiveArrayClass(c: ArrayClass): boolean {
+  return c === 'boolean' || c === 'byte' || c === 'short' || c === 'int' || c === 'long'
 }
 
 /** Split an array of pair values into two arrays of components. */

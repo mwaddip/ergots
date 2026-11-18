@@ -610,8 +610,6 @@
   },
   "v6/Coll.generic_producers_v6.json": {
     "collection-class": [
-      "pre-endsWith-B.preHeader.votes-Iidx1-v3-a3#301",
-      "pre-endsWith-B.preHeader.votes-Iidx1.direct-v3-a3#397",
       "pre-patch-B.header.parentId-Cconst0.direct-v0-a3#532",
       "pre-patch-B.header.parentId-Cconst0.direct-v3-a3#533",
       "pre-patch-B.header.parentId-Iconst0.direct-v0-a3#512",
@@ -771,7 +769,11 @@
       "pre-patch.r1-B.preHeader.minerPk.getEncoded-Zmap0-v0-a3#576",
       "pre-patch.r1-B.preHeader.minerPk.getEncoded-Zmap0-v3-a3#577",
       "pre-patch.r1-B.preHeader.minerPk.getEncoded-Zmap0.direct-v0-a3#622",
-      "pre-patch.r1-B.preHeader.minerPk.getEncoded-Zmap0.direct-v3-a3#623",
+      "pre-patch.r1-B.preHeader.minerPk.getEncoded-Zmap0.direct-v3-a3#623"
+    ],
+    "comparer": [
+      "pre-endsWith-B.preHeader.votes-Iidx1-v3-a3#301",
+      "pre-endsWith-B.preHeader.votes-Iidx1.direct-v3-a3#397",
       "pre-startsWith-B.preHeader.votes-Iidx1-v3-a3#300",
       "pre-startsWith-B.preHeader.votes-Iidx1.direct-v3-a3#396"
     ],
