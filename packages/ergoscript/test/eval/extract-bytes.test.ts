@@ -11,7 +11,7 @@
  *
  * `b.sigma_serialize_bytes()` returns the full canonical box bytes:
  *   value + ergoTree + creation_height + tokens + registers + tx_id + index
- * Reflected in TS by `serializeBoxBytes(box)` → `bytesToCollByteSValue(bytes)`.
+ * Reflected in TS by `boxBytesOf(box)` → `byteColl(bytes, true)`.
  *
  * Coverage (5 fixture entries):
  *   - minimal: no tokens, no registers, height=0

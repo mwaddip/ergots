@@ -340,9 +340,14 @@ function registerHandlers(): void {
         'context-field-missing'
       )
     }
-    // `preHeader.minerPk.getEncoded` — `CGroupElement.scala:16`
-    // `Colls.fromArray(GroupElementSerializer.toBytes(...))` is specialised,
-    // the concrete `Byte` branch. Matches `ErgoLikeContext.scala:171`.
+    // JVM `ErgoLikeContext.toSigmaContext()` hands the `CContext` constructor
+    // `preHeader.minerPk.getEncoded`
+    // (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:171`),
+    // which is `CGroupElement.getEncoded`
+    // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16`):
+    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+    // `Array[Byte]` — specialised. The handler reads back from
+    // `ctx.preHeader.minerPk`, the already-serialised bytes.
     return byteColl(ctx.preHeader.minerPk, true)
   } })
 
@@ -410,13 +415,18 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    // JVM `preHeader.parentId` is PLAIN — `CPreHeader.scala:23`
-    // `parentId = _parentId` reads the already-wrapped field, which the
-    // chain's deserializer builds with `.toColl` (`Extensions.scala:16-19`)
-    // under an ERASED `Byte` type parameter, taking the generic `fromArray`
-    // branch (not the specialised one). SANTA `Coll.patch_array_class_context_v6`
-    // #551 `CONTEXT.preHeader.parentId.patch(0, <empty Coll[Boolean]>, 0)`
-    // answers at cost 106; the header twin #343 refuses.
+    // JVM `preHeader.parentId` is PLAIN. `CPreHeader.scala:9-17` carries
+    // `parentId: Coll[Byte]` as a stored field; the chain's deserializer
+    // wraps the 32 wire bytes with `.toColl` (`ArrayOps[T: RType].toColl`,
+    // `core/shared/src/main/scala/sigma/Extensions.scala:16-19`), which calls
+    // `Colls.fromArray` at an ERASED `Byte` parameter — the generic branch,
+    // not the specialised one. Blessed-row pin: SANTA
+    // `Coll.patch_array_class_context_v6` row
+    // `ctx-patch-B.preHeader.parentId-Zconst0-v3-a3#551`
+    // (`CONTEXT.preHeader.parentId.patch(0, <empty Coll[Boolean]>, 0)`)
+    // answers with a value; its header twin
+    // `ctx-patch-B.header.parentId-Zconst0-v3-a3#343` errors — the signature
+    // of a plain receiver and a specialised one.
     return byteColl(obj.value.parentId, false)
   } })
 
@@ -516,7 +526,10 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    // JVM `preHeader.votes` is PLAIN, same route as `parentId` above.
+    // JVM `preHeader.votes` is PLAIN, same route as `parentId` (105:2):
+    // `CPreHeader.scala:9-17` stores `votes: Coll[Byte]`, built by the
+    // chain's deserializer through `.toColl` at an ERASED `Byte` parameter
+    // (`sigma.Extensions.scala:16-19`).
     return byteColl(obj.value.votes, false)
   } })
 
@@ -685,9 +698,11 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    // `CGroupElement.getEncoded` (`CGroupElement.scala:16`) is
-    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` under
-    // the concrete `Byte` type — specialised.
+    // `CGroupElement.getEncoded`
+    // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16-18`) is
+    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+    // `Array[Byte]` — the specialised `fromArray` branch
+    // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
     return byteColl(obj.value, true)
   } })
 
@@ -1387,12 +1402,21 @@ registerHandlers()
 /**
  * Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue.
  *
- * JVM `box.tokens` (`CBox.scala:34`, `ErgoBoxCandidate.scala:128-130`)
- * builds the outer collection with `fromArray[(Coll[Byte], Long)]` under a
- * REFERENCE item type — no `@specialized` branch, no pair routing — so the
- * result is a plain `CollOverArray` over `Tuple2[]`, NOT a `PairOfCols`
- * (`CollsOverArrays.scala:11`, :274). Each token id is specialised: the
- * JVM's `Token.id` is `Colls.fromArray(id)` under the concrete `Byte` type.
+ * JVM `CBox.tokens`
+ * (`data/shared/src/main/scala/sigma/data/CBox.scala:56-58`)
+ * reads R2: `this.getReg[Coll[(Coll[Byte], Long)]](ErgoBox.R2.asIndex).get`.
+ * For an ErgoBoxCandidate, R2 is built by
+ * `data/shared/src/main/scala/org/ergoplatform/ErgoBoxCandidate.scala:73-76`
+ * as `Constant(additionalTokens.map(identity).asWrappedType, STokensRegType)`:
+ * the `.map(identity)` on a `Coll[(Coll[Byte], Long)]` of pair item type
+ * returns a plain `CollOverArray` directly via
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:317-324`
+ * (`PairOfCols.map`) or `:63-65` (`CollOverArray.map`), both ending
+ * `new CollOverArray(res, builder)` or `builder.fromArray(res)` at an
+ * ERASED reference V — not routed through `fromBoxedPairs`. Shape
+ * `'array'`, plain, array class `'Tuple2'` (`CollsOverArrays.scala:11`). Each
+ * token id is specialised: the JVM's token id is a `Colls.fromArray` on an
+ * `Array[Byte]` under the concrete `Byte` type.
  */
 function tokensCollOf(box: ErgoBox): SValue {
   const items: SValue[] = box.tokens.map((t) => ({
@@ -1407,10 +1431,13 @@ function tokensCollOf(box: ErgoBox): SValue {
 /**
  * Convert an ErgoBox[] to a Coll[Box] SValue. JVM `CContext.dataInputs` is
  * built by `dataBoxes.toArray.map(_.toTestBox).toColl`
- * (`ErgoLikeContext.scala:148`), which goes through
- * `Colls.fromArray(arr)` under an erased reference type — the generic,
- * plain `fromArray` branch (`CollsOverArrays.scala:226-233`). Shape
- * `'array'`, plain, over `Box`.
+ * (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:149`).
+ * `.toColl` is `ArrayOps[T: RType].toColl = Colls.fromArray(arr)` at
+ * `core/shared/src/main/scala/sigma/Extensions.scala:16-19`, which calls
+ * `fromArray` under an ERASED reference parameter — the generic `fromArray`
+ * branch in
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`, no
+ * pair routing. Shape `'array'`, plain, over `Box`.
  */
 function dataInputsCollOf(boxes: ErgoBox[]): SValue {
   return fromArray(SBOX, boxes.map((b) => ({ kind: 'Box', value: b })), false)
@@ -1419,10 +1446,15 @@ function dataInputsCollOf(boxes: ErgoBox[]): SValue {
 // ---------- SContext.headers helper ----------
 
 /**
- * Convert a Header[] to a Coll[Header] SValue. JVM `CContext.headers` is
- * passed to the constructor as the already-wrapped collection; chain code
- * builds it with `.toColl` on an `Array[Header]` (`Extensions.scala:16-19`)
- * under an erased reference type — the generic, plain `fromArray` branch.
+ * Convert a Header[] to a Coll[Header] SValue. JVM `CContext.headers`
+ * (`interpreter/shared/src/main/scala/sigmastate/eval/CContext.scala:20`)
+ * is `Coll[Header]`, passed to the constructor at
+ * `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:170`.
+ * It is built by chain code with `.toColl` on an `Array[Header]`
+ * (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`,
+ * `ArrayOps[T: RType].toColl = Colls.fromArray(arr)`) at an ERASED reference
+ * parameter — the generic `fromArray` branch in
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
  * Shape `'array'`, plain, over `Header`.
  */
 function headersCollOf(headers: Header[]): SValue {

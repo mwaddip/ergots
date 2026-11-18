@@ -116,7 +116,8 @@ describe('SPreHeader.parentId handler', () => {
   it('returns the exact bytes given on the input PreHeader (Coll[Byte] wrap)', () => {
     // Sanity: this is the load-bearing difference vs SPreHeader.minerPk (105:6).
     // minerPk passes through as SGroupElement.value (referential). parentId is
-    // wrapped via bytesToCollByteSValue (per-byte sign-extend; new Coll items).
+    // wrapped via `byteColl(bytes, false)` (per-byte sign-extend; new Coll items,
+    // plain class).
     const distinctivePid = new Uint8Array(32)
     distinctivePid[0] = 0xff
     distinctivePid[1] = 0x80

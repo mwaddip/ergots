@@ -43,8 +43,10 @@ export function evalExtractScriptBytes(
       'extract-input-not-box'
     )
   }
-  // JVM `ExtractScriptBytes` returns `box.propositionBytes`, a specialised
-  // `Coll[Byte]` built via `Colls.fromArray(Array[Byte])` under the
-  // concrete `Byte` type (`CollsOverArrays.scala:226-233`, specialised arm).
+  // JVM `ExtractScriptBytes.eval` returns `box.propositionBytes`
+  // (`data/shared/src/main/scala/sigma/data/CBox.scala:27`
+  // `propositionBytes: Coll[Byte] = Colls.fromArray(ebox.propositionBytes)`),
+  // which is `Colls.fromArray` on an `Array[Byte]` — the specialised
+  // `fromArray` branch in `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
   return byteColl(input.value.ergoTreeBytes, true)
 }

@@ -39,8 +39,12 @@ export function evalSigmaPropBytes(e: SigmaPropBytes, env: Env, ctx: EvalContext
   // n=1 (sigma_prop_bytes.rs:15) — correct only for single-node leaves; it
   // under-charges every multi-node proposition. Routed to sigma-rust in santa §B1.
   ctx.addPerItemCost(35, 6, 1, sigmaBooleanNodeCount(inputV.value))
-  // JVM `SigmaPropBytes` returns `Colls.fromArray(propBytes)` at the
-  // concrete `Byte` type (`transformers.scala:337-343`) — specialised.
+  // JVM `SigmaPropBytes.eval`
+  // (`data/shared/src/main/scala/sigma/ast/transformers.scala:332-343`)
+  // returns `inputV.propBytes` → `CSigmaProp.propBytes`
+  // (`core/shared/src/main/scala/sigma/data/CSigmaProp.scala:21-30`), which
+  // ends `Colls.fromArray(w.toBytes)` on an `Array[Byte]` under the
+  // concrete `Byte` type — specialised.
   return byteColl(sigmaPropBytesOf(inputV.value), true)
 }
 

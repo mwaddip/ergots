@@ -11,7 +11,7 @@
  *
  * `b.bytes_without_ref()` returns box bytes WITHOUT tx_id and index:
  *   value + ergoTree + creation_height + tokens + registers
- * Reflected in TS by `serializeBoxBytesWithoutRef(box)` → `bytesToCollByteSValue(bytes)`.
+ * Reflected in TS by `serializeBoxBytesWithoutRef(box)` → `byteColl(bytes, true)`.
  *
  * Coverage (4 fixture entries):
  *   - minimal: no tokens, no registers — expected bytes are 10 shorter than full form

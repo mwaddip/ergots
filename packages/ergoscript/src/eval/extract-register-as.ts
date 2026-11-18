@@ -66,10 +66,16 @@ const STUPLE_INT_COLLBYTE: SType = {
 function tokensToCollTupleSValue(
   tokens: { id: Uint8Array; amount: bigint }[]
 ): SValue {
-  // R2 mirrors `Box.tokens` (`CBox.scala:34`, `ErgoBoxCandidate.scala:128-130`):
-  // a plain `CollOverArray` over a pair ITEM type, with the pair held as the
-  // runtime `Tuple2` rather than routed to `PairOfCols`. The token id is
-  // specialised (`Token.id` is `Colls.fromArray` under the concrete `Byte`).
+  // R2 mirrors `Box.tokens`
+  // (`data/shared/src/main/scala/sigma/data/CBox.scala:56-58`): a plain
+  // `CollOverArray` over a pair ITEM type, with the pair held as the runtime
+  // `Tuple2` rather than routed to `PairOfCols`. Built in R2 by
+  // `data/shared/src/main/scala/org/ergoplatform/ErgoBoxCandidate.scala:73-76`
+  // as `Constant(additionalTokens.map(identity).asWrappedType, STokensRegType)`:
+  // the `.map(identity)` returns a plain `CollOverArray` directly, bypassing
+  // pair routing (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:317-324`
+  // for `PairOfCols.map` or `:63-65` for `CollOverArray.map`). The token id
+  // is specialised (`Colls.fromArray` on an `Array[Byte]`).
   const items: SValue[] = tokens.map((t) => ({
     kind: 'Tuple' as const,
     items: [
@@ -100,13 +106,16 @@ export function getRegisterEntry(
       return { tpe: SLONG, value: { kind: 'Long', value: BigInt.asIntN(64, box.value) } }
     case 1:
       // R1 → SColl[SByte] of box.ergoTreeBytes. JVM `ErgoBoxCandidate.get(R1)`
-      // (`ErgoBoxCandidate.scala:76`) wraps `propositionBytes` through
-      // `ByteArrayConstant(bytes)`; the constant's data value is
-      // `Colls.fromArray(bytes)` at the ERASED `Byte` type held by the
-      // `Constant.value` field — the generic `fromArray` branch, PLAIN. Note
-      // the asymmetry with the box PROPERTY `propositionBytes` (99:2), which
-      // reads the same bytes through `CBox.scala:27` under the concrete
-      // `Byte` and is specialised.
+      // (`data/shared/src/main/scala/org/ergoplatform/ErgoBoxCandidate.scala:72`)
+      // returns `Some(ByteArrayConstant(propositionBytes))`. The constant's
+      // data value is `ByteArrayConstant(bytes: Array[Byte])` which calls
+      // `Colls.fromArray(bytes)` at the ERASED `Byte` parameter of the
+      // `Constant.value` field — the generic `fromArray` branch
+      // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`):
+      // PLAIN. Note the asymmetry with the box PROPERTY `propositionBytes`
+      // (99:2), which reads the same bytes through
+      // `data/shared/src/main/scala/sigma/data/CBox.scala:27` under the
+      // concrete `Byte` and is specialised.
       return {
         tpe: SCOLL_BYTE,
         value: byteColl(box.ergoTreeBytes, false),

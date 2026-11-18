@@ -118,7 +118,9 @@ export function evalSubstConstants(
   ctx.addPerItemCost(100, 100, 1, result.numConstants)
 
   // 6. Wrap the substituted bytes as Coll[Byte]. JVM `SubstConstants.eval`
-  // (`sigma/ast/trees.scala:641-647`) ends `res = Colls.fromArray(newBytes)`
-  // under the concrete `Byte` type — specialised.
+  // (`data/shared/src/main/scala/sigma/ast/trees.scala:633-647`) ends
+  // `res = Colls.fromArray(newBytes)` (`:646`) on an `Array[Byte]` — the
+  // specialised `fromArray` branch
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
   return byteColl(result.bytes, true)
 }

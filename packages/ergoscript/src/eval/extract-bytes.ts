@@ -47,10 +47,12 @@ export function evalExtractBytes(
       'extract-input-not-box'
     )
   }
-  // JVM `.bytes` is a specialised `Coll[Byte]` — `CBox.scala:25`
-  // `bytes = Colls.fromArray(ebox.bytes)` goes through the `Byte`-specialised
-  // `fromArray` (`CollsOverArrays.scala:226-233`). `byteColl` materialises
-  // per-item Byte SValues, so the box's retainedBytes array is never
-  // exposed to the script.
+  // JVM `.bytes` is a specialised `Coll[Byte]`:
+  // `data/shared/src/main/scala/sigma/data/CBox.scala:25`
+  // `bytes = Colls.fromArray(ebox.bytes)` is `Colls.fromArray` on an
+  // `Array[Byte]` — the specialised `fromArray` branch in
+  // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
+  // `byteColl` materialises per-item Byte SValues, so the box's retained
+  // bytes array is never exposed to the script.
   return byteColl(boxBytesOf(input.value), true)
 }

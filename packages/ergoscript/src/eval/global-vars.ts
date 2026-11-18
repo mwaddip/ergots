@@ -89,9 +89,15 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      // JVM `CContext.outputs` is built by `.toArray.map(_.toTestBox).toColl`
-      // (`ErgoLikeContext.scala:159`), the generic `fromArray` branch over
-      // the reference `Box` item type — plain, no pair routing.
+      // JVM `CContext.outputs` is built at
+      // `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:157`
+      // (`val outputs = spendingTransaction.outputs.toArray.map(_.toTestBox).toColl`),
+      // where `.toColl` on an `Array[Box]` is
+      // `ArrayOps[T: RType].toColl = Colls.fromArray(arr)`
+      // (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`) under an
+      // ERASED reference parameter — the generic `fromArray` branch in
+      // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`,
+      // no pair routing. Shape `'array'`, plain, over `Box`.
       return fromArray(SBOX_TYPE, ctx.outputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'Inputs': {
@@ -102,8 +108,10 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      // JVM `CContext.inputs` is built the same way as `outputs` above —
-      // plain `CollOverArray` over `Box[]`.
+      // JVM `CContext.inputs` is built at
+      // `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:150`
+      // (`val inputs = boxesToSpend.toArray.map(_.toTestBox).toColl`), the same
+      // `.toColl` route as `outputs` above — plain `CollOverArray` over `Box[]`.
       return fromArray(SBOX_TYPE, ctx.inputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'MinerPubKey': {
@@ -115,10 +123,14 @@ export function evalGlobalVars(
         )
       }
       // MinerPubkey returns Coll[Byte] (33 compressed bytes), not GroupElement.
-      // `ErgoLikeContext.scala:171` hands the context `preHeader.minerPk.getEncoded`,
-      // which is `CGroupElement.scala:16` `Colls.fromArray(toBytes(...))` under
-      // the concrete `Byte` type — specialised. The miner_pk field in our TS
-      // PreHeader is already the 33-byte compressed SEC1 bytes.
+      // JVM `ErgoLikeContext.toSigmaContext()` hands the context
+      // `preHeader.minerPk.getEncoded`
+      // (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:171`),
+      // which is `CGroupElement.getEncoded`
+      // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16-18`):
+      // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+      // `Array[Byte]` — specialised. The miner_pk field in our TS PreHeader
+      // is already the 33-byte compressed SEC1 bytes.
       return byteColl(ctx.preHeader.minerPk, true)
     }
     case 'GroupGenerator': {

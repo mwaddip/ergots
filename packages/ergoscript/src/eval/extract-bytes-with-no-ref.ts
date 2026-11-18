@@ -54,8 +54,10 @@ export function evalExtractBytesWithNoRef(
       'extract-input-not-box'
     )
   }
-  // JVM `.bytesWithoutRef` is a specialised `Coll[Byte]` — `CBox.scala:26`
-  // `bytesWithoutRef = Colls.fromArray(ebox.bytesWithNoRef)` goes through
-  // the `Byte`-specialised `fromArray` (`CollsOverArrays.scala:226-233`).
+  // JVM `.bytesWithoutRef` is a specialised `Coll[Byte]`:
+  // `data/shared/src/main/scala/sigma/data/CBox.scala:26`
+  // `bytesWithoutRef = Colls.fromArray(ebox.bytesWithNoRef)` is `Colls.fromArray`
+  // on an `Array[Byte]` — the specialised `fromArray` branch in
+  // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
   return byteColl(serializeBoxBytesWithoutRef(input.value), true)
 }

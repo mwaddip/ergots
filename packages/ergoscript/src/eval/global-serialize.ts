@@ -90,7 +90,8 @@ export function evalGlobalSerialize(
   }
 
   // JVM `Global.serialize_eval` ends `Colls.fromArray(w.toBytes)`
-  // (`sigma/ast/methods.scala:1981`) under the concrete `Byte` type —
-  // specialised.
+  // (`data/shared/src/main/scala/sigma/ast/methods.scala:1983`) on an
+  // `Array[Byte]` — the specialised `fromArray` branch
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
   return byteColl(w.toBytes(), true)
 }

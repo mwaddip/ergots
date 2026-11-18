@@ -44,8 +44,14 @@ function assertHeaderObj(
 export function evalSHeaderId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'id')
-  // JVM `CHeader.id` is a specialised `Coll[Byte]` — `CHeader.scala:18`
-  // `id = Colls.fromArray(id)` under the concrete `Byte` type.
+  // JVM `CHeader.id` is a specialised `Coll[Byte]` —
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:17`
+  // `id = ergoHeader.id` reads the pre-built collection; `ergoHeader.id`
+  // itself is built at
+  // `data/shared/src/main/scala/org/ergoplatform/ErgoHeader.scala:140`:
+  // `Colls.fromArray(serializedId)` on an `Array[Byte]` — the specialised
+  // `fromArray` branch
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
   return byteColl(obj.value.id, true)
 }
 
@@ -67,8 +73,11 @@ export function evalSHeaderVersion(obj: SValue, _args: SValue[], ctx: EvalContex
 export function evalSHeaderParentId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'parentId')
-  // JVM `CHeader.parentId` is a specialised `Coll[Byte]` — `CHeader.scala:21`
-  // `parentId = Colls.fromArray(parentId)` under the concrete `Byte` type.
+  // JVM `CHeader.parentId` is a specialised `Coll[Byte]` —
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:23`
+  // `parentId = Colls.fromArray(idToBytes(ergoHeader.parentId))` on an
+  // `Array[Byte]` — the specialised `fromArray` branch
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
   return byteColl(obj.value.parentId, true)
 }
 
@@ -79,8 +88,11 @@ export function evalSHeaderParentId(obj: SValue, _args: SValue[], ctx: EvalConte
 export function evalSHeaderAdProofsRoot(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'ADProofsRoot')
-  // JVM `CHeader.ADProofsRoot` is a specialised `Coll[Byte]` — `CHeader.scala:23`
-  // under the concrete `Byte` type.
+  // JVM `CHeader.ADProofsRoot` is a specialised `Coll[Byte]` —
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:26`
+  // `ADProofsRoot = Colls.fromArray(ergoHeader.ADProofsRoot)` on an
+  // `Array[Byte]` — specialised
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
   return byteColl(obj.value.adProofsRoot, true)
 }
 
@@ -124,7 +136,9 @@ export function evalSHeaderTransactionsRoot(obj: SValue, _args: SValue[], ctx: E
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'transactionsRoot')
   // JVM `CHeader.transactionsRoot` is a specialised `Coll[Byte]` —
-  // `CHeader.scala:34` under the concrete `Byte` type.
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:32`
+  // `transactionsRoot = Colls.fromArray(ergoHeader.transactionsRoot)` on an
+  // `Array[Byte]` — specialised.
   return byteColl(obj.value.transactionRoot, true)
 }
 
@@ -176,7 +190,9 @@ export function evalSHeaderExtensionRoot(obj: SValue, _args: SValue[], ctx: Eval
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'extensionRoot')
   // JVM `CHeader.extensionRoot` is a specialised `Coll[Byte]` —
-  // `CHeader.scala:44` under the concrete `Byte` type.
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:45`
+  // `extensionRoot = Colls.fromArray(ergoHeader.extensionRoot)` on an
+  // `Array[Byte]` — specialised.
   return byteColl(obj.value.extensionRoot, true)
 }
 
@@ -218,7 +234,9 @@ export function evalSHeaderPowNonce(obj: SValue, _args: SValue[], ctx: EvalConte
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'powNonce')
   // JVM `CHeader.powNonce` is a specialised `Coll[Byte]` —
-  // `CHeader.scala:55` `Colls.fromArray(powNonce)` under the concrete `Byte`.
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:55`
+  // `powNonce = Colls.fromArray(ergoHeader.powSolution.n)` on an
+  // `Array[Byte]` — specialised.
   return byteColl(obj.value.autolykosSolution.nonce, true)
 }
 
@@ -243,8 +261,10 @@ export function evalSHeaderPowDistance(obj: SValue, _args: SValue[], ctx: EvalCo
 export function evalSHeaderVotes(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'votes')
-  // JVM `CHeader.votes` is a specialised `Coll[Byte]` — `CHeader.scala:61`
-  // `Colls.fromArray(votes)` under the concrete `Byte` type.
+  // JVM `CHeader.votes` is a specialised `Coll[Byte]` —
+  // `data/shared/src/main/scala/sigma/data/CHeader.scala:62`
+  // `votes = Colls.fromArray(ergoHeader.votes)` on an `Array[Byte]` —
+  // specialised.
   return byteColl(obj.value.votes, true)
 }
 

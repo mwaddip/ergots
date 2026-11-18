@@ -176,14 +176,20 @@ const ubiDesc: NumV6 = {
 const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc, ubiDesc]
 
 function makeToBytes(t: NumV6): HandlerFn {
-  // JVM `Byte/Short/Int/Long.toBytes` go through `IntegralType.toBytes` and
-  // down to the generic `Colls.fromArray[Byte](...)` under an ERASED `Byte`
-  // parameter — PLAIN (`sigma/ast/methods.scala` `toBytesMethod_eval`,
-  // `IntegralOps.scala`, routing `arr.toColl` in `Extensions.scala:16-19`).
-  // `BigInt.toBytes` and `UnsignedBigInt.toBytes` route through
-  // `CBigInt.toBytes` / `CUnsignedBigInt.toBytes`
-  // (`CBigInt.scala:65-67`, `CUnsignedBigInt.scala:26-28`), which call
-  // `Colls.fromArray(arr)` at the CONCRETE `Byte` type — SPECIALISED.
+  // JVM `Byte/Short/Int/Long.toBytes` go through `ExactIntegral.toBigEndianBytes`
+  // (`data/shared/src/main/scala/sigma/data/ExactIntegral.scala:41` for Byte,
+  // `:67` Short, `:93-94` Int, `:122-123` Long), which each call
+  // `Colls.fromItems(...)` with raw bytes. `fromItems`
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:217-224`)
+  // builds `new CollOverArray(items.toArray(cT.classTag), builder)` directly —
+  // no `@specialized` branch, so the result is PLAIN.
+  // `BigInt.toBytes` is `CBigInt.toBytes` at
+  // `core/shared/src/main/scala/sigma/data/CBigInt.scala:30`:
+  // `Colls.fromArray(wrappedValue.toByteArray)` — `Array[Byte]` under the
+  // concrete `Byte` type, the specialised `fromArray` branch. `UnsignedBigInt.toBytes`
+  // is `CUnsignedBigInt.toBytes` at
+  // `core/shared/src/main/scala/sigma/data/CUnsignedBigInt.scala:32` —
+  // same `Colls.fromArray` at concrete `Byte`, SPECIALISED.
   const specialised = t.kind === 'BigInt' || t.kind === 'UnsignedBigInt'
   return (obj, _args, ctx) => {
     ctx.addCost(5)
@@ -203,9 +209,10 @@ function makeToBits(t: NumV6): HandlerFn {
         items[i * 8 + (7 - bit)] = { kind: 'Boolean', value: ((byte >> bit) & 1) === 1 }
       }
     }
-    // `<numeric>.toBits` builds a `Coll[Boolean]` through `Colls.fromArray`
-    // at the concrete `Boolean` type (`ExactNumeric.toBits`,
-    // `NumericOps.scala`) — SPECIALISED Coll[Boolean].
+    // `<numeric>.toBits` is `ExactNumeric.toBits`
+    // (`data/shared/src/main/scala/sigma/data/ExactNumeric.scala:44-58`),
+    // which ends `Colls.fromArray(res)` on a `new Array[Boolean](l * 8)` —
+    // the concrete `Boolean` type takes the specialised `fromArray` branch.
     return fromArray(SBOOLEAN, items, true)
   }
 }

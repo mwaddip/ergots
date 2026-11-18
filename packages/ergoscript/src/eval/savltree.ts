@@ -125,11 +125,18 @@ function expectAvlTree(
  * `SAvlTree.digest` (100:1) — root hash + tree-height byte (33 bytes total).
  * Source: savltree.rs:28-34.
  *
- * JVM `CAvlTree.digest` is a specialised `Coll[Byte]` — `CAvlTree.scala:33`
- * `digest = Colls.fromArray(avlTreeData.digest.toArray)` under the concrete
- * `Byte` type. A local 6.0.7 probe (`patch(0, <empty Coll[Boolean]>, 0)` on
- * `AvlTree.digest`) refuses with a `ClassCastException`, the signature of
- * a specialised receiver.
+ * JVM `CAvlTree.digest`
+ * (`core/shared/src/main/scala/sigma/data/CAvlTree.scala:29`) is
+ * `override def digest: Coll[Byte] = treeData.digest` — a pass-through to
+ * the `AvlTreeData.digest: Coll[Byte]` field
+ * (`core/shared/src/main/scala/sigma/data/AvlTreeData.scala:51`). The
+ * underlying `Coll` is built by the chain when the tree is read, through
+ * `Colls.fromArray` on an `Array[Byte]`, the specialised `fromArray` branch
+ * (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`,
+ * and e.g. `AvlTreeData.dummy` at `:60-63` which calls
+ * `Colls.fromArray(Array.fill(DigestSize)(0: Byte))`). A local 6.0.7 probe
+ * (`patch(0, <empty Coll[Boolean]>, 0)` on `AvlTree.digest`) refuses with a
+ * `ClassCastException`, the signature of a specialised receiver.
  */
 export function evalSAvlTreeDigest(
   obj: SValue,
@@ -462,8 +469,12 @@ const SAVL_TREE: SType = { tag: 'SAvlTree' }
 
 /**
  * Wrap a `Uint8Array` returned-value into `Some(Coll[Byte])`. The inner
- * collection is specialised: `AvlTree.get`'s `Some` value is built by the
- * AVL verifier through `Colls.fromArray` at the concrete `Byte` type. A
+ * collection is specialised: `AvlTree.get`'s `Some` is built by
+ * `CErgoTreeEvaluator`'s lookup arm
+ * (`interpreter/shared/src/main/scala/sigmastate/interpreter/CErgoTreeEvaluator.scala:123`
+ * `case Some(v) => Some(Colls.fromArray(v))`), where `v: Array[Byte]` — the
+ * specialised `fromArray` branch
+ * (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`). A
  * local 6.0.7 probe (`patch` discriminator on the `get(k, p).get` result)
  * refuses with a `ClassCastException`, the signature of a specialised
  * receiver.

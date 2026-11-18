@@ -38,10 +38,12 @@ export function evalExtractId(e: ExtractId, env: Env, ctx: EvalContext): SValue 
       'extract-input-not-box'
     )
   }
-  // JVM `Box.id` is a specialised `Coll[Byte]` — `CBox.scala:24`
-  // `id = Colls.fromArray(ebox.id)` goes through the `Byte`-specialised
-  // `fromArray` (`CollsOverArrays.scala:226-233`). `byteColl` materialises
-  // per-item Byte SValues, so `boxIdOf`'s memoised array is never exposed
-  // to the script.
+  // JVM `Box.id` is a specialised `Coll[Byte]`:
+  // `data/shared/src/main/scala/sigma/data/CBox.scala:24`
+  // `id = Colls.fromArray(ebox.id)` is `Colls.fromArray` on an `Array[Byte]`
+  // — the specialised `fromArray` branch in
+  // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
+  // `byteColl` materialises per-item Byte SValues, so `boxIdOf`'s memoised
+  // array is never exposed to the script.
   return byteColl(boxIdOf(input.value), true)
 }

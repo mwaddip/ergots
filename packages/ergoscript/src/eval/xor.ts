@@ -50,7 +50,13 @@ export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
   const outLen = Math.min(l.length, r.length)
   const out = new Uint8Array(outLen)
   for (let i = 0; i < outLen; i++) out[i] = l[i]! ^ r[i]!
-  // JVM `Xor` returns the paired byte result wrapped through `Colls.fromArray`
-  // at the concrete `Byte` type (`Xor.eval` in `trees.scala`) — specialised.
+  // JVM `Xor.eval` (`data/shared/src/main/scala/sigma/ast/trees.scala:1001-1012`)
+  // delegates to `Colls.xor`
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:261-262`),
+  // which is `left.zip(right).map { (l, r) => (l ^ r).toByte }` — `zip` on two
+  // `CollOverArray`s of equal length builds a `PairOfCols` (`:183-215`), and
+  // `PairOfCols.map[@specialized V: RType](f)` at V=Byte returns
+  // `new CollOverArray(res, builder)` on an `Array[Byte]` (`:317-324`), which
+  // is the Byte-specialised subclass of `CollOverArray` (`:11`). Specialised.
   return byteColl(out, true)
 }

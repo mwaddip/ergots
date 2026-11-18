@@ -48,8 +48,10 @@ export function evalLongToByteArray(
   // sigma-rust loop `for i in (0..8).rev() { buf[i] = (val & 0xFF) as i8; val >>= 8 }`.
   const out = new Uint8Array(8)
   new DataView(out.buffer).setBigInt64(0, inputV.value, false)
-  // JVM `LongToByteArray` returns `Colls.fromArray(Longs.toByteArray(v))` at
-  // the concrete `Byte` type (`LongOps.scala`, `toByteArray_eval`
-  // in `trees.scala`) — specialised.
+  // JVM `LongToByteArray.eval` delegates to `SigmaDsl.longToByteArray` →
+  // `CSigmaDslBuilder.longToByteArray`
+  // (`data/shared/src/main/scala/sigma/data/CSigmaDslBuilder.scala:168-169`):
+  // `Colls.fromArray(Longs.toByteArray(l))` on an `Array[Byte]` under the
+  // concrete `Byte` type — specialised.
   return byteColl(out, true)
 }

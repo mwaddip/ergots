@@ -128,9 +128,9 @@ describe('box byte accessors — asymmetric retained/canonical basis (JVM)', () 
 
   it('ExtractId does not expose the memoized id array (copy on expose)', () => {
     // The Coll[Byte] SValue materializes per-item Byte SValues
-    // (bytesToCollByteSValue), so it can hold no reference to boxIdOf's
-    // memoized Uint8Array. Pin the property: mutate the returned SValue and
-    // confirm the memo (and a re-extract) are unaffected.
+    // (`byteColl`), so it can hold no reference to `boxIdOf`'s memoized
+    // Uint8Array. Pin the property: mutate the returned SValue and confirm
+    // the memo (and a re-extract) are unaffected.
     const garbage = parseBox(garbageBytes)
     const memoized = boxIdOf(garbage.value)
     const memoSnapshot = memoized.slice()

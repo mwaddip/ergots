@@ -12,11 +12,11 @@
  *     over the item type's reference array).
  *
  * Every assertion checks `cls` is PRESENT (the producer SET it), and asserts
- * the whole class object. Before this task's code changes, the sites whose
- * data-class differs from the JVM producer's class (plain byte, pairs vs
- * Tuple2, the outer getMany) fail on the shape comparison; the sites whose
- * data-class equals the JVM producer's class (specialised byte, Coll[Bool])
- * fail on the `cls` presence.
+ * the whole class object. A producer whose class equals the data reader's
+ * for the same item type (specialised byte, specialised Coll[Boolean]) is
+ * still pinned here through the `cls` presence check; a producer whose
+ * class differs (plain byte, plain `Tuple2` vs `PairOfCols`, the plain
+ * outer of `getMany`) is pinned through the whole-class comparison.
  *
  * JVM references at 6.0.7:
  *   core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:11, 274, 226-233
@@ -27,9 +27,10 @@
  */
 
 import { describe, it, expect } from 'vitest'
-import { ByteReader } from '@ergots/scorex'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { classOf, type CollClass, type CollValue } from '../../src/coll'
 import { parseSValue } from '../../src/wire/parse-svalue'
+import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext, type EvalOpts } from '../../src/eval/eval-context'
@@ -506,14 +507,76 @@ describe('review focus 5 — a box built from fields carries the same classes', 
   })
 })
 
+describe('review focus 5 twin — a box PARSED from its own serialised bytes', () => {
+  // Round-trip the same single-token stub through the package's own box
+  // serializer and parser, so R1/R2/R3 and the tokens come out of the parsed
+  // span rather than from the fields-only construction above. The classes
+  // the handlers set do not come from byte provenance, so each row holds
+  // the same class as its fields-only twin.
+  const built = stubBoxWithOneToken()
+  const w = new ByteWriter()
+  serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: built }, 0, w)
+  const r = new ByteReader(w.toBytes())
+  const parsed = parseSValue({ tag: 'SBox' }, 0, r)
+  if (parsed.kind !== 'Box') throw new Error(`parseSValue(SBox): got ${parsed.kind}`)
+  const boxC: Expr = { tag: 'Const', tpe: { tag: 'SBox' }, value: parsed }
+
+  it('R1 bytes are PLAIN', () => {
+    const r1: Expr = { tag: 'ExtractRegisterAs', input: boxC, registerId: 1, elemTpe: SCOLL_BYTE }
+    expectClass(runAt({ tag: 'OptionGet', input: r1 }, 0), PLAIN_BYTE)
+  })
+
+  it('R2 outer is plain over Tuple2', () => {
+    const r2: Expr = {
+      tag: 'ExtractRegisterAs',
+      input: boxC,
+      registerId: 2,
+      elemTpe: { tag: 'SColl', elem: STUPLE_COLLBYTE_LONG },
+    }
+    expectClass(runAt({ tag: 'OptionGet', input: r2 }, 0), PLAIN_TUPLE2)
+  })
+
+  it('R2 token id is specialised', () => {
+    const r2: Expr = {
+      tag: 'ExtractRegisterAs',
+      input: boxC,
+      registerId: 2,
+      elemTpe: { tag: 'SColl', elem: STUPLE_COLLBYTE_LONG },
+    }
+    const outer = asColl(runAt({ tag: 'OptionGet', input: r2 }, 0))
+    const first = outer.items[0]!
+    if (first.kind !== 'Tuple') throw new Error('expected Tuple')
+    expectClass(first.items[0]!, SPEC_BYTE)
+  })
+
+  it('R3 bytes are PLAIN', () => {
+    const r3: Expr = { tag: 'ExtractRegisterAs', input: boxC, registerId: 3, elemTpe: { tag: 'STuple', items: [{ tag: 'SInt' }, SCOLL_BYTE] } }
+    const some = runAt({ tag: 'OptionGet', input: r3 }, 0)
+    if (some.kind !== 'Tuple') throw new Error('expected Tuple')
+    expectClass(some.items[1]!, PLAIN_BYTE)
+  })
+
+  it('Box.tokens outer is plain over Tuple2 (parsed box)', () => {
+    expectClass(runAt(PC(99, 8, boxC), 0), PLAIN_TUPLE2)
+  })
+
+  it('Box.tokens token id is specialised (parsed box)', () => {
+    const outer = asColl(runAt(PC(99, 8, boxC), 0))
+    const first = outer.items[0]!
+    if (first.kind !== 'Tuple') throw new Error('expected Tuple')
+    expectClass(first.items[0]!, SPEC_BYTE)
+  })
+})
+
 // ─── a data-reader parsed constant is the DATA READER's class ──────────────
 
 describe('a parsed Coll[Byte] constant is the data reader\'s SPECIALISED class', () => {
   it('reads an unparsed byte-collection through the data reader', () => {
     // Tag 0x02 (SByte), length 3, bytes 01 02 03. The data reader specialises
-    // SByte (:174) so this is already covered by producers-structural; the
-    // producer here is `fromData`, not something this task touches. Listed
-    // for completeness of the table.
+    // SByte (:174); `producers-structural` holds the full data-reader rows,
+    // and this one row anchors the data-reader anchor at the head of the
+    // producers' table — the class the facade falls back to when a value
+    // comes in without `cls`.
     const r = new ByteReader(hexToBytes('02030102fd'))
     const v = parseSValue({ tag: 'SColl', elem: SBYTE }, 0, r)
     expectClass(v, SPEC_BYTE)

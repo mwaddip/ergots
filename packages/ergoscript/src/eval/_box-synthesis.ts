@@ -55,10 +55,16 @@ export function creationInfoTupleSValue(box: ErgoBox): SValue {
   // (eval/extract_creation_info.rs:18). Mirror the i32 wrap so JS Numbers
   // outside i32 range produce the same SValue.Int the sigma-rust evaluator
   // would.
-  // JVM `creationInfo._2` is a PLAIN `Coll[Byte]` — `ExtractCreationInfo.eval`
-  // (`sigma/ast/transformers.scala:488-502`) builds the tuple's bytes side
-  // through `Colls.fromArray[Byte](arr)(Byte_RType)` at the erased type, which
-  // takes the generic (non-specialised) `fromArray` branch.
+  // JVM `creationInfo._2` is a PLAIN `Coll[Byte]`. `ExtractCreationInfo.eval`
+  // (`sigma/ast/transformers.scala:514-523`) returns `inputV.creationInfo`;
+  // for an `ErgoBox` that value is built at `ErgoBox.scala:77-78`:
+  //   val tupleVal = (creationHeight,
+  //     CollectionUtil.concatArrays(transactionId.toBytes,
+  //                                 Shorts.toByteArray(index)).toColl)
+  // `.toColl` on an `Array[Byte]` is `ArrayOps[T: RType].toColl =
+  // Colls.fromArray(arr)` (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`),
+  // which calls the generic `fromArray` at an ERASED element type — no
+  // `@specialized` branch applies, so the result is the plain class.
   return {
     kind: 'Tuple',
     items: [

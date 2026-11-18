@@ -96,9 +96,9 @@ describe('SPreHeader.minerPk handler', () => {
 
   it('returns the exact bytes given on the input PreHeader (no serialization)', () => {
     // Sanity: this is the load-bearing difference vs SContext.minerPubKey (101:10),
-    // which wraps via bytesToCollByteSValue. Here the bytes flow through unmodified
-    // as SGroupElement.value. A regression that adds a serialization step would
-    // change `.value` (e.g., to Coll items).
+    // which wraps via `byteColl` into a `Coll[Byte]`. Here the bytes flow through
+    // unmodified as SGroupElement.value. A regression that adds a serialization
+    // step would change `.value` (e.g., to Coll items).
     const distinctivePk = new Uint8Array(33)
     distinctivePk[0] = 0x02
     distinctivePk[1] = 0xff

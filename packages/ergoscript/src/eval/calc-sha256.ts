@@ -39,7 +39,11 @@ export function evalCalcSha256(
   // Pattern B: charge AFTER eval-child + AFTER type guard.
   ctx.addPerItemCost(80, 8, 64, bytes.length)
   const digest = sha256(bytes)
-  // JVM `CalcSha256` builds the result through `Colls.fromArray` at the
-  // concrete `Byte` type — specialised, like `CalcBlake2b256`.
+  // JVM `CalcSha256.eval`
+  // (`data/shared/src/main/scala/sigma/ast/trees.scala:591-600`) calls
+  // `SigmaDsl.sha256(inputV)` → `CSigmaDslBuilder.sha256`
+  // (`data/shared/src/main/scala/sigma/data/CSigmaDslBuilder.scala:158-161`),
+  // which ends `Colls.fromArray(h)` on an `Array[Byte]` under the concrete
+  // `Byte` type — the specialised `fromArray` branch.
   return byteColl(digest, true)
 }
