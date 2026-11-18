@@ -25,7 +25,8 @@ import {
 /**
  * `CollOverArrayBuilder.fromArray` (:226-233). A pair item type routes to
  * `fromBoxedPairs` (:205-215), whose sides are the plain class over the side
- * type's array, whatever `specialised` says. The pair routing stores each
+ * type's array, or pairs again for a side of a pair type, whatever
+ * `specialised` says (`boxedPairsClass` below). The pair routing stores each
  * pair component into `Array.ofDim[A](len)(tA.classTag)` and `Array.ofDim[B]
  * (len)(tB.classTag)` through direct aastore — a component whose class is
  * not the side's class throws (SANTA `Coll.reference_store_ops` #33
@@ -43,29 +44,7 @@ import {
 export function fromArray(elem: SType, items: SValue[], specialised: boolean): CollValue {
   if (elem.tag === 'STuple' && elem.items.length === 2) {
     const [a, b] = elem.items as [SType, SType]
-    const lsArray = arrayClassOf(a)
-    const rsArray = arrayClassOf(b)
-    // `fromBoxedPairs` stores each component into its side's typed array;
-    // the component's class is checked per the side's class rule.
-    for (const item of items) {
-      if (item.kind !== 'Tuple' || item.items.length !== 2) {
-        throw new CollArrayStore(
-          `Array[Tuple2].store: item of kind ${item.kind} is no pair`,
-        )
-      }
-      storeComponent(lsArray, item.items[0]!)
-      storeComponent(rsArray, item.items[1]!)
-    }
-    return {
-      kind: 'Coll',
-      elem,
-      items,
-      cls: {
-        shape: 'pairs',
-        ls: { shape: 'array', specialised: false, array: lsArray },
-        rs: { shape: 'array', specialised: false, array: rsArray },
-      },
-    }
+    return { kind: 'Coll', elem, items, cls: boxedPairsClass(a, b, items) }
   }
   const array = arrayClassOf(elem)
   return {
@@ -74,6 +53,51 @@ export function fromArray(elem: SType, items: SValue[], specialised: boolean): C
     items,
     cls: { shape: 'array', specialised: specialised && isPrimitive(elem), array },
   }
+}
+
+/**
+ * The class `fromBoxedPairs` gives a collection of pairs
+ * (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:205-215`),
+ * with the stores it makes on the way.
+ *
+ * Each pair's two components are stored into two arrays of the sides' class
+ * tags (`:207-212`): a component whose class is not its side's is refused.
+ * Then `pairCollFromArrays(resA, resB)` (`:214`) builds each side with
+ * `fromArray` at the side's type, the left side before the right: a side of
+ * a pair type is built by `fromBoxedPairs` again from that side's components
+ * (`:226-230`), and any other side is the plain class over its array
+ * (`:231-232`; the call is made at an abstract type, so nothing is
+ * specialised).
+ */
+function boxedPairsClass(a: SType, b: SType, pairs: SValue[]): CollClass {
+  const lsArray = arrayClassOf(a)
+  const rsArray = arrayClassOf(b)
+  const lsItems: SValue[] = new Array(pairs.length)
+  const rsItems: SValue[] = new Array(pairs.length)
+  for (let i = 0; i < pairs.length; i++) {
+    const item = pairs[i]!
+    if (item.kind !== 'Tuple' || item.items.length !== 2) {
+      throw new CollArrayStore(
+        `Array[Tuple2].store: item of kind ${item.kind} is no pair`,
+      )
+    }
+    lsItems[i] = item.items[0]!
+    rsItems[i] = item.items[1]!
+    storeComponent(lsArray, lsItems[i]!)
+    storeComponent(rsArray, rsItems[i]!)
+  }
+  const ls = sideClass(a, lsArray, lsItems)
+  const rs = sideClass(b, rsArray, rsItems)
+  return { shape: 'pairs', ls, rs }
+}
+
+/** `fromArray` of one side's array at the side's type, as `pairCollFromArrays` calls it. */
+function sideClass(sideElem: SType, sideArray: ArrayClass, sideItems: SValue[]): CollClass {
+  if (sideElem.tag === 'STuple' && sideElem.items.length === 2) {
+    const [a, b] = sideElem.items as [SType, SType]
+    return boxedPairsClass(a, b, sideItems)
+  }
+  return { shape: 'array', specialised: false, array: sideArray }
 }
 
 /**

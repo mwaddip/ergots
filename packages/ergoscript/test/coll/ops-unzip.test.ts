@@ -26,7 +26,8 @@
 
 import { describe, it, expect } from 'vitest'
 import type { SType, SValue } from '../../src/mir/types'
-import { append, patch, filtered, slice } from '../../src/coll/ops'
+import { append, patch, filtered, slice, zip } from '../../src/coll/ops'
+import { collOverArray } from '../../src/coll/build'
 import { CollArrayStore, CollClassCast } from '../../src/coll/class'
 import { pairsColl, plainColl } from '../_helpers'
 
@@ -114,5 +115,36 @@ describe('slice and filtered on a plain Tuple2[] receiver', () => {
     const out = filtered(tuple2Recv, kept)
     expect(out.items.length).toBe(2)
     expect(out.cls?.shape).toBe('pairs')
+  })
+})
+
+describe('unzip builds each side with fromArray: a pair-typed side is built as pairs again, its components stored (CollsOverArrays.scala:258, :226-230, :205-215)', () => {
+  const INNER = pairOf(SINT, SLONG)
+  const OUTER = pairOf(INNER, SINT)
+  const long = (n: bigint): SValue => ({ kind: 'Long', value: n })
+  const pair = (a: SValue, b: SValue): SValue => ({ kind: 'Tuple', items: [a, b] })
+
+  // A receiver whose LEFT side is a plain collection over `Tuple2[]` (what
+  // `PairOfCols.map` builds, :317-324) zipped with a plain Int collection.
+  const receiver = () =>
+    zip(collOverArray(INNER, [pair(int(1), long(2n))]), plainColl(SINT, [int(3)]))
+
+  it('append: an operand over Tuple2[] whose inner right component is an Int where a Long belongs is refused', () => {
+    const operand = collOverArray(OUTER, [pair(pair(int(1), int(2)), int(3))])
+    expect(() => append(receiver(), operand)).toThrow(CollClassCast)
+  })
+
+  it('patch: the same operand is refused', () => {
+    const operand = collOverArray(OUTER, [pair(pair(int(1), int(2)), int(3))])
+    expect(() => patch(receiver(), 0, operand, 0)).toThrow(CollClassCast)
+  })
+
+  it('append: an operand whose inner components are of the right classes is taken', () => {
+    const operand = collOverArray(OUTER, [pair(pair(int(5), long(6n)), int(7))])
+    const out = append(receiver(), operand)
+    expect(out.items).toEqual([
+      pair(pair(int(1), long(2n)), int(3)),
+      pair(pair(int(5), long(6n)), int(7)),
+    ])
   })
 })
