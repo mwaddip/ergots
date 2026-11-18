@@ -42,13 +42,6 @@
       "coll6-patch-I.indices.append-Zconst0.direct-v0-a2#1020",
       "coll6-patch-I.indices.append-Zmap0.direct-v0-a2#1027"
     ],
-    "cost": [
-      "coll-patch-B.l2b-ctl3-v0-a2#97",
-      "coll5-patch-B.subst-Bconst1-v0-a2#728",
-      "coll5-patch-B.subst-Bmap1-v0-a2#737",
-      "coll5-patch-B.subst-ctl1-v0-a2#725",
-      "coll5-patch-B.subst-ctl3-v0-a2#726"
-    ],
     "method-not-implemented": [
       "coll5-patch-B.globalxor-Bconst0-v0-a2#670",
       "coll5-patch-B.globalxor-Bconst1-v0-a2#671",
@@ -265,18 +258,6 @@
       "coll6-patch-I.indices.append-Zmap0.direct-v0-a3#2131",
       "coll6-patch-I.indices.append-Zmap0.direct-v3-a3#2132"
     ],
-    "cost": [
-      "coll-patch-B.l2b-ctl3-v0-a3#194",
-      "coll-patch-B.l2b-ctl3-v3-a3#195",
-      "coll5-patch-B.subst-Bconst1-v0-a3#1475",
-      "coll5-patch-B.subst-Bconst1-v3-a3#1476",
-      "coll5-patch-B.subst-Bmap1-v0-a3#1493",
-      "coll5-patch-B.subst-Bmap1-v3-a3#1494",
-      "coll5-patch-B.subst-ctl1-v0-a3#1469",
-      "coll5-patch-B.subst-ctl1-v3-a3#1470",
-      "coll5-patch-B.subst-ctl3-v0-a3#1471",
-      "coll5-patch-B.subst-ctl3-v3-a3#1472"
-    ],
     "method-not-implemented": [
       "coll5-patch-B.globalxor-Bconst0-v0-a3#1340",
       "coll5-patch-B.globalxor-Bconst0-v3-a3#1341",
@@ -392,9 +373,6 @@
       "unit-coll-int-updatemany-errored#45",
       "unit-patch-eq-refused-at-parse#47",
       "unit-patch-identity-map-eq-accept#56"
-    ],
-    "cost": [
-      "patch-cost-10-plus-1-accept#25"
     ],
     "method-not-implemented": [
       "generic-int-coll-tuple-patch-accept#9",

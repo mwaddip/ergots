@@ -897,13 +897,13 @@ function registerHandlers(): void {
   // JVM: data/shared/src/main/scala/sigma/ast/methods.scala:1024-1030 (patch_eval);
   // the body is `CollOverArray.patch` (CollsOverArrays.scala:94-98) and
   // `PairOfCols.patch` (:423-428). Pattern A cost: addPerItemCost(30, 2, 10,
-  // n) on the receiver's length. `from` and `replaced` each clamp to >= 0 as
-  // Scala's `Array.patch` does: `[1,2,3].patch(-1, [9], 1) = [9, 2, 3]`. The
-  // module (coll/ops.ts `patch`) builds the result — a specialised receiver
-  // casts the patch's array, a plain receiver stores each patch item, a pair
-  // receiver unzips the patch and patches each side — and the receiver's
-  // class decides the result's class (`builder.fromArray(res)` from inside
-  // the receiver).
+  // nItems), charged BEFORE the body; nItems = xs.length + patch.length
+  // (methods.scala:1027). `from` and `replaced` each clamp to >= 0 as Scala's
+  // `Array.patch` does: `[1,2,3].patch(-1, [9], 1) = [9, 2, 3]`. The module
+  // (coll/ops.ts `patch`) builds the result — a specialised receiver casts the
+  // patch's array, a plain receiver stores each patch item, a pair receiver
+  // unzips the patch and patches each side — and the receiver's class decides
+  // the result's class (`builder.fromArray(res)` from inside the receiver).
   HANDLERS.set(handlerKey(12, 19), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -911,8 +911,12 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    const n = obj.items.length
-    ctx.addPerItemCost(30, 2, 10, n) // Pattern A
+    // Defensive patch-length read: the arg-kind check below rejects before any
+    // body cost is observed on a non-Coll patch.
+    const patchArg0 = args[1]
+    const patchLen = patchArg0 !== undefined && patchArg0.kind === 'Coll' ? patchArg0.items.length : 0
+    const nItems = obj.items.length + patchLen
+    ctx.addPerItemCost(30, 2, 10, nItems) // Pattern A; methods.scala:1024-1030
     if (args.length !== 3) {
       throw new EvalError(
         `SColl.patch expects 3 args; got ${args.length}`,
