@@ -9,7 +9,7 @@ Authoritative wire-format reference: sigma-rust's `ergotree-ir/src/ergo_tree.rs`
 The wire-format slice provides:
 
 1. Parse + serialize for the ErgoTree envelope: header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr.
-2. Parse + serialize for the full `Expr` discriminated union (69 variants — see `mir/types.ts`, including the bare `0xa6` op-form `LastBlockUtxoRootHash`), wired through a central opcode-dispatch switch.
+2. Parse + serialize for the full `Expr` discriminated union (72 variants — see `mir/types.ts`, including the bare `0xa6` op-form `LastBlockUtxoRootHash` and the three node kinds the JVM parses and never evaluates, `ModQ`, `ModQArith` and `TaggedVariable`), wired through a central opcode-dispatch switch.
 3. Parse + serialize for `SType` (the type-system union) and `SValue` (the runtime-value union), including all primitive variants, `SColl`, `STuple`, `SOption`, `SFunc`, `STypeVar`.
 4. Parse for `SigmaBoolean` (the recursive proposition tree inside `SSigmaProp` constants) as a structural 6-variant discriminated union — see [`facts/ergoscript-sigma.md`](./ergoscript-sigma.md) for the runtime type and verifier; the wire parser produces all 6 variants byte-equal on round-trip.
 5. P2PK recognition + 33-byte public-key extraction.

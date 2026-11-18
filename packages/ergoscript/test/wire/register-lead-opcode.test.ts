@@ -9,8 +9,10 @@
  *
  * ergots classifies a lead byte as `parseExpr` does, without parsing the node's payload: an opcode
  * with no serializer throws `parseExpr`'s soft code, `'opcode-reserved'` or `'unknown-opcode'`; a
- * known opcode keeps the hard `'sbox-register-unsupported-expr'`. The six opcodes the JVM parses but
- * `parseExpr` rejects (residual 5) stay hard too.
+ * known opcode keeps the hard `'sbox-register-unsupported-expr'`. A lead that is one of the six
+ * opcodes the JVM parses (`71`, `7f`, `80`, `e7`, `e8`, `e9`) is a known opcode like any other, so
+ * ergots keeps the hard code there too. The JVM accepts `7f` and `80` as Boolean constants
+ * (residual 4 below), and rejects the other four — `71`, `e7`, `e8`, `e9` — at the register's cast.
  *
  * Every JVM verdict below is from a live sigma-state 6.0.6 probe (the tree as output 0 of a
  * transaction, parsed under VersionContext(3, 3)).
