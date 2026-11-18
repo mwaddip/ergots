@@ -1,20 +1,16 @@
 /**
  * The red table for SANTA conformance.
  *
- * A red row is a SANTA entry whose current ergots outcome diverges from the
- * JVM-blessed expectation. Rows are listed in `red-table.json` under a reason
- * id; the row check below is used by `cost-v5.test.ts` and `cost-v6.test.ts`
- * and is called two ways: a row NOT in the table must match (returns `null`),
- * and a row IN the table must NOT match (returns a non-null failure message).
- * A listed row that now matches fails the test with the sentinel text
- * `row is green; remove it from the red table`.
+ * A red row is a SANTA entry whose ergots outcome differs from its JVM-blessed
+ * expectation. Each row is listed in `red-table.json` under one reason id;
+ * `RED_REASONS` below gives each reason id a numeric `item` and one sentence
+ * that says what ergots does on the rows listed under the id.
  *
- * The reason ids below are the sorting buckets; each names a board item that
- * owns closing the rows. A row whose root cause is settled by this stage goes
- * under `collection-class`; items 23/26/27 cover rows owned by later work
- * (a tuple handed where a collection is wanted, a cross-width comparison,
- * a method id with no handler). Only this stage's rows will leave the table
- * here; later tasks remove their own.
+ * The row check `rowMismatch` is used by `cost-v5.test.ts` and `cost-v6.test.ts`
+ * two ways: a row NOT in the table must match (returns `null`), and a row IN
+ * the table must NOT match (returns a non-null failure message). A listed row
+ * that matches fails its test with the sentinel text
+ * `row is green; remove it from the red table`.
  */
 import fs from 'node:fs'
 import path from 'node:path'
@@ -24,11 +20,11 @@ import { evalSantaEntry, svalueToSantaJson, type SantaEntry } from './_santa'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/red-table.json')
 
-/** Reason ids and the board item each belongs to. A reason outside this stage names the item that closes it. */
+/** Reason ids and their tracking numbers. Each entry gives a numeric `item` and one sentence that says what ergots does on the rows listed under the id. */
 export const RED_REASONS: Record<string, { item: number; why: string }> = {
   'collection-class': {
     item: 22,
-    why: "The row's verdict depends on a collection's runtime class, which the evaluator does not read yet.",
+    why: "The evaluator reads no collection class, so the row's verdict rests on one it does not have.",
   },
   'tuple-as-collection': {
     item: 23,
