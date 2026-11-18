@@ -483,6 +483,12 @@ const WELL_FORMED: ByTag = {
     keyLength: int(32),
     valueLength: { tag: 'Const', tpe: T.Option(T.Int), value: { kind: 'Option', elem: T.Int, value: null } },
   }],
+  ModQ: [{ tag: 'ModQ', input: { tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: 1n } } }],
+  ModQArith: [
+    { tag: 'ModQArith', op: 'PlusModQ', left: { tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: 1n } }, right: { tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: 2n } } },
+    { tag: 'ModQArith', op: 'MinusModQ', left: { tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: 1n } }, right: { tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: 2n } } },
+  ],
+  TaggedVariable: [{ tag: 'TaggedVariable', varId: 1, tpe: SINT }],
 }
 
 describe('exprTpe is total over the Expr union', () => {

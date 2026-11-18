@@ -1,0 +1,260 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Unevaluated.node_kinds",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-unevaluated-node-kinds",
+  "entries" : [
+    {
+      "name" : "bit_shift_left-errored#0",
+      "script" : "sigmaProp(BitShiftLeft(1, 2) == 4) — `BitOp` with the `<<` opcode  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f7040204040408",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_shift_right-errored#1",
+      "script" : "sigmaProp(BitShiftRight(1, 2) == 4) — `BitOp` with the `>>` opcode  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f6040204040408",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_shift_right_zeroed-errored#2",
+      "script" : "sigmaProp(BitShiftRightZeroed(1, 2) == 4) — `BitOp` with `>>>`  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f8040204040408",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "mod_q-errored#3",
+      "script" : "sigmaProp(ModQ(BigInt 1) == BigInt 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193e7060101060101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_mod_q-errored#4",
+      "script" : "sigmaProp(PlusModQ(BigInt 1, BigInt 1) == BigInt 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b0cd193e8060101060101060101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "minus_mod_q-errored#5",
+      "script" : "sigmaProp(MinusModQ(BigInt 1, BigInt 1) == BigInt 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b0cd193e9060101060101060101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "sigma_prop_is_proven-errored#6",
+      "script" : "sigmaProp(SigmaPropIsProven(sigmaProp(true))) — the one node of the thirteen with a build check that reads a child's TYPE (`val opType`, `transformers.scala:321-325`)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b05d1cfd10101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tagged_variable-errored#7",
+      "script" : "sigmaProp(TaggedVariable(1, Boolean)) — `TaggedVariable.apply` is deprecated upstream since 7.0.0 (\"Use ValUse / GetVar; scheduled for retirement in v7.0\"), so this kind has an announced end; it parses and has no `eval` today  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b04d1710101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "create_avl_tree_four_value-errored#8",
+      "script" : "sigmaProp(CreateAvlTree(flags, digest33, 32, None) == the same) — the FOUR-VALUE layout `CreateAvlTreeSerializer` writes, twice under an EQ so the layout appears on both sides  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b56d193b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_or-errored#9",
+      "script" : "sigmaProp(BitOr(5, 3) == 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f2040a04060402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_and-errored#10",
+      "script" : "sigmaProp(BitAnd(5, 3) == 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f3040a04060402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_xor-errored#11",
+      "script" : "sigmaProp(BitXor(5, 3) == 1)  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b09d193f5040a04060402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "bit_inversion-errored#12",
+      "script" : "sigmaProp(BitInversion(5) == -6) — the only one of the thirteen whose `costKind` is `notSupportedError` as well  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "0b07d193f1040a040b",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "create_avl_tree_four_value_getvar-errored#13",
+      "script" : "sigmaProp(CreateAvlTree(flags, digest33, 32, getVar[Int](1)) == the same) — the FOUR-VALUE layout at tree version 0, with the fourth argument as an expression (`e30104`) instead of a `None` constant. Rule 1009 guards data values, not expressions, so this is the form that reaches a v0 parser at all — the only way to ask a reader whether it takes four values or three plus an option tag  // parsed, never evaluated: no `eval` override -> errored",
+      "tree_bytes_hex" : "00d193b602070e210000000000000000000000000000000000000000000000000000000000000000000440e30104b602070e210000000000000000000000000000000000000000000000000000000000000000000440e30104",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

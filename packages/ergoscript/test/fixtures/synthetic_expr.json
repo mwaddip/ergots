@@ -12,12 +12,12 @@
     },
     {
       "name": "Const SBoolean true",
-      "description": "inline SBoolean constant — emitted as OP_TRUE (0x7f) by the special boolean path",
+      "description": "inline SBoolean constant — SBoolean type code 0x01, payload one byte 0x01 (true)",
       "expr_hex": "0101"
     },
     {
       "name": "Const SBoolean false",
-      "description": "inline SBoolean constant — emitted as OP_FALSE (0x80)",
+      "description": "inline SBoolean constant — SBoolean type code 0x01, payload one byte 0x00 (false)",
       "expr_hex": "0100"
     },
     {

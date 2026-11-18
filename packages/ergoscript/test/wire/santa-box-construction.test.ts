@@ -8,7 +8,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { parseSValue } from '../../src/wire/parse-svalue'
+import { parseSValue, SValueParseError } from '../../src/wire/parse-svalue'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { boxTreeOf } from '../../src/wire/box-tree'
@@ -30,7 +30,12 @@ interface Entry {
 type ErrorClass = new (...args: never[]) => Error
 interface Reject { cls: ErrorClass; code: string; cause?: string }
 
-const FILES: [string, number][] = [['Box.tree_parse_acceptance.json', 54], ['Box.tree_bool_pair_form.json', 14]]
+const FILES: [string, number][] = [
+  ['Box.tree_parse_acceptance.json', 54],
+  ['Box.tree_bool_pair_form.json', 14],
+  ['Box.methodcall_type_id_order.json', 4],
+  ['Box.unevaluated_node_kinds.json', 32],
+]
 
 // Each errored entry's reject: the construction check that fails, as each entry's description gives it.
 const BIT_OP: Reject = { cls: ExprParseError, code: 'bit-op-operand-not-numeric' }
@@ -87,6 +92,30 @@ const ERRORS: Record<string, Reject> = {
   'box-v3-tobytes-gt-int-reject#49': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
   'box-v3-ubi-gt-boolean-reject#51': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
   'box-v3-type-9-method-gt-boolean-reject#53': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  // Box.methodcall_type_id_order.json: a v3 size-flagged MethodCall with no arguments and obj TrueLeaf
+  // fails the args-nonEmpty assert before the method lookup (MethodCallSerializer.scala:52-55); a
+  // v1 sized SAny constant obj fails its data read before the method lookup
+  // (CoreDataSerializer.scala:149-151, the `case t` fallthrough that throws "Not defined
+  // DataSerializer for type $t"); a v0 unsized tree wraps the method-lookup soft failure (rule 1010,
+  // no methods for type 0xff) in 'soft-fork-without-size-bit'.
+  'methodcall-type-id-order-v3-args-assert-box#0': { cls: ExprParseError, code: 'method-call-empty-args' },
+  'methodcall-type-id-order-sany-obj-v1-box#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
+  'methodcall-type-id-order-v1-unsized-box#3': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'method-type-no-methods' },
+  // Box.unevaluated_node_kinds.json rows #26-#31: boxes whose trees the JVM rejects before reaching
+  // the unevaluated node kind. #26: rule 1009 `CheckSerializableTypeCode` refuses an Option[Int] at
+  // v0, as the fourth value of the CreateAvlTree layout; the unsized carrier has nothing to degrade
+  // behind. #27, #28: type code 0 has no `TypeSerializer` entry (`TypeSerializer.scala:138`);
+  // `InvalidTypePrefix` is no ValidationException, so the v3 size bit does not degrade it. #29,
+  // #30: `BitShiftLeft(true, 2)` fails BitOp's `require(left.tpe.isNumTypeOrNoType)` as an
+  // IllegalArgumentException, rethrown inside the inner try before the catch that turns a
+  // ValidationException into a degrade (`ErgoTreeSerializer.scala:191-193`). #31: `Filter.tpe`
+  // casts SInt to SCollection, a ClassCastException the v0 tree does not degrade on.
+  'unevaluated-create-avl-tree-v0-reject-box#26': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'soption-tree-version-too-low' },
+  'unevaluated-old-layout-v0-reject-box#27': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-old-layout-v3-reject-box#28': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-bool-operand-v0-reject-box#29': BIT_OP,
+  'unevaluated-bool-operand-v3-reject-box#30': BIT_OP,
+  'unevaluated-spip-filter-v0-reject-box#31': { cls: ExprTpeError, code: 'filter-input-not-scoll' },
 }
 
 // The accepted entries whose tree the JVM degrades, with the ergots error of the rule it degrades on, a
@@ -100,18 +129,10 @@ const UNPARSED: Record<string, Reject> = {
   'box-v0-no-methods-1010-then-gt-degrade-accept#52': { cls: ExprParseError, code: 'method-type-no-methods' },
 }
 
-// The entries ergots still diverges on, each with its residual, and what ergots does instead.
+// The entries ergots still diverges on, each with its residual, and what ergots does instead. Empty
+// as of TrueLeaf/FalseLeaf being read as Boolean constants (facts/ergoscript-wire.md, "The six opcodes
+// the JVM parses"); a future divergence of santa-box-construction's files is pinned here.
 const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject | 'accepts' }> = {
-  // The JVM parses TrueLeaf (7f) and FalseLeaf (80) as Boolean constants; ergots rejects the opcodes,
-  // soft-forkably, so an unsized tree rejects.
-  'box-c3-trueleaf-opcode-accept#2': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
-  'box-c3-falseleaf-opcode-accept#3': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
 }
 
 function roundTrip(e: Entry): string {
@@ -134,8 +155,9 @@ function expectReject(e: Entry, want: Reject): void {
 }
 
 for (const [file, count] of FILES) {
-  describe(`SANTA ${file} (jvm:sigma-state-6.0.6, santa 7f88e28)`, () => {
-    const entries: Entry[] = JSON.parse(readFileSync(join(__dirname, '../fixtures/conformance/wire', file), 'utf8')).entries
+  const data = JSON.parse(readFileSync(join(__dirname, '../fixtures/conformance/wire', file), 'utf8')) as { blessed_by: string; entries: Entry[] }
+  describe(`SANTA ${file} (${data.blessed_by})`, () => {
+    const entries: Entry[] = data.entries
     it(`holds ${count} entries`, () => expect(entries.length).toBe(count))
     for (const e of entries) {
       const known = KNOWN_RESIDUAL[e.name]

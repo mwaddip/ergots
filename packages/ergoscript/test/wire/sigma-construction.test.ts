@@ -34,9 +34,9 @@ import type { ErgoTree } from '../../src/mir/types'
  *     (F5 batch 4 GE canonical-bytes invariant: 0x00-lead ⇒ canonical
  *     identity; else must SEC1-decode — see facts/ergoscript-eval.md).
  *   - SBoolean      (0x01): SType code + one byte (0x00=false / 0x01=true).
- *     So `Const SBoolean true` is the two bytes `0x01 0x01`. The
- *     standalone OP_TRUE / OP_FALSE single-byte opcodes (0x7f / 0x80) are
- *     deferred in this build, so the test uses the long-form inline Const.
+ *     So `Const SBoolean true` is the two bytes `0x01 0x01`. The test uses
+ *     the inline constant form, which is also the form the writer emits for
+ *     the standalone `0x7f` / `0x80` opcodes.
  *
  * The SigmaProp-typed inputs to SigmaPropBytes / SigmaPropIsProven / SigmaAnd
  * / SigmaOr cannot be inlined as Const(SSigmaProp) in phase 2a (deferred —

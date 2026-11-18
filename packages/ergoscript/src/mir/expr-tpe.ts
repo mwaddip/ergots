@@ -714,6 +714,15 @@ function computeTpe(e: Expr, v: number): SType {
       // (eval/_substitute-deserialize.ts) validates the parsed inner Expr's
       // tpe against this declared tpe at substitute time.
       return e.tpe
+    case 'ModQ':
+    case 'ModQArith':
+      // JVM ModQ.tpe and ModQArithOp.tpe are both SBigInt vals
+      // (ast/trees.scala:957, 968).
+      return { tag: 'SBigInt' }
+    case 'TaggedVariable':
+      // JVM TaggedVariableNode.tpe is the type the node was built with
+      // (ast/values.scala:455).
+      return e.tpe
     default: {
       // Unreachable for an Expr: every variant has an arm above, which TypeScript checks here. A
       // node of no known variant (a caller outside the type system) still gets a descriptive error.

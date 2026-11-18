@@ -69,7 +69,7 @@ import { ByteReader, parseHeader, readVlqU32 } from '@ergots/scorex'
 import { parseSigmaBoolean } from './sigma-boolean'
 import { parseSTypeWithFirstByte } from './parse-stype'
 import { parseErgoTreeBytes } from './ergo-tree'
-import { exprParserFor, OPCODES_THE_JVM_PARSES } from './parse'
+import { exprParserFor } from './parse'
 // A value's first byte: at most LAST_CONSTANT_CODE (112) is a Constant's type code, above it an
 // opcode (ValueSerializer.scala:400-408).
 import { LAST_CONSTANT_CODE, OP_TUPLE } from '../mir/opcodes'
@@ -172,9 +172,9 @@ function parseRegisterExpr(
     // an enclosing sized tree. For a known opcode the JVM parses the node, which the register then
     // casts to an evaluated value (ErgoBoxCandidate.scala:231): a hard reject for a node like HEIGHT
     // (a ClassCastException). ergots rejects it on the lead byte, without reading its payload, and
-    // accepts no evaluated value but a constant or a tuple (residual 4). The six opcodes the JVM
-    // parses but parseExpr rejects stay hard as known opcodes (residual 5).
-    if (!OPCODES_THE_JVM_PARSES.has(tag)) exprParserFor(tag)
+    // accepts no evaluated value but a constant or a tuple (residual 4). An opcode `parseExpr`
+    // dispatches a reader for is treated as a known opcode here too.
+    exprParserFor(tag)
     throw new SValueParseError(
       `SBox register: unsupported Expr tag 0x${tag.toString(16).padStart(2, '0')} ` +
         `(a register value is a Constant or a Tuple Expr here; residual 4)`,

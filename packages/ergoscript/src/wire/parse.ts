@@ -10,8 +10,7 @@
  * Two distinct error codes are returned from this module:
  *  - `opcode-reserved` — the opcode is in sigma-rust's `op_code.rs` enum but
  *    is never dispatched at the wire-Expr layer (no registered serializer);
- *    the JVM rejects the identical byte via `CheckValidOpCode`, except for
- *    OpTrue/OpFalse/ModQ×3, which JVM 6.0.6 parses (a known residual). The error
+ *    the JVM rejects the identical byte via `CheckValidOpCode`. The error
  *    message names the variant. (`not-implemented-yet` is no longer emitted
  *    from this module — it survives only as an `EvalError` code.)
  *  - `unknown-opcode` — the opcode byte is not in the sigma-rust opcode
@@ -30,7 +29,13 @@
  *
  * The inline-constant case is handled by a dedicated branch above the
  * opcode-switch (so the bytes are told apart from "real" instructions in
- * error messages).
+ * error messages). Six of the bytes above `LAST_CONSTANT_CODE` the JVM
+ * registers a serializer for: `7f` (TrueLeaf) and `80` (FalseLeaf) read as
+ * the Boolean constants their inline `01 01` / `01 00` form gives (JVM
+ * `ValueSerializer.scala:79-80`; ast/values.scala:771-790), and `71`
+ * TaggedVariable, `e7` ModQ, `e8` PlusModQ, `e9` MinusModQ parse to their
+ * own nodes (`ValueSerializer.scala:97, 145-147`). The arms for all six
+ * live here, as the JVM reads them.
  */
 
 import type { Expr, SType, SValue } from '../mir/types'
@@ -111,6 +116,8 @@ import { parseDeserializeRegister } from './mir/deserialize-register'
 import { parseOptionGet } from './mir/option-get'
 import { parseOptionGetOrElse } from './mir/option-get-or-else'
 import { parseOptionIsDefined } from './mir/option-is-defined'
+import { parseModQ, parseModQArith } from './mir/mod-q'
+import { parseTaggedVariable } from './mir/tagged-variable'
 
 export { ExprParseError } from './errors'
 
@@ -171,16 +178,6 @@ export function parseExpr(
   return expr
 }
 
-/**
- * The six opcodes the JVM registers a serializer for (ValueSerializer.scala:79-80, 97, 145-147) and
- * parses, which `exprParserFor` rejects (residual 5, facts/ergoscript-wire.md): TrueLeaf and
- * FalseLeaf, which the JVM builds as Boolean constants, TaggedVariable, and the three ModQ
- * operations. The register value parse keeps them hard rejects (`parse-svalue.ts`).
- */
-export const OPCODES_THE_JVM_PARSES: ReadonlySet<number> = new Set([
-  OP.OP_TRUE, OP.OP_FALSE, OP.OP_TAGGED_VARIABLE, OP.OP_MOD_Q, OP.OP_PLUS_MOD_Q, OP.OP_MINUS_MOD_Q,
-])
-
 /** The parser of one opcode's payload, after the opcode byte (the JVM's `ValueSerializer.parse`). */
 export type ExprParser = (
   r: ByteReader,
@@ -195,8 +192,9 @@ export type ExprParser = (
  * (ValueSerializer.scala:171-175): the payload parser for an opcode ergots dispatches. For an
  * opcode with no parser it throws, before any payload byte is read: `'opcode-reserved'` for an
  * opcode in sigma-rust's opcode table that no parser dispatches, `'unknown-opcode'` for any other
- * byte. Both are in the degrade set, as the JVM's `ValidationException` is, except that the JVM
- * has serializers for six of these opcodes (`OPCODES_THE_JVM_PARSES`, residual 5).
+ * byte. Both are in the degrade set, as the JVM's `ValidationException` is. The six opcodes the
+ * JVM parses have arms here too: `7f` and `80` as the Boolean constants their inline `01 01` /
+ * `01 00` form gives, and `71`, `e7`, `e8` and `e9` through their own payload parsers.
  *
  * `parseExpr` dispatches through it; the register value parse (`parse-svalue.ts`) uses it to
  * classify a register's lead byte as `parseExpr` does.
@@ -348,6 +346,11 @@ export function exprParserFor(opcode: number): ExprParser {
       return parseGlobal
     case OP.OP_GET_VAR:
       return (r, _ct, _cv, _vd, tv) => parseGetVar(r, tv)
+    case OP.OP_TAGGED_VARIABLE:
+      // TaggedVariableSerializer (ValueSerializer.scala:97, TaggedVariableSerializer.scala). The JVM
+      // parses the node though it never evaluates it; the companion is retained for consensus-level
+      // wire compatibility and `TaggedVariable.apply` is deprecated upstream (ast/values.scala:474-476).
+      return (r, _ct, _cv, _vd, tv) => parseTaggedVariable(r, tv)
     case OP.OP_OPTION_GET:
       return parseOptionGet
     case OP.OP_OPTION_GET_OR_ELSE:
@@ -395,38 +398,29 @@ export function exprParserFor(opcode: number): ExprParser {
       return parseLastBlockUtxoRootHash
     case OP.OP_XOR_OF:
       return parseXorOf
+    // TrueLeaf (0x7f) and FalseLeaf (0x80) are the JVM's Boolean constants (ValueSerializer.scala:79-80;
+    // ast/values.scala:771-790: both are ConstantNodes whose companion is themselves,
+    // CaseObjectSerialization reads no payload). The writer emits a constant through the constant path
+    // (ValueSerializer.scala:362-370), so the wire round-trip is not the identity: a tree holding one
+    // comes back with `01 01` / `01 00` in its place.
+    case OP.OP_TRUE:
+      return () => ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: true } })
+    case OP.OP_FALSE:
+      return () => ({ tag: 'Const', tpe: { tag: 'SBoolean' }, value: { kind: 'Boolean', value: false } })
     // Wire opcodes with no top-level Expr dispatch — all parse-reject via
-    //   - 'opcode-reserved' (21 sites; was 18 until FlatMap/TrivialPropFalse/
-    //     TrivialPropTrue joined, and 19 until FunDef left in v6 P6) —
-    //     reserved in sigma-rust's `op_code.rs` enum but NEVER dispatched at
-    //     the wire-Expr layer or implemented in `ergotree-interpreter/src/
-    //     eval/`. The JVM rejects most of them: `ValueSerializer.
-    //     deserialize` reads the opcode, `getSerializer` returns null (no
-    //     registered serializer), `CheckValidOpCode` (rule 1002) throws
-    //     `InvalidOpCode`. Not so for OpTrue 0x7F, OpFalse 0x80 and the ModQ
-    //     family 0xE7-0xE9, which JVM 6.0.6 registers and parses (a known
-    //     residual, facts/ergoscript-wire.md 'opcode-reserved' entry). We
-    //     parse-reject all of them unconditionally. The
-    //     opcodes exist in the wire enum for forward-compat / historical
-    //     reasons but no `Evaluable` impl dispatches the bare byte.
-    //     FlatMap's `flatMap` METHOD and the TrivialProp pair's
-    //     SigmaBoolean-LEAF form (inside a SigmaProp constant) reach us via
-    //     their own legitimate paths; only the bare Expr opcode is rejected
-    //     here. (LastBlockUtxoRootHash 0xa6 is NOT in this group — the JVM
-    //     dispatches it as its own case object; see the
-    //     OP_LAST_BLOCK_UTXO_ROOT_HASH arm above.)
+    //   - 'opcode-reserved' (16 sites) — reserved in sigma-rust's `op_code.rs`
+    //     enum but NEVER dispatched at the wire-Expr layer or implemented in
+    //     `ergotree-interpreter/src/eval/`. The JVM rejects each of them too:
+    //     `ValueSerializer.deserialize` reads the opcode, `getSerializer`
+    //     returns null (no registered serializer), `CheckValidOpCode`
+    //     (rule 1002) throws `InvalidOpCode`. FlatMap's `flatMap` METHOD and
+    //     the TrivialProp pair's SigmaBoolean-LEAF form (inside a SigmaProp
+    //     constant) reach us via their own legitimate paths; only the bare
+    //     Expr opcode is rejected here. (LastBlockUtxoRootHash 0xa6 is NOT
+    //     in this group — the JVM dispatches it as its own case object; see
+    //     the OP_LAST_BLOCK_UTXO_ROOT_HASH arm above.)
     // Distinguished from truly unknown bytes via the `default` arm
     // below which throws 'unknown-opcode'.
-    case OP.OP_TRUE:
-      throw new ExprParseError(
-        'OpTrue opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
-    case OP.OP_FALSE:
-      throw new ExprParseError(
-        'OpFalse opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
     case OP.OP_UNIT_CONSTANT:
       throw new ExprParseError(
         'UnitConstant opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
@@ -501,20 +495,17 @@ export function exprParserFor(opcode: number): ExprParser {
         'opcode-reserved'
       )
     case OP.OP_MOD_Q:
-      throw new ExprParseError(
-        'ModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
+      // The JVM parses the node though it never evaluates it (ValueSerializer.scala:145,
+      // ModQSerializer.scala; ast/trees.scala:954-963; FixedCost(JitCost(1))). Its serializer stays
+      // in the dispatch table so a transaction whose output carries this node parses, and the
+      // script is not executed during validation.
+      return parseModQ
     case OP.OP_PLUS_MOD_Q:
-      throw new ExprParseError(
-        'PlusModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
+      // ModQArithOpSerializer (PlusModQ), ValueSerializer.scala:146. ast/trees.scala:965-970.
+      return (r, ct, cv, vd, tv) => parseModQArith('PlusModQ', r, ct, cv, vd, tv)
     case OP.OP_MINUS_MOD_Q:
-      throw new ExprParseError(
-        'MinusModQ opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',
-        'opcode-reserved'
-      )
+      // ModQArithOpSerializer (MinusModQ), ValueSerializer.scala:147. ast/trees.scala:965-970.
+      return (r, ct, cv, vd, tv) => parseModQArith('MinusModQ', r, ct, cv, vd, tv)
     case OP.OP_COLL_SHIFT_RIGHT:
       throw new ExprParseError(
         'CollShiftRight opcode reserved in sigma-rust enum but not dispatched by sigma-rust\'s parser; mirrored as parse-reject',

@@ -107,6 +107,8 @@ const CONSTRUCTION_FILES: [string, number][] = [
   ['Transaction.tree_parse_acceptance.json', 54],
   ['Transaction.tree_bool_pair_form.json', 14],
   ['Transaction.tree_nested_degrade.json', 20],
+  ['Transaction.methodcall_type_id_order.json', 4],
+  ['Transaction.unevaluated_node_kinds.json', 32],
 ];
 
 const BIT_OP: Reject = { cls: ExprParseError, code: 'bit-op-operand-not-numeric' };
@@ -187,6 +189,27 @@ const ERRORS: Record<string, Reject> = {
   // Under the enclosing v3 the UnsignedBigInt data reader refuses a declared size over 32 before it reads the
   // bytes (CoreDataSerializer.scala:118-123), ahead of rule 1019.
   'transaction-nested-enclosing-v3-ubi-size-33-register-reject#17': { cls: SValueParseError, code: 'unsigned-bigint-too-large' },
+  // methodcall_type_id_order. Three ways the JVM fails on the same MethodCall body:
+  //  #0 size-flagged at v3, zero args: `assert(args.nonEmpty)` fires before SMethod.fromIds
+  //     (MethodCallSerializer.scala:53-55), an AssertionError that does not degrade;
+  //  #1 size-flagged at v1, obj is an SAny constant: the data reader throws "Not defined DataSerializer for type
+  //     SAny" (CoreDataSerializer.scala:151) before fromIds is reached, a SerializerException that does not degrade;
+  //  #3 unsized at v1, unknown type id 0xff: rule 1010 (CheckTypeWithMethods, SMethod.scala:344-349) fires, and
+  //     with no size bit `deserializeErgoTree` wraps it as SerializerException (ErgoTreeSerializer.scala:204-207).
+  'methodcall-type-id-order-v3-args-assert-tx#0': { cls: ExprParseError, code: 'method-call-empty-args' },
+  'methodcall-type-id-order-sany-obj-v1-tx#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
+  'methodcall-type-id-order-v1-unsized-tx#3': UNSIZED('method-type-no-methods'),
+  // unevaluated_node_kinds. The other 26 entries are accepts (ModQ, PlusModQ, MinusModQ and TaggedVariable parse in
+  // size-flagged and unsized trees alike). The six rejects: #26 Option data in an unsized v0 tree, the
+  // SerializerException over the soft failure; #27 and #28 the old layout's type byte is no type, at v0 and v3;
+  // #29 and #30 a Boolean operand to a bit operation (the BitOp require, trees.scala:913); #31 a Filter whose
+  // input is no collection.
+  'unevaluated-create-avl-tree-v0-reject-tx#26': UNSIZED('soption-tree-version-too-low'),
+  'unevaluated-old-layout-v0-reject-tx#27': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-old-layout-v3-reject-tx#28': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-bool-operand-v0-reject-tx#29': BIT_OP,
+  'unevaluated-bool-operand-v3-reject-tx#30': BIT_OP,
+  'unevaluated-spip-filter-v0-reject-tx#31': { cls: ExprTpeError, code: 'filter-input-not-scoll' },
 };
 
 // The accepted entries whose output tree the JVM degrades, with the error ergots degrades it on; every other
@@ -220,21 +243,13 @@ const DEGRADES: Record<string, Reject> = {
   'transaction-nested-enclosing-v0-ubi-register-degrade-accept#11': { cls: STypeParseError, code: 'type-code-primitive-unknown' },
   'transaction-nested-enclosing-v0-func-register-degrade-accept#13': { cls: STypeParseError, code: 'type-code-unknown' },
   'transaction-nested-enclosing-v0-ubi-size-33-register-degrade-accept#18': { cls: STypeParseError, code: 'type-code-primitive-unknown' },
+  // methodcall_type_id_order. Size-flagged at v1 with type id 0xff: rule 1010 (CheckTypeWithMethods) fires at
+  // SMethod.fromIds (SMethod.scala:344-349) and the size bit degrades the carrier to UnparsedErgoTree.
+  'methodcall-type-id-order-v1-degrades-tx#2': { cls: ExprParseError, code: 'method-type-no-methods' },
 };
 
-// The entries ergots still diverges on, each with its residual, and what ergots does instead. The JVM parses
-// TrueLeaf (7f) and FalseLeaf (80) as Boolean constants and writes them back as such (a non-identity round-trip);
-// ergots rejects the opcodes, soft-forkably, so an unsized tree rejects the transaction.
-const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject }> = {
-  'transaction-c3-trueleaf-opcode-accept#2': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
-  'transaction-c3-falseleaf-opcode-accept#3': {
-    residual: 'residual 5 (facts/ergoscript-wire.md, the opcode-reserved entry)',
-    ergots: { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'opcode-reserved' },
-  },
-};
+// The entries ergots still diverges on, each with its residual, and what ergots does instead.
+const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject }> = {};
 
 function expectReject(bytesHex: string, want: Reject): void {
   let err: unknown;
@@ -248,8 +263,10 @@ function expectReject(bytesHex: string, want: Reject): void {
 const outputTree = (bytesHex: string) =>
   boxTreeOf(parseTransaction(hexToBytes(bytesHex)).outputCandidates[0]!.ergoTreeBytes);
 
-describe.each(CONSTRUCTION_FILES)('SANTA %s (jvm:sigma-state-6.0.6)', (file, count) => {
-  const entries = loadEntries(file);
+for (const [file, count] of CONSTRUCTION_FILES) {
+  const data = JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { blessed_by: string; entries: WireEntry[] };
+  describe(`SANTA ${file} (${data.blessed_by})`, () => {
+  const entries = data.entries;
   it(`holds ${count} entries`, () => expect(entries.length).toBe(count));
   for (const e of entries) {
     const known = KNOWN_RESIDUAL[e.name];
@@ -284,9 +301,10 @@ describe.each(CONSTRUCTION_FILES)('SANTA %s (jvm:sigma-state-6.0.6)', (file, cou
       });
     }
   }
-});
+  });
+}
 
-it('every pinned construction entry names an entry of its kind in the three files', () => {
+it('every pinned construction entry names an entry of its kind in the construction files', () => {
   const all = CONSTRUCTION_FILES.flatMap(([file]) => loadEntries(file));
   const errored = new Set(all.filter((e) => e.error === 'errored').map((e) => e.name));
   const accepted = new Set(all.filter((e) => e.error !== 'errored').map((e) => e.name));

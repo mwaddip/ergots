@@ -110,6 +110,7 @@ function getChildren(expr: Expr): (Expr | null)[] {
     case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
+    case 'TaggedVariable':
     case 'DeserializeContext':
       return []
 
@@ -141,6 +142,7 @@ function getChildren(expr: Expr): (Expr | null)[] {
     case 'ZkProofBlock':
     case 'DecodePoint':
     case 'XorOf':
+    case 'ModQ':
       return [expr.input]
 
     case 'ExtractRegisterAs':
@@ -160,6 +162,7 @@ function getChildren(expr: Expr): (Expr | null)[] {
     case 'Xor':
     case 'MultiplyGroup':
     case 'Exponentiate':
+    case 'ModQArith':
       return [expr.left, expr.right]
 
     case 'Atleast':
@@ -273,6 +276,7 @@ function replaceChild(expr: Expr, index: number, newChild: Expr): Expr {
     case 'LastBlockUtxoRootHash':
     case 'ValUse':
     case 'GetVar':
+    case 'TaggedVariable':
     case 'DeserializeContext':
       throw new Error(`replaceChild: nullary tag '${expr.tag}' has no children`)
 
@@ -307,6 +311,7 @@ function replaceChild(expr: Expr, index: number, newChild: Expr): Expr {
     case 'ExtractRegisterAs':
     case 'Upcast':
     case 'Downcast':
+    case 'ModQ':
       if (index !== 0) throw new Error(`replaceChild: ${expr.tag} only has child 0`)
       return { ...expr, input: newChild }
 
@@ -323,6 +328,7 @@ function replaceChild(expr: Expr, index: number, newChild: Expr): Expr {
     case 'Xor':
     case 'MultiplyGroup':
     case 'Exponentiate':
+    case 'ModQArith':
       if (index === 0) return { ...expr, left: newChild }
       if (index === 1) return { ...expr, right: newChild }
       throw new Error(`replaceChild: ${expr.tag} has 2 children`)

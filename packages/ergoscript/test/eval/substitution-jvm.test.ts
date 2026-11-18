@@ -24,7 +24,7 @@ import { ExprTpeError } from '../../src/mir/expr-tpe'
 import type * as M from '../../src/mir/types'
 import { serializeTree } from '../../src/wire/ergo-tree'
 import { parseSValue } from '../../src/wire/parse-svalue'
-import { hexToBytes, parseParsedTree, synthesizeStubBox } from '../_helpers'
+import { captureEvalError, hexToBytes, parseParsedTree, synthesizeStubBox } from '../_helpers'
 import {
   Apply,
   BI,
@@ -42,6 +42,7 @@ import {
   GetVar,
   If,
   MC,
+  ModQ,
   Negation,
   OptionGet,
   OptionIsDefined,
@@ -52,6 +53,7 @@ import {
   T,
   Tuple,
   ValDef,
+  bigInt,
   bool,
   collBool,
   collInt,
@@ -761,6 +763,45 @@ describe('the rewrite rebuilds only what changed (review m7) and keeps every fie
     expect(rebuilt).not.toBe(funDef)
     expect(rebuilt.rhs).toEqual(int(5))
     expect(rebuilt.tpeArgs).toEqual([{ name: 'T' }])
+  })
+})
+
+describe('ModQ in the substitution rewrite', () => {
+  // mapChildren puts ModQ in the one-input group (eval/_substitute-deserialize.ts) and ModQArith in the two-children
+  // group, so the rewrite walks into either and rebuilds it around a substituted child. The nodes have no JVM eval of
+  // their own (ast/trees.scala:954-970), so a live branch over them rejects at evaluation ('unsupported-eval-node',
+  // test/eval/six-opcodes.test.ts); the substitution itself is independent.
+  const ctxWithVar1 = (tree: M.ParsedErgoTree, entry: Entry): EvalContext =>
+    makeContext({
+      treeVersion: tree.header.version,
+      selfBox: { ...synthesizeStubBox(), registers: {} },
+      extension: { values: new Map([[1, entry]]) },
+    })
+
+  it('mapChildren walks into ModQ and rebuilds it around a substituted operand', () => {
+    // The body is `ModQ(DeserializeContext(1, BigInt))`; variable 1 holds the bytes of `BigInt 42`. The DC substitutes
+    // to that constant, and the ModQ parent rebuilds with the decoded operand in place.
+    const tree = parseParsedTree(treeBytes(ModQ(DC(1, { tag: 'SBigInt' })), 0x00))
+    const out = substituteDeserialize(tree.body, tree, ctxWithVar1(tree, script(bigInt(42))), false)
+    expect(out).toEqual({ tag: 'ModQ', input: bigInt(42) })
+  })
+
+  it("a DC whose variable holds `e7 06 01 01` decodes to the ModQ node (declared BigInt, the decoded type)", () => {
+    // The bytes `e7 06 01 01` parse as `ModQ(BigInt 1)`. The DC's declared BigInt matches the decoded ModQ's static
+    // type (SBigInt, ast/trees.scala:957), so the substitution replaces the DC with the ModQ node.
+    const tree = parseParsedTree(treeBytes(DC(1, { tag: 'SBigInt' }), 0x00))
+    const out = substituteDeserialize(tree.body, tree, ctxWithVar1(tree, collByteEntry(hexToBytes('e7060101'))), false)
+    expect(out).toEqual({ tag: 'ModQ', input: bigInt(1) })
+  })
+
+  it('the same bytes under a declared Int: the decoded-type mismatch this file already pins for other nodes', () => {
+    // The same bytes decode to a ModQ whose static type is SBigInt; the DC declares Int. The substitution rejects with
+    // 'deserialize-tpe-mismatch', the code every other decoded-type mismatch in this file surfaces.
+    const tree = parseParsedTree(treeBytes(DC(1, T.Int), 0x00))
+    const err = captureEvalError(() =>
+      substituteDeserialize(tree.body, tree, ctxWithVar1(tree, collByteEntry(hexToBytes('e7060101'))), false),
+    )
+    expect(err.code).toBe('deserialize-tpe-mismatch')
   })
 })
 

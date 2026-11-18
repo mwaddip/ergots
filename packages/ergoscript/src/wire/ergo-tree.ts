@@ -18,8 +18,9 @@
  *
  * `parseTree` rejects any byte after an unsized tree, and any beyond a size-flagged tree's
  * declared span (the ERG-02 requirement). Reserved/undispatched opcodes parse-reject via `'opcode-reserved'`
- * (mirroring the JVM `CheckValidOpCode` path for most of them; JVM 6.0.6 parses
- * OpTrue/OpFalse/ModQ×3, a known residual), and corpus trees round-trip end-to-end.
+ * (mirroring the JVM `CheckValidOpCode` path), and corpus trees round-trip end-to-end. The six
+ * opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ, PlusModQ, MinusModQ) are
+ * read here as the JVM reads them (facts/ergoscript-wire.md, "The six opcodes the JVM parses").
  *
  * Cross-reference:
  *   sigma-state v6.0.6 data/shared/src/main/scala/sigma/serialization/ErgoTreeSerializer.scala
@@ -100,9 +101,10 @@ export class ErgoTreeSerializeError extends Error {
  *
  * This set is the VERIFIED `ValidationRule` equivalents (each → ValidationException
  * → caught, confirmed against JVM source):
- *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002); except six
- *     opcodes the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ×3), which ergots
- *     degrades as a known residual (facts/ergoscript-wire.md 'opcode-reserved' entry)
+ *   - `opcode-reserved` / `unknown-opcode`  ← `CheckValidOpCode` (rule 1002); the six opcodes
+ *     the JVM parses (TrueLeaf, FalseLeaf, TaggedVariable, ModQ, PlusModQ, MinusModQ) are
+ *     read as the JVM reads them and never raise these codes
+ *     (facts/ergoscript-wire.md, "The six opcodes the JVM parses")
  *   - `soption-tree-version-too-low`         ← `CheckSerializableTypeCode` (rule 1009 — the
  *     `typeCode == OptionTypeCode` SPECIAL-CASE at `ValidationRules.scala:135`)
  *   - `register-v6-type`                     ← `CheckV6Type` (rule 1019,

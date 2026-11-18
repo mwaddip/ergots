@@ -34,6 +34,7 @@ export const T = {
 export const int = (n: number): M.Const => ({ tag: 'Const', tpe: T.Int, value: { kind: 'Int', value: n } })
 export const long = (n: number | bigint): M.Const => ({ tag: 'Const', tpe: T.Long, value: { kind: 'Long', value: BigInt(n) } })
 export const bool = (b: boolean): M.Const => ({ tag: 'Const', tpe: T.Bool, value: { kind: 'Boolean', value: b } })
+export const bigInt = (n: number | bigint): M.Const => ({ tag: 'Const', tpe: { tag: 'SBigInt' }, value: { kind: 'BigInt', value: BigInt(n) } })
 export const bytes = (arr: ArrayLike<number>): M.Const => ({
   tag: 'Const',
   tpe: T.Coll(T.Byte),
@@ -94,6 +95,12 @@ export const SigmaPropIsProven = (input: Expr): M.SigmaPropIsProven => ({ tag: '
 export const TreeLookup = (tree: Expr, key: Expr, proof: Expr): M.TreeLookup => ({ tag: 'TreeLookup', tree, key, proof })
 /** OptionGet(GetVar(1, SAny)): the JVM's SAny, type code 97. */
 export const GV: M.OptionGet = OptionGet(GetVar(1, T.Any))
+
+// ── ModQ, ModQArith and TaggedVariable (opcodes 0xe7, 0xe8, 0xe9, 0x71) ────
+export const ModQ = (input: Expr): M.ModQ => ({ tag: 'ModQ', input })
+export const PlusModQ = (left: Expr, right: Expr): M.ModQArith => ({ tag: 'ModQArith', op: 'PlusModQ', left, right })
+export const MinusModQ = (left: Expr, right: Expr): M.ModQArith => ({ tag: 'ModQArith', op: 'MinusModQ', left, right })
+export const TaggedVariable = (id: number, tpe: SType): M.TaggedVariable => ({ tag: 'TaggedVariable', varId: id, tpe })
 
 // ── Deserialize, context, calls ────────────────────────────────────────────
 export const DR = (reg: number, tpe: SType, def: Expr | null = null): M.DeserializeRegister => ({ tag: 'DeserializeRegister', reg, tpe, default: def })
