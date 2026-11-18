@@ -395,7 +395,7 @@ describe('fromArray on a NESTED pair elem builds a pair-typed side as pairs agai
     expect(() => fromArray(pairOf(pairOf(SINT, SLONG), SINT), items, false)).toThrow(CollArrayStore)
   })
 
-  it('the left side is built whole before the right: a wrong inner component on the LEFT of a later item is refused before a wrong one on the RIGHT of an earlier item', () => {
+  it('the left side is built whole before the right: a wrong inner component on the LEFT of the second item is refused before a wrong one on the RIGHT of the first item', () => {
     // item 0: right side lies (a GroupElement where a Box belongs, inside the right pair);
     // item 1: left side lies (an Int where a Long belongs, inside the left pair).
     // The outer loop stores both items' components (all are pairs: accepted); then

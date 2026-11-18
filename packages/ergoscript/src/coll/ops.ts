@@ -930,12 +930,15 @@ function isPrimitiveArrayClass(c: ArrayClass): boolean {
 // mismatches are `CollArrayStore`.
 
 /**
- * `builder.unzip(patch)` (`CollsOverArrays.scala:245-259`), specialised for
- * `patch`'s side split. A `'pairs'` patch returns its two sides as they are
- * (the `case pa: PairColl` arm). Any other patch runs through the `case _`
- * arm, which reads `xs.tItem.tFst`/`tSnd` and builds two plain-side
- * collections from the patch's items — a patch whose `tItem` is no pair type
- * fails the read (mirrored by `CollClassCast`).
+ * `builder.unzip(patch)` (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:245-259`).
+ * A `'pairs'` operand returns its two sides as they are (the
+ * `case pa: PairColl` arm, `:246`). Any other operand goes through the
+ * `case _` arm: it reads `xs.tItem.tFst` / `tSnd` (an operand whose item
+ * type is no pair type fails the read: `CollClassCast`), stores each pair's
+ * components into two arrays of the sides' classes (`:251-257`) and builds
+ * each side with `fromArray` (`:258`). Those stores and the two sides are
+ * what `fromArray` makes of the operand's items at its pair type
+ * (`fromBoxedPairs`, `:205-215`), so the operand is rebuilt by it and split.
  */
 function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
   const pcls = classOf(p)
@@ -947,25 +950,12 @@ function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
       `unzip: Coll[${p.elem.tag}] is not a Coll of pairs; tItem.tFst throws`,
     )
   }
-  const [lsElem, rsElem] = p.elem.items as [SType, SType]
-  const [lsItems, rsItems] = splitPairItems(p.items)
-  const lsArray = arrayClassOf(lsElem)
-  const rsArray = arrayClassOf(rsElem)
-  // The JVM's `unzip` fallback (`CollsOverArrays.scala:245-259`) allocates
-  // `Array.ofDim[A](limit)(tA.classTag)` and `Array.ofDim[B](...)` and stores
-  // `p._1` / `p._2` through the aastore: a component whose class is not the
-  // side's array class throws. Share the pair builder's rule through the
-  // one store helper.
-  for (const item of lsItems) storeIntoArray(lsArray, item, 'astore')
-  for (const item of rsItems) storeIntoArray(rsArray, item, 'astore')
-  return {
-    ls: withClass(lsElem, lsItems, {
-      shape: 'array', specialised: false, array: lsArray,
-    }),
-    rs: withClass(rsElem, rsItems, {
-      shape: 'array', specialised: false, array: rsArray,
-    }),
+  const rebuilt = fromArray(p.elem, p.items, false)
+  const cls = classOf(rebuilt)
+  if (cls.shape !== 'pairs') {
+    throw new CollClassCast(`unzip: Coll[${p.elem.tag}] is not a Coll of pairs`)
   }
+  return splitSides(rebuilt, cls)
 }
 
 /** Split an array of pair values into two arrays of components. */
