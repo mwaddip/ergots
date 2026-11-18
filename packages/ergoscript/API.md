@@ -47,6 +47,7 @@ import {
   type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
   type ParseTreeOptions, type SType, type SValue, type Expr, type ErgoBox,
   type AdditionalRegisters,
+  type ArrayClass, type CollClass,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
   ExprParseError, ExprSerializeError, ExprTpeError,
@@ -311,7 +312,24 @@ type SValue =
 
 Runtime-value discriminated union. Composite kinds (`Coll`, `Option`) carry their element type explicitly because the wire format does not always encode it unambiguously (empty `Coll`, `None` for `SOption`). `Context`/`Global`/`PreHeader`/`Header` are evaluator-internal sentinels never produced at the top level by honest trees; they appear as intermediate values when evaluating context-access methods.
 
+A `Coll` value carries an optional `cls: CollClass` — the class of the JVM's `Coll[A]` object the value stands for (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala`): array shape over a primitive or reference array, or a pair of two sides. Every value built inside this package has `cls` set, and the evaluator reads it where the JVM reads the class (`getOrElse` on a specialised or pair receiver, `patch` / `updated` / `updateMany` / `append` stores, `startsWith` / `endsWith` casts, `map` / `flatMap` through the result's array). A `Coll` handed in without `cls` reads as the data reader's class for its `elem` (`CoreDataSerializer.deserializeColl`, `:166-191`): `Coll[Boolean]` and `Coll[Byte]` specialised over the primitive array, a pair-item type as `PairOfCols` with plain sides, every other item type as the plain class over its item's class tag. A consumer building a `Coll` by hand for a context (a register value, a context-extension value) may leave `cls` out: the evaluator reads the data reader's class, as the JVM does for a value that reaches an evaluation through its data codec. The two error codes a class decision raises, `'coll-class-cast'` (a value or array cast to another class) and `'coll-array-store'` (an array refuses a store), live in `facts/ergoscript-eval.md`.
+
 `SigmaProp.value` is a structural `SigmaBoolean` (6-variant discriminated union — see `facts/ergoscript-sigma.md`). Wire parse + serialize is byte-identical against sigma-rust; structural access is consumed by `verifySignature` and by the `SigmaPropBytes` evaluator arm.
+
+### `CollClass` / `ArrayClass`
+
+```ts
+type PrimitiveArrayClass = 'boolean' | 'byte' | 'short' | 'int' | 'long'
+type ReferenceArrayClass =
+  | 'Object' | 'Coll' | 'Tuple2' | 'Option' | 'BigInt' | 'UnsignedBigInt' | 'GroupElement' | 'SigmaProp'
+  | 'Box' | 'AvlTree' | 'Header' | 'PreHeader' | 'String' | 'Unit' | 'Context' | 'Global' | 'Function1'
+type ArrayClass = PrimitiveArrayClass | ReferenceArrayClass
+type CollClass =
+  | { shape: 'array'; specialised: boolean; array: ArrayClass }   // CollOverArray
+  | { shape: 'pairs'; ls: CollClass; rs: CollClass }              // PairOfCols
+```
+
+The JVM's `Coll[A]` is either `CollOverArray[A]` (`CollsOverArrays.scala:11`) — the plain class, or the specialised subclass for one primitive item type, over an array of a primitive kind or of one reference class — or `PairOfCols[L, R]` (`:274`) — two collections, one per side, each with its own `CollClass`. `ArrayClass` is the runtime class of the underlying array, as `stypeToRType` reports it: `'Object'` for a `Coll[Any]`, `'byte'` for `Coll[Byte]`, and so on. `elem` is the JVM's `tItem`, the runtime item type, which can differ from the static type of the expression that produced the value (an empty left operand of `append` returns the right operand unread, whatever its item type).
 
 ### `Expr`
 
@@ -579,6 +597,8 @@ All 87 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'pow-hit-invalid-params'` | `Global.powHit` parameter guards: `k < 2`, `k > 32`, or `N < 16` |
 | `'apply-unresolved-type-var'` | Applying a lambda whose arg type is an unresolved `STypeVar` (v6 P6; adversarial-only; mirrors JVM `stypeToRType(STypeVar)` failure) |
 | `'unsupported-eval-node'` | Evaluating a node the JVM gives no eval (all still parse): `TreeLookup` or `CreateAvlTree` (F4 epilogue), any raw `BitOp` (`BitOr`, `BitAnd`, `BitXor`, the three shifts) or `BitInversion` (since 2026-09-30), and `ModQ` (`0xe7`), `ModQArith` (`0xe8` `PlusModQ`, `0xe9` `MinusModQ`) or `TaggedVariable` (`0x71`); unconditional, nothing charged, no operand evaluated |
+| `'coll-class-cast'` | A collection value or its array cast to another class: a specialised `getOrElse` default, a `PairOfCols.getOrElse` non-pair default, `startsWith` / `endsWith` on a specialised receiver against another class, `patch` casting the patch's array on a specialised receiver, and the per-pair unbox of `Xor` on a non-byte item. Mirrors the JVM's `ClassCastException` |
+| `'coll-array-store'` | An array refuses a store: a primitive array handed an item of another class, or a reference array of one class handed an item the class does not accept, in `updated`, `updateMany`, `patch`, `append`, `map` and `flatMap`. Mirrors the JVM's `ArrayStoreException` |
 | `'deserialize-rebuild-failed'` | New on 2026-09-30: a node the Deserialize substitution rebuilds, around a substituted script or default, fails its constructor's checks, as Kiama's `dup` runs them in the JVM (a class cast included); the check's error is the `cause` |
 | `'unsupported-value-type'` | A value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue, ValUse, ConstantPlaceholder) has a declared non-pair `STuple` (arity≠2) or non-unary `SFunc` (arity≠1) type — JVM `SType.isValueOfType` sys.error (F5 batch 3; adversarial-only) |
 | `'select-field-non-pair'` | `SelectField` input is a Tuple of arity≠2 — JVM `SelectField.eval` matches only `Tuple2` (F5 batch 3; adversarial-only) |
