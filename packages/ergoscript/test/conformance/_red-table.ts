@@ -22,6 +22,8 @@ const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/red-table.j
 
 /** Reason ids, each with one sentence that says what ergots does on the rows listed under the id. */
 export const RED_REASONS: Record<string, string> = {
+  'collection-length-limit':
+    'ergots builds a collection of more than 100,000 items at evaluation; the JVM refuses it in the collection class\'s constructor (core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:13-14, MaxArrayLength in core/shared/src/main/scala/sigma/util/package.scala:7).',
   'tuple-as-collection':
     'A tuple constant of three or more items is handed where a collection is wanted.',
   comparer:
