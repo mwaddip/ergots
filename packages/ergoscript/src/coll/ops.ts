@@ -295,7 +295,8 @@ export function zip(c: CollValue, ys: CollValue): CollValue {
  * generic `Coll.getOrElse(i: Int, default: A)` through a bridge method
  * whose `default: Object` is cast to `Tuple2` BEFORE the body runs. A
  * default that is no pair fails the bridge cast, in range or out.
- * Measured on sigma-state 6.0.7 (spend mode, D1 at tree v0 in range:
+ * Measured on sigma-state 6.0.7 (spend mode, `sigmaProp(Coll((1,2),(3,4))
+ *  .getOrElse(0, 7L)._1 == 1)` at tree v0 in range:
  * `ClassCastException: java.lang.Long cannot be cast to scala.Tuple2`). A
  * pair default's components are not checked: a pair whose components are
  * of another class reduces on every pair receiver, in range and out.

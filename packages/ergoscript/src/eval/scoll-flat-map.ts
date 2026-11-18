@@ -195,10 +195,10 @@ export function evalSCollFlatMap(
   // through `fromArray` on a pair range).
   //
   // An empty-input case where `outElem` stays `SAny` (the body's exprTpe
-  // types as ergots' own `SAny`) is the C1 case: the JVM has the real range
-  // at this call and gives the result its array; ergots cannot name it, and
-  // the result carries the unknown class. Every reader by class takes it by
-  // the empty-of-the-receiver's-class rule.
+  // types as ergots' own `SAny`): the JVM has the real range at this call
+  // and gives the result its array; ergots cannot name it, and the result
+  // carries the unknown class. Every reader by class takes it by the
+  // empty-of-the-receiver's-class rule.
   if (obj.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
   if (parts.length === 0 && hasSAny(outElem)) {
     return empty(outElem)
