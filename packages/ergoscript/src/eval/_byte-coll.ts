@@ -18,7 +18,7 @@ import { EvalError } from './eval-context'
  * sigma-rust's interpretation of the i8 sign byte in
  * `bnum::I256::from_be_slice` at `bnum-0.12.1/src/bint/endian.rs:64-109`).
  *
- * Used by: ByteArrayToBigInt (T6, phase 2i-a).
+ * Used by: ByteArrayToBigInt.
  */
 export function signedBeBytesToBigInt(bytes: Uint8Array): bigint {
   // Accumulate unsigned BE first.

@@ -157,14 +157,13 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // bind the arg (charging 5 for `AddToEnvironmentDesc`), evaluate the body,
   // then `Value.checkType(body, res)` = `isValueOfType` — a SHAPE check that
   // any `Coll[_]` fits an `SCollectionType`, any `Tuple2[_,_]` fits a pair
-  // `STuple`, etc. (`SType.scala:198-205`). The per-element RANGE check
-  // that the JVM makes is shape-only; the strict elem-type-level test an
-  // earlier revision made here rejected trees the JVM accepts (row #20's
-  // `Coll[Long]` into a `Coll[Coll[Int]]` lambda range, row #37's empty
-  // `Coll[GroupElement]` into `Coll[Coll[Box]]`, and so on). The ACTUAL
-  // JVM rejection for a misfit is the per-item array store in
-  // `MapCollection.eval` (`transformers.scala:45`): that moved to the
-  // module's `mapped` call below.
+  // `STuple`, etc. (`SType.scala:198-205`). The JVM's per-element RANGE
+  // check is shape-only: a `Coll[Long]` passes a lambda whose range is
+  // `Coll[Coll[Int]]`, and an empty `Coll[GroupElement]` passes one whose
+  // range is `Coll[Coll[Box]]` (SANTA `Coll.reference_store_ops` rows #20,
+  // #37). The JVM's rejection of a misfit is the per-item array store in
+  // `MapCollection.eval` (`transformers.scala:45`), which the module's
+  // `mapped` call below makes.
   const outItems: SValue[] = []
   for (const item of inputColl.items) {
     // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
