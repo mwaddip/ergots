@@ -588,8 +588,8 @@ export function evalFullContextEntry(e: SantaFullCtxEntry): SantaActual {
  *
  * A red row is a full-context entry whose ergots outcome differs from its
  * JVM-blessed expectation. Each row is listed in `red-table.json` under one
- * reason id; `RED_REASONS` below gives each reason id a numeric `item` and
- * one sentence that says what ergots does on the rows listed under the id.
+ * reason id; `RED_REASONS` below gives each reason id one sentence that says
+ * what ergots does on the rows listed under the id.
  *
  * The row check `rowMismatch` is used by `full-context.test.ts` two ways:
  * a row NOT in the table must match (returns `null`), and a row IN the
@@ -597,31 +597,15 @@ export function evalFullContextEntry(e: SantaFullCtxEntry): SantaActual {
  * that matches fails its test with the sentinel text
  * `row is green; remove it from the red table`.
  */
-export const RED_REASONS: Record<string, { item: number; why: string }> = {
-  'collection-class': {
-    item: 22,
-    why: "The evaluator reads no collection class, so the row's verdict rests on one it does not have.",
-  },
-  'tuple-as-collection': {
-    item: 23,
-    why: 'A tuple constant of three or more items is handed where a collection is wanted.',
-  },
-  comparer: {
-    item: 26,
-    why: 'An item comparison across integer widths or over boxed values on a plain receiver.',
-  },
-  'method-not-implemented': {
-    item: 27,
-    why: "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
-  },
-  'expression-register': {
-    item: 4,
-    why: "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
-  },
-  cost: {
-    item: 22,
-    why: 'The value is right and only the cost differs.',
-  },
+export const RED_REASONS: Record<string, string> = {
+  'tuple-as-collection':
+    'A tuple constant of three or more items is handed where a collection is wanted.',
+  comparer:
+    'An item comparison across integer widths or over boxed values on a plain receiver.',
+  'method-not-implemented':
+    "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
+  'expression-register':
+    "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
 }
 
 /** `<v5|v6>/<file>` → reason id → entry names. */

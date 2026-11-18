@@ -3,8 +3,8 @@
  *
  * A red row is a SANTA entry whose ergots outcome differs from its JVM-blessed
  * expectation. Each row is listed in `red-table.json` under one reason id;
- * `RED_REASONS` below gives each reason id a numeric `item` and one sentence
- * that says what ergots does on the rows listed under the id.
+ * `RED_REASONS` below gives each reason id one sentence that says what ergots
+ * does on the rows listed under the id.
  *
  * The row check `rowMismatch` is used by `cost-v5.test.ts` and `cost-v6.test.ts`
  * two ways: a row NOT in the table must match (returns `null`), and a row IN
@@ -20,28 +20,18 @@ import { evalSantaEntry, svalueToSantaJson, type SantaEntry } from './_santa'
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/red-table.json')
 
-/** Reason ids and their tracking numbers. Each entry gives a numeric `item` and one sentence that says what ergots does on the rows listed under the id. */
-export const RED_REASONS: Record<string, { item: number; why: string }> = {
-  'tuple-as-collection': {
-    item: 23,
-    why: 'A tuple constant of three or more items is handed where a collection is wanted.',
-  },
-  comparer: {
-    item: 26,
-    why: 'An item comparison across integer widths or over boxed values on a plain receiver.',
-  },
-  'method-not-implemented': {
-    item: 27,
-    why: "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
-  },
-  'method-call-type': {
-    item: 6,
-    why: "ergots builds the tree and evaluates it; the JVM refuses it at parse because the call's return type keeps a type variable (the patch method's SFunc tRange is Coll[IV]) and the EQ's Constraints$SameType2 check fails on Coll[IV] against Coll[Unit] (data/shared/src/main/scala/sigma/ast/SigmaBuilder.scala Constraints$SameType2).",
-  },
-  'zero-width-collection': {
-    item: 31,
-    why: 'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
-  },
+/** Reason ids, each with one sentence that says what ergots does on the rows listed under the id. */
+export const RED_REASONS: Record<string, string> = {
+  'tuple-as-collection':
+    'A tuple constant of three or more items is handed where a collection is wanted.',
+  comparer:
+    'An item comparison across integer widths or over boxed values on a plain receiver.',
+  'method-not-implemented':
+    "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
+  'method-call-type':
+    "ergots builds the tree and evaluates it; the JVM refuses it at parse because the call's return type keeps a type variable (the patch method's SFunc tRange is Coll[IV]) and the EQ's Constraints$SameType2 check fails on Coll[IV] against Coll[Unit] (data/shared/src/main/scala/sigma/ast/SigmaBuilder.scala Constraints$SameType2).",
+  'zero-width-collection':
+    'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
 }
 
 /** The red-table JSON shape: file path → reason id → list of entry names. */

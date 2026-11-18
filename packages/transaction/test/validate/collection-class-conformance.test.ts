@@ -3,13 +3,8 @@
 // collection split, blessed by ergo-core 6.0.6 validateStateful at the versions each entry pins.
 // Vendored verbatim; the pattern mirrors kept-tree-bytes-conformance.test.ts.
 //
-// A red entry whose cause is a rule of the collection-value model is a defect, fixed where the
-// module owns the rule. Every other red entry is listed in collection-class-red.json under one
-// reason id of the ratchet (reason ids and item numbers are those `_full-context.ts` and
-// `_red-table.ts` use: `tuple-as-collection` 23, `comparer` 26, `method-not-implemented` 27,
-// `expression-register` 4, `zero-width-collection` 31, `method-call-type` 6; plus two local to
-// this file, `coll-class-cast` 22 and `coll-array-store` 22, each for entries whose JVM accepts
-// a spend ergots refuses with one of the module's errors — the unreached rule).
+// A red entry is listed in collection-class-red.json under one reason id; the reason ids and their
+// sentences are the full-context registry's (`../conformance-eval/_full-context`).
 //
 // The red check is both-ways: a row absent from the table must match (the test fails if it does
 // not), and a row listed in the table must NOT match (the test fails with "row is green; remove
@@ -32,49 +27,12 @@ import {
 } from '@ergots/ergoscript';
 import { ReaderError } from '@ergots/scorex';
 import { loadSantaTxEntries, santaTxInputs, type SantaTxEntry } from './_santa-tx';
+import { RED_REASONS } from '../conformance-eval/_full-context';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/collection-class-red.json');
 
 const FILES = ['patch-array-class.json', 'generic-producers.json'] as const;
-
-/** Reason ids this test uses. Item numbers come from the shared ratchet in
- *  `packages/ergoscript/test/conformance/_red-table.ts` and
- *  `packages/transaction/test/conformance-eval/_full-context.ts`. */
-const RED_REASONS: Record<string, { item: number; why: string }> = {
-  'tuple-as-collection': {
-    item: 23,
-    why: 'A tuple constant of three or more items is handed where a collection is wanted.',
-  },
-  comparer: {
-    item: 26,
-    why: 'An item comparison across integer widths or over boxed values on a plain receiver.',
-  },
-  'method-not-implemented': {
-    item: 27,
-    why: "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
-  },
-  'expression-register': {
-    item: 4,
-    why: "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
-  },
-  'zero-width-collection': {
-    item: 31,
-    why: 'ergots parses a collection of a zero-width item type the JVM refuses at parse under rule 1020 CheckZeroWidthCollection.',
-  },
-  'method-call-type': {
-    item: 6,
-    why: "ergots builds the tree and evaluates it; the JVM refuses it at parse under its SameType check on a type variable in the method's return type.",
-  },
-  'coll-class-cast': {
-    item: 22,
-    why: "ergots throws its 'coll-class-cast' code where the JVM takes a path that does not read the class.",
-  },
-  'coll-array-store': {
-    item: 22,
-    why: "ergots throws its 'coll-array-store' code where the JVM takes a path that does not refuse the store.",
-  },
-};
 
 type RedTable = Record<string, Record<string, string[]>>;
 
