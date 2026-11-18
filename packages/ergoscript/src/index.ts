@@ -37,6 +37,11 @@ export type {
   ContextExtension,
 } from './mir/types'
 export { isUnparsedTree } from './mir/types'
+// A collection value carries the JVM's facts of its `Coll[A]` object beyond
+// its items (facts/ergoscript-eval.md, "A collection's class"). The two
+// types that describe it, `ArrayClass` and `CollClass`, are part of the
+// `SValue` surface.
+export type { ArrayClass, CollClass } from './coll/class'
 
 // Wire-layer SValue parser/serializer surface — exposed for downstream
 // packages that need to parse canonical box / register bytes outside the

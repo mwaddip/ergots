@@ -8,6 +8,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../../src/mir/types'
+import type { ArrayClass, CollClass, CollValue } from '../../src/coll'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
@@ -443,6 +444,100 @@ export function synthesizeStubBox(opts?: { tokens?: { id: Uint8Array; amount: bi
     creationHeight: 0,
     txId: new Uint8Array(32),
     index: 0,
+  }
+}
+
+/**
+ * Build a specialised array-shape Coll value: the data reader's class for a
+ * primitive item type the reader specialises (`SByte`/`SBoolean`), or the
+ * class the JVM gives a producer that calls `fromArray` under a concrete
+ * primitive element type.
+ */
+export function specColl(elem: SType, items: SValue[]): CollValue {
+  return {
+    kind: 'Coll',
+    elem,
+    items,
+    cls: { shape: 'array', specialised: true, array: arrayClassForTest(elem) },
+  }
+}
+
+/**
+ * Build a plain array-shape Coll value: `ConcreteCollection.eval`'s class, and
+ * the class of most producers.
+ */
+export function plainColl(elem: SType, items: SValue[]): CollValue {
+  return {
+    kind: 'Coll',
+    elem,
+    items,
+    cls: { shape: 'array', specialised: false, array: arrayClassForTest(elem) },
+  }
+}
+
+/** Build a pair-shape Coll value with the two sides' classes as given. */
+export function pairsColl(
+  elem: SType,
+  items: SValue[],
+  ls: CollClass,
+  rs: CollClass,
+): CollValue {
+  return { kind: 'Coll', elem, items, cls: { shape: 'pairs', ls, rs } }
+}
+
+/**
+ * Deep-copy an `SValue`, stripping every `cls` field at every depth from the
+ * copy. The input is not mutated. Used to compare an evaluated value against
+ * a fixture value that knows no class.
+ */
+export function withoutClass(v: SValue): SValue {
+  switch (v.kind) {
+    case 'Coll':
+      return { kind: 'Coll', elem: v.elem, items: v.items.map(withoutClass) }
+    case 'Tuple':
+      return { kind: 'Tuple', items: v.items.map(withoutClass) }
+    case 'Option':
+      return { kind: 'Option', elem: v.elem, value: v.value === null ? null : withoutClass(v.value) }
+    default:
+      return v
+  }
+}
+
+/**
+ * The array class of an item type, inline for the test helpers so that they
+ * do not depend on the module's `arrayClassOf` under test: a trivial mirror
+ * of `stypeToRType`'s class tags (Evaluation.scala:17-56).
+ */
+function arrayClassForTest(elem: SType): ArrayClass {
+  switch (elem.tag) {
+    case 'SBoolean': return 'boolean'
+    case 'SByte': return 'byte'
+    case 'SShort': return 'short'
+    case 'SInt': return 'int'
+    case 'SLong': return 'long'
+    case 'SAny': return 'Object'
+    case 'SUnit': return 'Unit'
+    case 'SBigInt': return 'BigInt'
+    case 'SUnsignedBigInt': return 'UnsignedBigInt'
+    case 'SGroupElement': return 'GroupElement'
+    case 'SSigmaProp': return 'SigmaProp'
+    case 'SBox': return 'Box'
+    case 'SAvlTree': return 'AvlTree'
+    case 'SHeader': return 'Header'
+    case 'SPreHeader': return 'PreHeader'
+    case 'SContext': return 'Context'
+    case 'SGlobal': return 'Global'
+    case 'SString': return 'String'
+    case 'SColl': return 'Coll'
+    case 'SOption': return 'Option'
+    case 'STuple': return elem.items.length === 2 ? 'Tuple2' : 'Coll'
+    case 'SFunc':
+      if (elem.args.length === 1 && elem.tpeParams.length === 0) return 'Function1'
+      throw new Error(`arrayClassForTest: stypeToRType refuses SFunc of arity ${elem.args.length}`)
+    case 'STypeVar':
+      throw new Error(`arrayClassForTest: stypeToRType refuses STypeVar(${elem.name})`)
+    default:
+      throw new Error(`arrayClassForTest: unhandled SType ${(elem as { tag: string }).tag}`)
   }
 }
 
