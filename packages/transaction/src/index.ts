@@ -1,5 +1,6 @@
 export { parseTransaction, serializeTransaction } from './wire/transaction.ts';
 export { signingMessage, transactionId } from './wire/signing-message.ts';
+export { parseContextExtension } from './wire/input.ts';
 export { TxParseError } from './errors.ts';
 export type { TxParseErrorCode } from './errors.ts';
 export type {
@@ -15,4 +16,5 @@ export { TxValidationError } from './errors.ts';
 export type { TxValidationErrorCode, TxValidationLocation } from './errors.ts';
 export type { StatefulDeps, StateContext, ChainParameters } from './types.ts';
 export type { SType, SValue, ContextExtension, ErgoBox, PreHeader, Header } from './types.ts';
+export type { ArrayClass, CollClass } from '@ergots/ergoscript';
 export { DEFAULT_PARAMETERS } from './params.ts';
