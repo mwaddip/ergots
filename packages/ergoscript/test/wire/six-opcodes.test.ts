@@ -92,7 +92,6 @@ describe('TrueLeaf 7f and FalseLeaf 80', () => {
     expect(toHex(serializeTree(tb))).toBe(toHex(withConst))
   })
 
-  // Review Focus 1.
   it('as the items of a collection', () => {
     // v0 plain, body: d1 (BoolToSigmaProp) b2 (ByIndex)
     //   input: 83 02 01 <a> <b>   — OP_COLL, count 2, elem SBoolean, two one-byte items
@@ -324,10 +323,14 @@ describe('all four', () => {
     // the raw byte).
     type Case = { name: string; bytes: string; positions: number[]; identityIdPos?: number }
     const cases: Case[] = [
-      { name: 'ModQ', bytes: '00d193e7060101060101', positions: [2] },
-      { name: 'PlusModQ', bytes: '00d193e8060101060101060101', positions: [2] },
-      { name: 'MinusModQ', bytes: '00d193e9060101060101060101', positions: [2] },
-      // Node bytes: 71 (opcode), 01 (id), 01 (type). The id writer is the identity for every value.
+      // 00 (header) d1 (BoolToSigmaProp) 93 (EQ) e7 (ModQ opcode, index 3) 06 01 01 (BigInt 1) 06 01 01 (BigInt 1).
+      { name: 'ModQ', bytes: '00d193e7060101060101', positions: [3] },
+      // 00 d1 93 e8 (PlusModQ opcode, index 3) 06 01 01 06 01 01 (two PlusModQ operands) 06 01 01 (EQ right).
+      { name: 'PlusModQ', bytes: '00d193e8060101060101060101', positions: [3] },
+      // 00 d1 93 e9 (MinusModQ opcode, index 3) 06 01 01 06 01 01 06 01 01.
+      { name: 'MinusModQ', bytes: '00d193e9060101060101060101', positions: [3] },
+      // 00 d1 71 (TaggedVariable opcode, index 2) 01 (varId, index 3) 01 (SBoolean type, index 4).
+      // The id writer is the identity for every value.
       { name: 'TaggedVariable', bytes: '00d1710101', positions: [2, 3, 4], identityIdPos: 3 },
     ]
     for (const c of cases) {
