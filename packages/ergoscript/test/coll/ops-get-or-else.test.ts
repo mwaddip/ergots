@@ -124,13 +124,13 @@ describe('getOrElse — plain receiver (CollsOverArrays.scala:26)', () => {
 })
 
 describe('getOrElse — pairs receiver (CollsOverArrays.scala:309-315)', () => {
-  // `PairOfCols.getOrElse(i, default)`:
-  //   if (i >= 0 && i < this.length) this.apply(i)
-  //   else { val d = default; (d._1, d._2) }
-  // In range: `apply(i)` returns the pair, default not read. Out of range:
-  // the default is read as a pair, so a non-pair throws; a pair comes back
-  // whatever its components' classes (measured on the JVM: measurement A
-  // of `.superpowers/sdd/2026-11-18-collection-value-model/measure-1.md`).
+  // `PairOfCols.getOrElse(i: Int, default: (L, R))` is reached from the
+  // generic `Coll.getOrElse(i: Int, default: A)` through a bridge method
+  // whose `default: Object` is cast to `Tuple2` BEFORE the body runs. A
+  // non-pair default fails the bridge cast, in range or out. Measured on
+  // sigma-state 6.0.7 (`.../fallback-and-default.jvm.jsonl` line 5, tree
+  // v0 in-range `ClassCastException: java.lang.Long cannot be cast to
+  // scala.Tuple2`).
   const pairs = pairsColl(
     pairOf(SBYTE, SLONG),
     [pair(byte(1), long(10n)), pair(byte(2), long(20n))],
@@ -138,14 +138,19 @@ describe('getOrElse — pairs receiver (CollsOverArrays.scala:309-315)', () => {
     { shape: 'array', specialised: false, array: 'long' },
   )
 
-  it('returns `apply(i)` in range, whatever the default is', () => {
-    expect(getOrElse(pairs, 0, bool(true))).toEqual(pair(byte(1), long(10n)))
-    expect(getOrElse(pairs, 1, int(0))).toEqual(pair(byte(2), long(20n)))
+  it('returns `apply(i)` in range when the default is a pair', () => {
+    expect(getOrElse(pairs, 0, pair(byte(7), long(70n)))).toEqual(pair(byte(1), long(10n)))
+    expect(getOrElse(pairs, 1, pair(byte(7), long(70n)))).toEqual(pair(byte(2), long(20n)))
+  })
+
+  it('throws CollClassCast in range when the default is not a pair (bridge method cast)', () => {
+    expect(() => getOrElse(pairs, 0, bool(true))).toThrow(CollClassCast)
+    expect(() => getOrElse(pairs, 1, int(0))).toThrow(CollClassCast)
   })
 
   it('returns the default out of range when it is a pair, whatever its components', () => {
     expect(getOrElse(pairs, 2, pair(byte(7), long(70n)))).toEqual(pair(byte(7), long(70n)))
-    // Components of another class: the JVM accepts (measurement A).
+    // Components of another class: the JVM accepts.
     expect(getOrElse(pairs, 2, pair(bool(true), int(0)))).toEqual(pair(bool(true), int(0)))
   })
 

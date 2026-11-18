@@ -71,7 +71,7 @@ import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
-import { mapped } from './_coll'
+import { mapped, empty } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_map.rs:72
@@ -201,6 +201,15 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
         ? sValueType(outItems[0]!)
         : (outElemTpe ?? inputColl.elem)
 
+  // An empty output whose `outElem` contains ergots' own `SAny` is the C1
+  // case: the JVM has the real range at this call and gives the result its
+  // array; ergots cannot name it, and the result carries the unknown class.
+  // Every reader by class takes it by the empty-of-the-receiver's-class
+  // rule.
+  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  if (outItems.length === 0 && hasSAny(outElem)) {
+    return empty(outElem)
+  }
   // `MapCollection.eval` (transformers.scala:40-46) calls
   // `inputV.map(mapperV)(tResItem)` at the mapper's declared range type —
   // the collection module's `mapped` does the per-item store at
@@ -210,7 +219,6 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   //   pair routing on a pair range.
   //   pairs-shape receiver → `PairOfCols.map` writes `new Array[V](n);
   //   res(i) = f(..)` directly, a plain `CollOverArray` (`:317-324`).
-  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
   return mapped(inputVal, outElem, outItems)
 }
 

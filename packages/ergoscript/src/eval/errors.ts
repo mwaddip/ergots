@@ -1236,8 +1236,11 @@ export type EvalErrorCode =
    *     unboxes the default through `BoxesRunTime.unboxTo<T>` at the call,
    *     before the range test (`CollsOverArrays.scala:26` at 6.0.7), so an
    *     ill-typed default throws IN range and out.
-   *   - A `PairOfCols.getOrElse` reading a non-pair default out of range,
-   *     where the JVM reads `(d._1, d._2)` (`CollsOverArrays.scala:309-315`).
+   *   - A `PairOfCols.getOrElse` meeting a non-pair default at the method
+   *     call: the bridge method of the generic
+   *     `Coll.getOrElse(i: Int, default: A)` casts `default: Object` to
+   *     `Tuple2` before the body of `:309-315` runs, so a default that is
+   *     no pair refuses in range and out.
    * The JVM throws `ClassCastException`, and `IllegalArgumentException` where
    * Scala's array code raises it in the same places. ergots turns each into
    * this one code: the spend is refused.

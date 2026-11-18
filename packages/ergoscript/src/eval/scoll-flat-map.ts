@@ -33,8 +33,8 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
-import { sTypeEquals } from '../mir/stype-helpers'
-import { flatMapped } from './_coll'
+import { sTypeEquals, hasSAny } from '../mir/stype-helpers'
+import { flatMapped, empty } from './_coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
 // Source: scoll.rs:126
@@ -186,7 +186,6 @@ export function evalSCollFlatMap(
   //    structural under-charge. JVM is canonical (SANTA v5 B2).
   ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, totalOutLen)
 
-  // Empty-input case: outElem stays SAny; returns Coll[SAny].
   // `SColl.flatMap` (methods.scala:1000-1008) calls `inputV.flatMap(mapperV)` at
   // `mc.tpe` (the call's declared range). On both receiver shapes
   // (`CollOverArray.flatMap` CollsOverArrays.scala:70-73, `PairOfCols.flatMap`
@@ -194,6 +193,15 @@ export function evalSCollFlatMap(
   // at abstract B — the module stores each part's items through the range
   // array's `ArrayBuilder` and returns the plain collection (pair routing
   // through `fromArray` on a pair range).
+  //
+  // An empty-input case where `outElem` stays `SAny` (the body's exprTpe
+  // types as ergots' own `SAny`) is the C1 case: the JVM has the real range
+  // at this call and gives the result its array; ergots cannot name it, and
+  // the result carries the unknown class. Every reader by class takes it by
+  // the empty-of-the-receiver's-class rule.
   if (obj.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  if (parts.length === 0 && hasSAny(outElem)) {
+    return empty(outElem)
+  }
   return flatMapped(obj, outElem, parts as (SValue & { kind: 'Coll' })[])
 }

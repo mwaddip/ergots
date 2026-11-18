@@ -9,6 +9,14 @@
  *
  * `PairOfCols[L, R](ls, rs)` (:274) is the pair shape: two collections, one
  * per side of the pair. Each side is again one of these objects.
+ *
+ * A third shape `'unknown'` marks one empty collection whose array ergots
+ * cannot name: a `map` or `flatMap` whose mapper's static range ergots
+ * types as `SAny` (no signature entry for the body's method call) and whose
+ * input is empty. The JVM has the real range at that call and gives the
+ * collection its array; ergots carries the marker, and every reader by
+ * class takes it by the rule an empty collection of the receiver's own
+ * class gives.
  */
 
 import type { SType, SValue } from '../mir/types'
@@ -103,10 +111,19 @@ export type ArrayClass = PrimitiveArrayClass | ReferenceArrayClass
  *   or the plain class. `array` is the class of the underlying array.
  * - `'pairs'` is a `PairOfCols` (CollsOverArrays.scala:274). Each side has its
  *   own class — again a `CollClass`.
+ * - `'unknown'` is the class of one empty collection whose array ergots
+ *   cannot name: a `map` / `flatMap` result of a mapper whose static range
+ *   is `SAny`, with an empty input (`eval/coll-map.ts`, `eval/scoll-flat-map.ts`).
+ *   The JVM has the range type at that call and gives the collection its
+ *   array; ergots does not. Only the one builder `empty` (`coll/build.ts`)
+ *   produces it. Every reader by class handles it: as an operand, by the
+ *   rule that an empty collection of the receiver's class gives; as a
+ *   receiver, by the rules for an empty receiver of each operation.
  */
 export type CollClass =
   | { shape: 'array'; specialised: boolean; array: ArrayClass }
   | { shape: 'pairs'; ls: CollClass; rs: CollClass }
+  | { shape: 'unknown' }
 
 /** Narrowing of `SValue` to its `Coll` member. */
 export type CollValue = Extract<SValue, { kind: 'Coll' }>

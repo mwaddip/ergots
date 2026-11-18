@@ -14,8 +14,9 @@
  *     `MapCollection.eval` (`transformers.scala:43`).
  *   - `CollClassCast` → `EvalError('coll-class-cast')`. The JVM's
  *     `ClassCastException` on a specialised receiver's default unbox
- *     (`CollsOverArrays.scala:26`) and on a pairs receiver reading a
- *     non-pair default as `(d._1, d._2)` (`CollsOverArrays.scala:309-315`).
+ *     (`CollsOverArrays.scala:26`) and on a pairs receiver's bridge-method
+ *     cast of `default: Object` to `Tuple2` at the `getOrElse` call
+ *     (`CollsOverArrays.scala:309-315`).
  *   - `CollArrayStore` → `EvalError('coll-array-store')`. The JVM's
  *     `ArrayStoreException` from an array store a collection operation
  *     refuses (`CollsOverArrays.scala:48-57` and the updated / updateMany /
@@ -30,6 +31,7 @@ import {
   byteColl as _byteColl,
   classOf as _classOf,
   collOverArray as _collOverArray,
+  empty as _empty,
   endsWith as _endsWith,
   filtered as _filtered,
   flatMapped as _flatMapped,
@@ -98,6 +100,16 @@ export function collOverArray(elem: SType, items: SValue[]): CollValue {
 /** `Colls.fromArray(Array[Byte])` / `Array[Byte].toColl`. */
 export function byteColl(bytes: Uint8Array, specialised: boolean): CollValue {
   return _byteColl(bytes, specialised)
+}
+
+/** An empty collection of the unknown class (`coll/build.ts` `empty`). Used
+ *  by the `map` and `flatMap` arms where the mapper's static range ergots
+ *  types as `SAny` and the output is empty: the JVM has the real range at
+ *  that call and gives the collection its array; ergots does not, and every
+ *  reader by class takes the unknown class by the empty-receiver-of-its-own-
+ *  class rule. */
+export function empty(elem: SType): CollValue {
+  return _empty(elem)
 }
 
 /** The collection the data reader builds (`CoreDataSerializer.deserializeColl` :166-191). */

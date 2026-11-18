@@ -77,21 +77,57 @@ export function fromArray(elem: SType, items: SValue[], specialised: boolean): C
 }
 
 /**
- * Store one pair component into its side's typed array, by the same rules as
- * `storeOne('astore')` in `ops.ts`: a primitive side unboxes (`CollClassCast`
- * on a mismatched class); a reference side runs the aastore component check
- * (`CollArrayStore`).
+ * Store one item into an array of class `array`, by the JVM's aastore rule:
+ * a primitive array unboxes (`BoxesRunTime.unboxTo<T>` → `ClassCastException`,
+ * mirrored by `CollClassCast`); a reference array of `'Object'` takes
+ * anything; `'Coll'` takes any collection; another named reference class
+ * refuses an item of another class (`ArrayStoreException`, mirrored by
+ * `CollArrayStore`).
+ *
+ * This is the one helper the pair builder's component check calls
+ * (`CollsOverArrays.scala:205-215` through `Array.ofDim[A](len)(tA.classTag)`
+ * and the aastore that follows), the `unzip` fallback (`:245-259`), and the
+ * per-item store of `patch` / `updated` / `updateMany` / `append` on a
+ * plain receiver.
+ *
+ * `'Unit'` has three paths in scala-library 2.12.20: `'drop-unit'` (the
+ * `ArrayBuilder.ofUnit.++=` path used by `Array.patch` on a `Unit` elem and
+ * by `Array.flatMap`'s per-part `++=`: counts items and fills with units,
+ * dropping the stored value), `'astore'` (a direct `res(i) = elem` into
+ * `new Array[Unit] = BoxedUnit[]`: an aastore check, `CollArrayStore`), and
+ * `'builder-cast'` (`ArrayBuilder.ofUnit.+=(Unit)`, where the call site
+ * inserts an unbox cast to `BoxedUnit`: `CollClassCast`). The primitive
+ * and reference paths match across modes.
+ *
+ * Returns the stored value: the item unchanged, or a `{ kind: 'Unit' }`
+ * when `mode === 'drop-unit'` and the array is `'Unit'`.
  */
-function storeComponent(array: ArrayClass, item: SValue): void {
-  if (array === 'Object') return
+export type StoreMode = 'drop-unit' | 'astore' | 'builder-cast'
+
+export function storeIntoArray(array: ArrayClass, item: SValue, mode: StoreMode): SValue {
+  if (array === 'Unit' && mode === 'drop-unit') return { kind: 'Unit' }
+  if (array === 'Object') return item
   const itemClass = runtimeClassOf(item)
+  if (array === 'Unit') {
+    if (itemClass !== 'Unit') {
+      if (mode === 'builder-cast') {
+        throw new CollClassCast(
+          `Array[Unit].store: item of class ${itemClass} fails unbox-cast to BoxedUnit (ArrayBuilder.ofUnit.+=)`,
+        )
+      }
+      throw new CollArrayStore(
+        `Array[Unit].store: item of class ${itemClass} is not Unit`,
+      )
+    }
+    return item
+  }
   if (array === 'Coll') {
     if (itemClass !== 'Coll') {
       throw new CollArrayStore(
         `Array[Coll].store: item of class ${itemClass} is not a Coll`,
       )
     }
-    return
+    return item
   }
   if (array === 'boolean' || array === 'byte' || array === 'short' || array === 'int' || array === 'long') {
     if (itemClass !== array) {
@@ -99,13 +135,47 @@ function storeComponent(array: ArrayClass, item: SValue): void {
         `Array[${array}].store: item of class ${itemClass} fails unbox to ${array}`,
       )
     }
-    return
+    return item
   }
   if (itemClass !== array) {
     throw new CollArrayStore(
       `Array[${array}].store: item of class ${itemClass} is not ${array}`,
     )
   }
+  return item
+}
+
+/**
+ * `storeIntoArray` on an entire collection's class: a specialised side's
+ * array runs the primitive unbox; a plain side's runs the aastore; a pairs
+ * side's checks the item is a pair; an unknown side has no named array and
+ * reaching here is a module-internal contract violation.
+ */
+export function storeIntoClass(cls: CollClass, item: SValue, mode: StoreMode = 'astore'): SValue {
+  if (cls.shape === 'pairs') {
+    if (item.kind !== 'Tuple' || item.items.length !== 2) {
+      throw new CollClassCast(
+        `Array[Tuple2].store: item of kind ${item.kind} is no pair`,
+      )
+    }
+    return item
+  }
+  if (cls.shape === 'unknown') {
+    throw new CollClassCast(
+      `Array[unknown].store: an unknown-class side has no named array`,
+    )
+  }
+  return storeIntoArray(cls.array, item, mode)
+}
+
+/**
+ * Store one pair component into its side's typed array, by the JVM's
+ * aastore rule. The pair builder's component check (`CollsOverArrays.scala`
+ * `:209-212`) and the `unzip` fallback (`:245-259`) both call it; the
+ * `'astore'` mode is the direct store, as scala-library's aastore does.
+ */
+function storeComponent(array: ArrayClass, item: SValue): void {
+  storeIntoArray(array, item, 'astore')
 }
 
 /**
@@ -162,6 +232,29 @@ export function fromData(elem: SType, items: SValue[]): CollValue {
 export function withClass(elem: SType, items: SValue[], cls: CollClass): CollValue {
   return { kind: 'Coll', elem, items, cls }
 }
+
+/**
+ * The one builder of the `'unknown'` class. An empty collection whose array
+ * ergots cannot name: a `map` / `flatMap` result of a mapper whose static
+ * range ergots types as `SAny`, with an empty input. The result's `elem`
+ * stands in as the mapper's static range (usually `SAny`), and the items
+ * array is empty: a non-empty collection never carries this class, since
+ * every operation that puts an item into a collection of unknown class
+ * routes through a builder that reads the item's own class.
+ *
+ * The JVM has the real range type at the call, and gives the collection its
+ * array (`methods.scala:1005-1007` `flatMap_eval` at `mc.tpe`'s element
+ * type; `transformers.scala:43-45` `MapCollection.eval` at `mapper.tpe.tRange`);
+ * every reader by class then answers. ergots does not have it, so the class
+ * is a marker every reader handles by the rule an empty collection of the
+ * receiver's own class gives.
+ */
+export function empty(elem: SType): CollValue {
+  return { kind: 'Coll', elem, items: [], cls: { shape: 'unknown' } }
+}
+
+/** Alias of `empty` under a descriptive name for tests and documents. */
+export const emptyOfUnknownClass = empty
 
 function isPrimitive(elem: SType): boolean {
   switch (elem.tag) {

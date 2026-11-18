@@ -30,7 +30,17 @@
 
 import type { SType, SValue } from '../mir/types'
 import { arrayClassOf, classOf, CollArrayStore, CollClassCast, runtimeClassOf, type ArrayClass, type CollClass, type CollValue } from './class'
-import { collOverArray, fromArray, withClass } from './build'
+import { collOverArray, empty, fromArray, storeIntoArray, storeIntoClass, withClass, type StoreMode } from './build'
+
+/**
+ * Whether a value carries the `'unknown'` class — an empty collection of
+ * class ergots cannot name (`class.ts`). A reader by class treats it as an
+ * empty collection of the receiver's own class gives, and a receiver of
+ * this class takes each operation by its empty-receiver rule.
+ */
+function isUnknown(c: CollValue): boolean {
+  return classOf(c).shape === 'unknown'
+}
 
 /**
  * `CollOverArray.slice(from, until)` (:40):
@@ -51,6 +61,10 @@ export function slice(c: CollValue, from: number, until: number): CollValue {
   if (cls.shape === 'pairs') {
     const { ls, rs } = splitSides(c, cls)
     return pairColl(slice(ls, from, until), slice(rs, from, until))
+  }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: every slice of it is empty, of the same class.
+    return empty(c.elem)
   }
   const len = c.items.length
   const lo = Math.max(0, from)
@@ -81,6 +95,11 @@ export function filtered(c: CollValue, kept: SValue[]): CollValue {
     const { ls: lsElem, rs: rsElem } = sideElems(c)
     const [lsItems, rsItems] = splitPairItems(kept)
     return pairColl(fromArray(lsElem, lsItems, false), fromArray(rsElem, rsItems, false))
+  }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: filter keeps nothing, so the result is of the
+    // same class.
+    return empty(c.elem)
   }
   return fromArray(c.elem, kept, cls.specialised)
 }
@@ -117,10 +136,16 @@ export function filtered(c: CollValue, kept: SValue[]): CollValue {
  */
 export function mapped(c: CollValue, tRange: SType, items: SValue[]): CollValue {
   const cls = classOf(c)
+  if (cls.shape === 'unknown') {
+    // An empty receiver: no items, no store. The arm picks `empty(tRange)`
+    // over this function where `tRange` is ergots' own `SAny`; when a
+    // concrete `tRange` reaches here, build the concrete empty.
+    return fromArray(tRange, [], false)
+  }
   const resultArray = arrayClassOf(tRange)
   const storeMode: StoreMode = cls.shape === 'pairs' ? 'astore' : 'builder-cast'
   for (const item of items) {
-    storeOne(resultArray, item, storeMode)
+    storeIntoArray(resultArray, item, storeMode)
   }
   if (cls.shape === 'pairs') {
     // `new CollOverArray(res, builder)` written out at :322 — always plain,
@@ -174,7 +199,7 @@ export function flatMapped(c: CollValue, tRange: SType, parts: CollValue[]): Col
   for (const part of parts) {
     if (part.items.length === 0) continue // `++=` on an empty part is a no-op
     for (const item of part.items) {
-      storeOne(resultArray, item, 'astore')
+      storeIntoArray(resultArray, item, 'astore')
       outItems.push(item)
     }
   }
@@ -205,6 +230,10 @@ export function reversed(c: CollValue): CollValue {
     if (lLen === rLen) return pairColl(reversed(ls), reversed(rs))
     if (lLen < rLen) return pairColl(reversed(ls), reversed(slice(rs, 0, lLen)))
     return pairColl(reversed(slice(ls, 0, rLen)), reversed(rs))
+  }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: reverse keeps the empty result of the same class.
+    return empty(c.elem)
   }
   const items = c.items.slice().reverse()
   return fromArray(c.elem, items, cls.specialised)
@@ -262,15 +291,14 @@ export function zip(c: CollValue, ys: CollValue): CollValue {
  * the default is an object and is returned as it is when out of range,
  * whatever its class; in range the item is returned.
  *
- * `PairOfCols.getOrElse(i, default)` (:309-315):
- *     if (i >= 0 && i < this.length) this.apply(i)
- *     else { val d = default; (d._1, d._2) }
- * In range the default is not read, so a non-pair default is ignored. Out of
- * range the default is read as a pair, so a default that is no pair throws,
- * and a default that IS a pair is returned whatever its components' classes
- * (measurement A of `.superpowers/sdd/2026-11-18-collection-value-model/
- *  measure-1.md`: a pair default with components of another class reduces on
- * every pair receiver, in range and out, at tree v0 and v3).
+ * `PairOfCols.getOrElse(i, default: (L, R))` (:309-315) is reached from the
+ * generic `Coll.getOrElse(i: Int, default: A)` through a bridge method
+ * whose `default: Object` is cast to `Tuple2` BEFORE the body runs. A
+ * default that is no pair fails the bridge cast, in range or out.
+ * Measured on sigma-state 6.0.7 (spend mode, D1 at tree v0 in range:
+ * `ClassCastException: java.lang.Long cannot be cast to scala.Tuple2`). A
+ * pair default's components are not checked: a pair whose components are
+ * of another class reduces on every pair receiver, in range and out.
  *
  * A plain collection over `Tuple2[]` (shape `'array'`, array `'Tuple2'`: the
  * class of `Box.tokens` and of a `map` over a pair collection) is a
@@ -278,20 +306,37 @@ export function zip(c: CollValue, ys: CollValue): CollValue {
  * the default out of range, whatever its class.
  *
  * @throws CollClassCast when the default's class fails the unbox the
- *   specialised subclass runs, and when a non-pair default is read as a pair
- *   on a pairs receiver out of range. The evaluator's facade turns it into
- *   `EvalError('coll-class-cast')`.
+ *   specialised subclass runs, and when a non-pair default fails the
+ *   pairs-receiver bridge cast (in range or out). The evaluator's facade
+ *   turns it into `EvalError('coll-class-cast')`.
  */
 export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
   const cls = classOf(c)
   const n = c.items.length
   const inBounds = i >= 0 && i < n
   if (cls.shape === 'pairs') {
+    // `PairOfCols.getOrElse(i: Int, default: (L, R))` is reached from the
+    // generic `Coll.getOrElse(i: Int, default: A)` through a bridge method
+    // whose `default: Object` is cast to `Tuple2` BEFORE the body runs
+    // (`methods.scala` 12:2; `CollsOverArrays.scala:309`). A default that is
+    // no pair fails the bridge cast, in range or out. Measured on
+    // sigma-state 6.0.7, tree v0 in-range: `ClassCastException: java.lang.Long
+    // cannot be cast to scala.Tuple2`.
+    if (d.kind !== 'Tuple' || d.items.length !== 2) {
+      throw new CollClassCast(
+        `PairOfCols.getOrElse: a default of kind ${d.kind} is no pair`,
+      )
+    }
     if (inBounds) return c.items[i]!
-    if (d.kind === 'Tuple' && d.items.length === 2) return d
-    throw new CollClassCast(
-      `PairOfCols.getOrElse: a default of kind ${d.kind} is no pair`,
-    )
+    return d
+  }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: every index is out of range, and the JVM, with
+    // the real class, reads the default by that class's rule. ergots has no
+    // class to cast through, so the default is returned unchecked — the
+    // reader-by-class rule ("accept what an empty of the receiver's class
+    // gives") degenerates here, since no concrete class was ever found.
+    return d
   }
   if (cls.specialised) {
     const dClass = runtimeClassOf(d)
@@ -411,6 +456,14 @@ export function patch(
   replaced: number,
 ): CollValue {
   const cls = classOf(c)
+  if (cls.shape === 'unknown') {
+    // The receiver is empty, and its class ergots cannot name. The result
+    // is the patch's items with the patch's own class: receiver[0,from) is
+    // empty, receiver[from+replaced,) is empty, so the result is just the
+    // patch. The JVM would allocate at the receiver's class tag; ergots
+    // adopts the patch's class in its place.
+    return withClass(p.elem, p.items.slice(), classOf(p))
+  }
   if (cls.shape === 'pairs') {
     const sides = splitSides(c, cls)
     const patchSides = unzipForPatch(p)
@@ -420,19 +473,27 @@ export function patch(
     )
   }
   let stored: SValue[]
+  // An empty operand of unknown class stores nothing: skip the specialised
+  // receiver's cast of the patch's array and the plain receiver's per-item
+  // store (which is a no-op on an empty operand).
+  const pUnknown = isUnknown(p)
   if (cls.specialised) {
-    const pArray = argArrayClass(p)
-    if (pArray !== cls.array) {
-      throw new CollClassCast(
-        `Coll[${cls.array}].patch: Array of ${pArray} is not of the receiver's class`,
-      )
+    if (!pUnknown) {
+      const pArray = argArrayClass(p)
+      if (pArray !== cls.array) {
+        throw new CollClassCast(
+          `Coll[${cls.array}].patch: Array of ${pArray} is not of the receiver's class`,
+        )
+      }
     }
+    stored = p.items
+  } else if (pUnknown) {
     stored = p.items
   } else {
     // `Array.patch` on `Array[A]` builds through the A-class's
     // `ArrayBuilder` (scala-library 2.12.20): a `Unit` array's builder
     // drops the stored value and keeps a unit, hence `'drop-unit'`.
-    stored = p.items.map((item) => storeOne(cls.array, item, 'drop-unit'))
+    stored = p.items.map((item) => storeIntoArray(cls.array, item, 'drop-unit'))
   }
   const fromC = Math.max(0, from)
   const replacedC = Math.max(0, replaced)
@@ -495,6 +556,15 @@ export function updated(c: CollValue, index: number, item: SValue): CollValue {
       updated(sides.rs, index, rhs),
     )
   }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: an index-in-range call should never reach this
+    // function (the arm's bounds check rejects first). A caller through the
+    // public API reaches here, and the module gives its typed error with no
+    // plain `Error`.
+    throw new CollClassCast(
+      `Coll[unknown].updated: receiver is empty; no index can be in range`,
+    )
+  }
   let toStore: SValue
   if (cls.specialised) {
     const itemClass = runtimeClassOf(item)
@@ -505,7 +575,7 @@ export function updated(c: CollValue, index: number, item: SValue): CollValue {
     }
     toStore = item
   } else {
-    toStore = storeOne(cls.array, item, 'astore')
+    toStore = storeIntoArray(cls.array, item, 'astore')
   }
   const items = c.items.slice()
   items[index] = toStore
@@ -567,6 +637,16 @@ export function updateMany(c: CollValue, indexes: number[], values: CollValue): 
       fromArray(rsElem, newRs, false),
     )
   }
+  if (cls.shape === 'unknown') {
+    // The receiver is empty. An empty indexes array is a no-op: the result
+    // is the receiver as it is. A non-empty indexes array names an index
+    // the receiver cannot have in range, and the module gives its typed
+    // error.
+    if (indexes.length === 0) return c
+    throw new CollClassCast(
+      `Coll[unknown].updateMany: receiver is empty; no index can be in range`,
+    )
+  }
   const items = c.items.slice()
   for (let k = 0; k < indexes.length; k++) {
     const v = values.items[k]!
@@ -579,7 +659,7 @@ export function updateMany(c: CollValue, indexes: number[], values: CollValue): 
       }
       items[indexes[k]!] = v
     } else {
-      items[indexes[k]!] = storeOne(cls.array, v, 'astore')
+      items[indexes[k]!] = storeIntoArray(cls.array, v, 'astore')
     }
   }
   return fromArray(c.elem, items, cls.specialised)
@@ -630,15 +710,32 @@ export function updateMany(c: CollValue, indexes: number[], values: CollValue): 
  */
 export function append(c: CollValue, other: CollValue): CollValue {
   const cls = classOf(c)
+  if (cls.shape === 'unknown') {
+    // The empty-receiver rule, which `CollsOverArrays.scala:49` applies
+    // before any class read: an empty receiver returns the operand unread.
+    return other
+  }
   if (cls.shape === 'pairs') {
     const sides = splitSides(c, cls)
-    const otherSides = unzipForPatch(other)
+    // An empty operand of unknown class stands in as two empty operands per
+    // side: `append` on each side with its own empty gives the receiver
+    // side back by the side's class rule, and `pairColl` rebuilds the pair.
+    const otherSides = isUnknown(other)
+      ? { ls: empty(sides.ls.elem), rs: empty(sides.rs.elem) }
+      : unzipForPatch(other)
     return pairColl(
       append(sides.ls, otherSides.ls),
       append(sides.rs, otherSides.rs),
     )
   }
   if (c.items.length === 0) return other
+  // An empty operand of unknown class stands in as an empty of the receiver's
+  // own class: the result's items are the receiver's, and the result's class
+  // is the receiver's. The JVM has the real range at the call and answers;
+  // ergots takes the receiver's class, which gives the same items.
+  if (isUnknown(other)) {
+    return fromArray(c.elem, c.items.slice(), cls.specialised)
+  }
   const otherArray = argArrayClass(other)
   if (cls.specialised) {
     if (otherArray !== cls.array) {
@@ -659,7 +756,7 @@ export function append(c: CollValue, other: CollValue): CollValue {
       )
     }
     for (const item of other.items) {
-      storeOne(cls.array, item, 'astore')
+      storeIntoArray(cls.array, item, 'astore')
     }
   }
   const items = [...c.items, ...other.items]
@@ -726,6 +823,11 @@ function matchPrefix(
   from: 'start' | 'end',
 ): boolean {
   const cls = classOf(c)
+  if (cls.shape === 'unknown') {
+    // The receiver is empty: a prefix/suffix match succeeds iff the argument
+    // is also empty. No class cast runs, since no concrete class was found.
+    return ys.items.length === 0
+  }
   if (cls.shape === 'pairs') {
     const ysCls = classOf(ys)
     if (ysCls.shape === 'pairs') {
@@ -737,6 +839,11 @@ function matchPrefix(
       if (!matchPrefix(ls, yls, itemEq, from)) return false
       return matchPrefix(rs, yrs, itemEq, from)
     }
+    if (ysCls.shape === 'unknown') {
+      // An empty argument of unknown class: the receiver's `toArray.startsWith`
+      // reads nothing, so it reduces to true.
+      return true
+    }
     // Non-pair argument: the fallback casts the argument's array to `Tuple2[]`.
     if (isPrimitiveArrayClass(ysCls.array)) {
       throw new CollClassCast(
@@ -745,6 +852,8 @@ function matchPrefix(
     }
     return compareItems(c.items, ys.items, itemEq, from)
   }
+  // An empty argument of unknown class skips the receiver's array cast.
+  if (isUnknown(ys)) return true
   if (cls.specialised) {
     const ysArray = argArrayClass(ys)
     if (ysArray !== cls.array) {
@@ -776,11 +885,19 @@ function compareItems(
 
 /**
  * The class of the argument's underlying array. A `'pairs'` value's `toArray`
- * is `Array[Tuple2]` (`CollsOverArrays.scala:299`), a reference array.
+ * is `Array[Tuple2]` (`CollsOverArrays.scala:299`), a reference array. An
+ * unknown-class empty argument's array ergots cannot name; the caller
+ * handles the unknown case first and does not call this function on it, so
+ * reaching here with an unknown value is a caller contract violation.
  */
 function argArrayClass(ys: CollValue): ArrayClass {
   const cls = classOf(ys)
   if (cls.shape === 'pairs') return 'Tuple2'
+  if (cls.shape === 'unknown') {
+    throw new CollClassCast(
+      `argArrayClass: an unknown-class value has no named array; the caller must branch on it first`,
+    )
+  }
   return cls.array
 }
 
@@ -789,122 +906,22 @@ function isPrimitiveArrayClass(c: ArrayClass): boolean {
   return c === 'boolean' || c === 'byte' || c === 'short' || c === 'int' || c === 'long'
 }
 
-/**
- * The function that says what an array of a class HOLDS after one store:
- * the item as given, a unit for an array of `'Unit'` on the `ofUnit` builder
- * path, or a refusal. Named `storeOne` after the JVM's per-store step so
- * `patch`, `updated`, `updateMany`, `append` and the map/flatMap arms share
- * the body. The three `StoreMode` variants differ only in how an array of
- * `Unit` handles an item of another class (see `StoreMode`'s doc below).
- *
- * The rules per class, for a store that is NOT a Unit-drop:
- * - `'Object'` is `Array[AnyRef]`: anything stores.
- * - `'Unit'` is `Array[BoxedUnit]`. On `'astore'`: only a Unit item stores
- *   (`CollArrayStore`; SANTA `Coll.reference_store_ops` #44 `updated`, #45
- *   `updateMany`, #63 `PairOfCols.map`). On `'builder-cast'`: a Unit cast
- *   from the call site (`CollClassCast`; row #62 `CollOverArray.map`).
- * - `'Coll'` takes any collection (`Array[Coll[_]]`, item type erased by the
- *   array's class tag). An item whose runtime class is not `'Coll'` is
- *   refused (`ArrayStoreException` → `CollArrayStore`).
- * - A primitive array tries to UNBOX each item; an item of another class
- *   fails the unbox (`BoxesRunTime.unboxTo<T>` → `ClassCastException` →
- *   `CollClassCast`).
- * - A reference array of one named class refuses an item whose runtime class
- *   is not that one (`ArrayStoreException` → `CollArrayStore`).
- */
-/**
- * The store rule a pair-side of class `sideCls` applies to a component.
- * Specialised side → the specialised unbox check (`CollClassCast`); plain
- * side → `storeOne` on the side's array class. A pair-of-pairs side is
- * rare; for completeness, a nested `'pairs'` side only verifies the item
- * is itself a pair and returns it (the per-component rules of a pairs
- * receiver's `updateMany` are applied by the recursive pairs branch when
- * reached directly, not through this helper).
- */
-function storeIntoClass(sideCls: CollClass, item: SValue): SValue {
-  if (sideCls.shape === 'pairs') {
-    if (item.kind !== 'Tuple' || item.items.length !== 2) {
-      throw new CollClassCast(
-        `Array[Tuple2].store: item of kind ${item.kind} is no pair`,
-      )
-    }
-    return item
-  }
-  if (sideCls.specialised) {
-    const itemClass = runtimeClassOf(item)
-    if (itemClass !== sideCls.array) {
-      throw new CollClassCast(
-        `Coll[${sideCls.array}].store: item of class ${itemClass} fails unbox to ${sideCls.array}`,
-      )
-    }
-    return item
-  }
-  return storeOne(sideCls.array, item, 'astore')
-}
-
-/**
- * The store mode a caller uses. The three modes differ only in how an array
- * of `Unit` handles an item of another class, because scala-library
- * 2.12.20's `Unit` builder is three different things on three paths:
- *
- *   - `'drop-unit'`: `ArrayBuilder.ofUnit.++=`, used by `Array.patch` on a
- *     `Unit` element type, and by `Array.flatMap`'s per-part `++=`: counts
- *     items and fills with units, DROPPING the stored value. A unit stands
- *     in the result whatever the item was (SANTA `Coll.reference_store_ops`
- *     rows #40, #41, #56 for patch; #42, #48 for flatMap).
- *   - `'astore'`: a direct `res(i) = elem` into `new Array[Unit]`, which is
- *     `BoxedUnit[]`: an aastore check (`CollArrayStore`; row #44 for
- *     `updated`, #45 for `updateMany`, #63 for `PairOfCols.map`).
- *   - `'builder-cast'`: `ArrayBuilder.ofUnit.+=(Unit)`, where the call site
- *     inserts an unbox cast to `BoxedUnit` (`CollClassCast`; row #62 for
- *     `CollOverArray.map`).
- *
- * The primitive and reference paths match across modes: primitive unbox is
- * always `CollClassCast`; a reference class mismatch is always
- * `CollArrayStore`.
- */
-type StoreMode = 'drop-unit' | 'astore' | 'builder-cast'
-
-function storeOne(array: ArrayClass, item: SValue, mode: StoreMode): SValue {
-  if (array === 'Unit' && mode === 'drop-unit') return { kind: 'Unit' }
-  if (array === 'Object') return item
-  const itemClass = runtimeClassOf(item)
-  if (array === 'Unit') {
-    if (itemClass !== 'Unit') {
-      if (mode === 'builder-cast') {
-        throw new CollClassCast(
-          `Array[Unit].store: item of class ${itemClass} fails unbox-cast to BoxedUnit (ArrayBuilder.ofUnit.+=)`,
-        )
-      }
-      throw new CollArrayStore(
-        `Array[Unit].store: item of class ${itemClass} is not Unit`,
-      )
-    }
-    return item
-  }
-  if (array === 'Coll') {
-    if (itemClass !== 'Coll') {
-      throw new CollArrayStore(
-        `Array[Coll].store: item of class ${itemClass} is not a Coll`,
-      )
-    }
-    return item
-  }
-  if (isPrimitiveArrayClass(array)) {
-    if (itemClass !== array) {
-      throw new CollClassCast(
-        `Array[${array}].store: item of class ${itemClass} fails unbox to ${array}`,
-      )
-    }
-    return item
-  }
-  if (itemClass !== array) {
-    throw new CollArrayStore(
-      `Array[${array}].store: item of class ${itemClass} is not ${array}`,
-    )
-  }
-  return item
-}
+// `storeIntoArray`, `storeIntoClass` and `StoreMode` live in `coll/build.ts`:
+// the module's one store helper, shared by the pair builder (`fromArray`'s
+// pair-elem path), the `unzip` fallback (`unzipForPatch`), and the per-item
+// stores of `patch` / `updated` / `updateMany` / `append` / `mapped` /
+// `flatMapped`. The three modes differ only in how an array of `'Unit'`
+// handles an item of another class:
+//   - `'drop-unit'`: `ArrayBuilder.ofUnit.++=` drops the stored value and
+//     fills with units (scala-library 2.12.20; SANTA rows #40, #41, #56 for
+//     patch; #42, #48 for flatMap).
+//   - `'astore'`: a direct `res(i) = elem` into `new Array[Unit]` =
+//     `BoxedUnit[]`: an aastore check (`CollArrayStore`; SANTA rows #44, #45,
+//     #63).
+//   - `'builder-cast'`: `ArrayBuilder.ofUnit.+=(Unit)` with a call-site unbox
+//     cast to `BoxedUnit` (`CollClassCast`; SANTA row #62).
+// Primitive-array paths are `CollClassCast` across modes; reference-array
+// mismatches are `CollArrayStore`.
 
 /**
  * `builder.unzip(patch)` (`CollsOverArrays.scala:245-259`), specialised for
@@ -926,12 +943,21 @@ function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
   }
   const [lsElem, rsElem] = p.elem.items as [SType, SType]
   const [lsItems, rsItems] = splitPairItems(p.items)
+  const lsArray = arrayClassOf(lsElem)
+  const rsArray = arrayClassOf(rsElem)
+  // The JVM's `unzip` fallback (`CollsOverArrays.scala:245-259`) allocates
+  // `Array.ofDim[A](limit)(tA.classTag)` and `Array.ofDim[B](...)` and stores
+  // `p._1` / `p._2` through the aastore: a component whose class is not the
+  // side's array class throws. Share the pair builder's rule through the
+  // one store helper.
+  for (const item of lsItems) storeIntoArray(lsArray, item, 'astore')
+  for (const item of rsItems) storeIntoArray(rsArray, item, 'astore')
   return {
     ls: withClass(lsElem, lsItems, {
-      shape: 'array', specialised: false, array: arrayClassOf(lsElem),
+      shape: 'array', specialised: false, array: lsArray,
     }),
     rs: withClass(rsElem, rsItems, {
-      shape: 'array', specialised: false, array: arrayClassOf(rsElem),
+      shape: 'array', specialised: false, array: rsArray,
     }),
   }
 }

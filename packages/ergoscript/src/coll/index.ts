@@ -24,7 +24,7 @@ export {
   dataClass,
   runtimeClassOf,
 } from './class'
-export { byteColl, collOverArray, fromArray, fromData } from './build'
+export { byteColl, collOverArray, empty, fromArray, fromData } from './build'
 export {
   append,
   endsWith,

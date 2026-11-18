@@ -75,10 +75,9 @@ import { exprParserFor } from './parse'
 import { LAST_CONSTANT_CODE, OP_TUPLE } from '../mir/opcodes'
 import { canonicalGePayload } from './_ge-canonical'
 import { decodeUtf8Lossy } from './_utf8'
-// The wire layer imports `fromData` from `../coll/build` directly, not from
-// `../coll`: `../coll` also re-exports `ops.ts`, whose transitive imports reach
-// the evaluator's error class (`../eval/*`). The wire layer stays independent
-// of the evaluator, as it is today.
+// The wire layer imports `fromData` from `../coll/build` directly. Its own
+// module only reads `../mir/types`, `./class` and `./build`, as the module
+// boundary says ("A collection's class" in `facts/ergoscript-eval.md`).
 import { fromData } from '../coll/build'
 
 // JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024

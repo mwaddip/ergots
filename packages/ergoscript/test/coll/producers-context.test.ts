@@ -382,7 +382,9 @@ describe('numeric .toBits — specialised Coll[Boolean]', () => {
 // ─── AvlTree.digest / get / getMany ────────────────────────────────────────
 
 describe('AvlTree.digest / get / getMany — specialised inner, plain outer', () => {
-  // The blessed vector's tree/key/proof (measure-1.md, measurement B).
+  // The tree, key and proof measured on sigma-state 6.0.7 (SANTA
+  // `AvlTree.item_bind_v6` `get-tree-control-v0-a3#84`, under the two tree
+  // versions).
   const DIGEST = hexToBytes('15cc1ba1054bf74431a2ccfc57e6051b9d0e7561f70586e5512c0ae3f3bac4fd02')
   const KEY = hexToBytes('01')
   const PROOF = hexToBytes(
