@@ -1,39 +1,43 @@
 /**
  * Xor arm — pairwise byte XOR via truncating-zip.
  *
- * JVM `Xor.eval` (`data/shared/src/main/scala/sigma/ast/trees.scala:1001-1012`)
- * at 6.0.7:
+ * JVM `Xor.eval` (`data/shared/src/main/scala/sigma/ast/trees.scala:
+ * 1001-1012` at 6.0.7):
  *   val lV = left.evalTo[Coll[Byte]](env)
  *   val rV = right.evalTo[Coll[Byte]](env)
  *   Xor.xorWithCosting(lV, rV)
- * `evalTo[Coll[Byte]]` is an unchecked JVM cast — any `Coll[_]` whose runtime
- * class is a Coll passes. `xorWithCosting(ls, rs)` (`:1021-1025`) runs
+ * `evalTo[Coll[Byte]]` is an unchecked JVM cast — any `Coll[_]` whose
+ * runtime class is a Coll passes. `xorWithCosting(ls, rs)` (`:1021-1025`)
+ * charges `addSeqCost(Xor.costKind, math.min(ls.length, rs.length))` with
+ * `costKind = PerItemCost(10, 2, 128)` (`:1015-1016`) and runs
  * `Colls.xor(ls, rs)` (`core/shared/src/main/scala/sigma/data/
- * CollsOverArrays.scala:261-262`): `left.zip(right).map{(l, r) => (l^r).toByte}`.
- * `zip` on two array-shape colls builds a `PairOfCols` whose length is the
- * shorter of the two (`:183-203`); `map` iterates min(len) pairs, so items
- * past that length are never read. For the result, `PairOfCols.map[@specialized
- * V: RType](f)` at V=Byte returns `new CollOverArray(res, builder)` on an
- * `Array[Byte]` (`:317-324`), the Byte-specialised subclass of `CollOverArray`
- * (`:11`).
+ * CollsOverArrays.scala:261-262`): `left.zip(right).map{(l, r) => (l^r).
+ * toByte}`. `zip` on two array-shape colls builds a `PairOfCols` whose
+ * length is the shorter of the two (`:183-203`); `map` iterates min(len)
+ * pairs, so items past that length are never read. The result is
+ * `PairOfCols.map[@specialized V: RType](f)` at V=Byte, which writes
+ * `new CollOverArray(res, builder)` on an `Array[Byte]` (`:317-324`), the
+ * Byte-specialised subclass of `CollOverArray` (`:11`).
  *
- * The cost `xorWithCosting` charges is `addSeqCost(Xor.costKind,
- * math.min(ls.length, rs.length))` — the JVM uses the MIN; the sigma-rust
- * port uses the LEFT length, which ergots mirrors as its consensus oracle.
+ * Costs are charged BEFORE the body runs: `CErgoTreeEvaluator.addSeqCost`
+ * (`interpreter/shared/src/main/scala/sigmastate/interpreter/
+ * CErgoTreeEvaluator.scala:370-391`) calls `coster.add(cost)` and THEN the
+ * block, so a refusal inside the zip-map leaves the cost paid.
  *
  * Invariants (consensus-load-bearing):
  *   - Output length = min(left.length, right.length). NO length-mismatch
  *     error. Tail bytes of the longer operand are silently dropped.
- *   - Cost sized by LEFT operand's length, NOT min(left, right).
- *   - An operand that is a `Coll` of another item type passes when its length
- *     brings the min to 0: the zip-map never reads items of that side (SANTA
- *     `Coll.zip_unequal_sides_v6` `arr-Xor-right-lie-empty-CollInt-v0-a3#227`:
+ *   - Cost sized by `min(left.length, right.length)`.
+ *   - An operand that is a `Coll` of another item type passes when its
+ *     length brings the min to 0: the zip-map never reads items of that
+ *     side (SANTA `Coll.zip_unequal_sides_v6`
+ *     `arr-Xor-right-lie-empty-CollInt-v0-a3#227`:
  *     `Xor(Coll[Byte](1,2), <empty Coll[Boolean]>)` answers `Coll[Byte]()`).
  *     Only a non-empty operand of another item type runs the per-item unbox
- *     that fails (`CollClassCast`).
+ *     that fails (`coll-class-cast`).
  *
- * Non-Coll input: rejected at MIR-build time by `Xor::new`; the TS-side guard
- * stays defensive against `ConstantPlaceholder` injection or hand-crafted MIR.
+ * A non-Coll input (a `Boolean`, a bare `Int` constant hand-planted in MIR)
+ * is rejected at the arm's guard with `'predef-input-not-byte-array'`.
  */
 import type { SValue, Xor } from '../mir/types'
 import type { Env } from './env'
@@ -43,7 +47,8 @@ import { evalExpr } from './eval'
 import { byteColl } from './_coll'
 
 export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
-  // Pattern B: eval children FIRST, then guard, then charge.
+  // Eval both operands, then guard, then charge the per-pair cost on the
+  // shorter length, then iterate min(l,r) pairs with per-byte unbox.
   const leftV = evalExpr(e.left, env, ctx)
   const rightV = evalExpr(e.right, env, ctx)
   if (leftV.kind !== 'Coll') {
@@ -58,14 +63,10 @@ export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
       'predef-input-not-byte-array',
     )
   }
-  // Pattern B: charge cost AFTER eval-children + AFTER type-guard. Cost sized
-  // by LEFT length — the consensus oracle.
-  ctx.addPerItemCost(10, 2, 128, leftV.items.length)
-  // `Colls.xor` is `left.zip(right).map{(l, r) => (l^r).toByte}`. `zip`
-  // truncates to the shorter side, and `map` iterates min(len) pairs; items
-  // past that length are never read, so an operand of another item type is
-  // tolerated iff its length brings the min to 0.
+  // `addSeqCost(Xor.costKind, math.min(ls.length, rs.length))` in the JVM
+  // (trees.scala:1021-1022); `costKind = PerItemCost(10, 2, 128)`.
   const outLen = Math.min(leftV.items.length, rightV.items.length)
+  ctx.addPerItemCost(10, 2, 128, outLen)
   const out = new Uint8Array(outLen)
   for (let i = 0; i < outLen; i++) {
     const lb = leftV.items[i]
