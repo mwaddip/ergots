@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { serializeTree } from '../../src/wire/ergo-tree'
-import { parseParsedTree as parseTree } from '../_helpers'
+import { parseParsedTree as parseTree, withoutClass } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -178,7 +178,7 @@ describe('And variant', () => {
       tag: 'SColl',
       elem: { tag: 'SBoolean' },
     })
-    expect(tree.body.input.value).toEqual({
+    expect(withoutClass(tree.body.input.value)).toEqual({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [
@@ -234,7 +234,7 @@ describe('Or variant', () => {
     expect(tree.body.tag).toBe('Or')
     if (tree.body.tag !== 'Or') throw new Error('unreachable')
     if (tree.body.input.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.input.value).toEqual({
+    expect(withoutClass(tree.body.input.value)).toEqual({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [
@@ -261,7 +261,7 @@ describe('XorOf variant', () => {
     expect(tree.body.tag).toBe('XorOf')
     if (tree.body.tag !== 'XorOf') throw new Error('unreachable')
     if (tree.body.input.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.input.value).toEqual({
+    expect(withoutClass(tree.body.input.value)).toEqual({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [

@@ -11,7 +11,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { arrayClassOf, type CollClass, type CollValue } from './class'
+import { arrayClassOf, dataClass, type CollClass, type CollValue } from './class'
 
 /**
  * `CollOverArrayBuilder.fromArray` (:226-233). A pair item type routes to
@@ -78,6 +78,18 @@ export function byteColl(bytes: Uint8Array, specialised: boolean): CollValue {
     items,
     cls: { shape: 'array', specialised, array: 'byte' },
   }
+}
+
+/**
+ * The collection `CoreDataSerializer.deserializeColl` builds
+ * (`core/shared/src/main/scala/sigma/data/CoreDataSerializer.scala:166-191`):
+ * its class is `dataClass(elem)`. The data reader specialises for `SBoolean`
+ * (:172) and `SByte` (:174), routes a pair element type to `pairCollFromArrays`
+ * (:205-215), and goes through `new CollOverArray` (:176-190) for every other
+ * item type.
+ */
+export function fromData(elem: SType, items: SValue[]): CollValue {
+  return { kind: 'Coll', elem, items, cls: dataClass(elem) }
 }
 
 /**

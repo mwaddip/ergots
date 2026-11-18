@@ -12,6 +12,7 @@ import type { SValue } from '../mir/types'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { sValueStructuralEq } from './bin-op/relation'
+import { reversed } from '../coll'
 
 // reverse (12:30) — Append.costKind PerItemCost(20,2,100) on receiver length.
 // JVM: methods.scala:1126-1141. tRange Coll[IV] (generic; resolved by P0).
@@ -20,7 +21,12 @@ export function evalCollReverse(obj: SValue, _args: SValue[], ctx: EvalContext):
     throw new EvalError(`SColl.reverse expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
   }
   ctx.addPerItemCost(20, 2, 100, obj.items.length) // Append.costKind; methods.scala:1124
-  return { kind: 'Coll', elem: obj.elem, items: [...obj.items].reverse() }
+  // `CollOverArray.reverse` (CollsOverArrays.scala:59-66) calls
+  // `builder.fromArray(reversed Array[A])` — specialisation preserved, pair
+  // routing restores a pair shape on a plain-Tuple2 receiver.
+  // `PairOfCols.reverse` (:384-394) reverses each side, pre-cutting the longer
+  // side with its own `slice` where the lengths differ.
+  return reversed(obj)
 }
 
 // startsWith (12:31) — Zip_CostKind PerItemCost(10, 1, 10) on RECEIVER length.

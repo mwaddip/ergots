@@ -36,7 +36,7 @@ import { serializeSType } from '../src/wire/serialize-stype'
 import { parseSValue } from '../src/wire/parse-svalue'
 import { serializeSValue } from '../src/wire/serialize-svalue'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { hexToBytes, hydrateSValue, parseParsedTree as parseTree } from './_helpers'
+import { hexToBytes, hydrateSValue, parseParsedTree as parseTree, withoutClass } from './_helpers'
 
 // In ESM, __dirname is not defined; derive it from import.meta.url. node:url
 // is a node-only import, allowed in test files per the browser-first rule.
@@ -150,7 +150,7 @@ describe('Corpus round-trip — synthetic SValue', () => {
       const reader = new ByteReader(bytes)
       const parsed = parseSValue(entry.tpe, tv, reader)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
-      expect(parsed).toEqual(expected)
+      expect(withoutClass(parsed)).toEqual(expected)
 
       // Serialize: SValue → bytes (round-trip)
       const writer = new ByteWriter()

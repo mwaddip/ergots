@@ -57,6 +57,7 @@ import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
+import { mapped } from '../coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_map.rs:72
@@ -222,6 +223,14 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
         ? sValueType(outItems[0]!)
         : (outElemTpe ?? inputColl.elem)
 
-  return { kind: 'Coll', elem: outElem, items: outItems }
+  // `MapCollection.eval` (transformers.scala:40-46) calls `inputV.map(mapperV)`
+  // at the mapper's declared range type (`Evaluation.stypeToRType(mapper.tpe.tRange)`).
+  // On an array-shape receiver (`CollOverArray.map[B]`, CollsOverArrays.scala:28-31):
+  // `builder.fromArray(toArray.map(f))` at abstract B gives the plain subclass,
+  // with pair routing for a pair range. On a pairs receiver (`PairOfCols.map`,
+  // :317-324): `new CollOverArray(res, builder)` — always plain, drops the pair
+  // shape even for a pair range.
+  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  return mapped(inputVal, outElem, outItems)
 }
 

@@ -58,7 +58,7 @@ import { parseTree } from '../../src/wire/ergo-tree'
 import { ExprTpeError } from '../../src/mir/expr-tpe'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, captureEvalError, rehydrateEvalOpts, withoutClass } from '../_helpers'
 
 const __dirname = dirname(fileURLToPath(import.meta.url))
 
@@ -113,7 +113,7 @@ describe('Slice eval (phase 2f Coll HOFs Task 5)', () => {
         expect(err.code).toBe(entry.expected_error_code)
       } else {
         const result = evaluateWith(tree, ctx)
-        expect(result).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(withoutClass(result)).toEqual(hydrateSValue(entry.expected_value_json))
         expect(ctx.jitCost).toBe(entry.expected_cost)
       }
     })

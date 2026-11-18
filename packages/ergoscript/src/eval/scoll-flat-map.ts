@@ -34,6 +34,7 @@ import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { flatMapped } from '../coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
 // Source: scoll.rs:126
@@ -183,5 +184,11 @@ export function evalSCollFlatMap(
   ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, outItems.length)
 
   // Empty-input case: outElem stays SAny; returns Coll[SAny].
-  return { kind: 'Coll', elem: outElem, items: outItems }
+  // `SColl.flatMap` (methods.scala:1000-1008) calls `inputV.flatMap(mapperV)` at
+  // `mc.tpe` (the call's declared range). On both receiver shapes
+  // (`CollOverArray.flatMap` CollsOverArrays.scala:70-73, `PairOfCols.flatMap`
+  // :410-411) the body goes through `builder.fromArray` at abstract B — always
+  // plain, with pair routing on a pair range.
+  if (obj.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  return flatMapped(obj, outElem, outItems)
 }

@@ -66,6 +66,7 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { filtered } from '../coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_filter.rs:61
@@ -160,9 +161,10 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
     }
   }
 
-  // 6. Return filtered collection preserving input elem type.
-  // Sigma-rust coll_filter.rs:74-78: CollKind::from_collection(self.elem_tpe, filtered).
-  // Elem type is always `inputColl.elem` (same as sigma-rust's self.elem_tpe which is
-  // derived from the input SColl at construction time).
-  return { kind: 'Coll', elem: inputColl.elem, items: kept }
+  // 6. Return filtered collection preserving input elem type and class.
+  // `CollOverArray.filter` (CollsOverArrays.scala:36) keeps the receiver's
+  // class (specialised stays specialised); `PairOfCols.filter` (:348-363)
+  // rebuilds the pair with plain sides through `pairCollFromArrays`.
+  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  return filtered(inputVal, kept)
 }

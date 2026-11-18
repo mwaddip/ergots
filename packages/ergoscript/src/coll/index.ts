@@ -16,5 +16,5 @@ export type {
   ReferenceArrayClass,
 } from './class'
 export { arrayClassOf, classOf, dataClass, runtimeClassOf } from './class'
-export { byteColl, collOverArray, fromArray } from './build'
+export { byteColl, collOverArray, fromArray, fromData } from './build'
 export { filtered, flatMapped, indices, mapped, reversed, slice, zip } from './ops'

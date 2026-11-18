@@ -29,7 +29,7 @@ import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseExpr } from '../../src/wire/parse'
 import { serializeExpr } from '../../src/wire/serialize'
 import { ByteReader, ByteWriter, deriveHeaderId } from '@ergots/scorex'
-import { hexToBytes } from '../_helpers'
+import { hexToBytes, withoutClass } from '../_helpers'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
 
@@ -97,7 +97,9 @@ function deserializeValue(T: SType, bytes: Uint8Array): SValue {
  */
 function roundTrip(T: SType, value: SValue): SValue {
   const bytes = serializeValue(T, value)
-  return deserializeValue(T, bytes)
+  // deserializeTo's output carries the data reader's `cls` on Coll values;
+  // the input does not. Strip for a structural round-trip comparison.
+  return withoutClass(deserializeValue(T, bytes))
 }
 
 /**
@@ -434,7 +436,17 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
       },
     })
     const bytes = serializeValue(T, { kind: 'Box', value: box })
-    expect(deserializeValue(T, bytes)).toEqual({
+    const got = deserializeValue(T, bytes) as SValue & { kind: 'Box' }
+    // The deserialized register value is a Coll that carries the data reader's
+    // `cls`; the input value does not. Compare without it, as `withoutClass`
+    // does at Coll/Tuple/Option positions.
+    const r4 = got.value.registers?.[4]
+    const strippedR4 = r4 !== undefined ? { tpe: r4.tpe, value: withoutClass(r4.value) } : undefined
+    const strippedGot = {
+      ...got,
+      value: { ...got.value, registers: { ...got.value.registers, 4: strippedR4 } },
+    }
+    expect(strippedGot).toEqual({
       kind: 'Box',
       value: { ...box, retainedBytes: bytes },
     })

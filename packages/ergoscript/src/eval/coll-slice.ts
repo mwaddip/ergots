@@ -27,6 +27,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems } from './_coll-helpers'
+import { slice } from '../coll'
 
 // Cost source: sigma-rust eval/coll_slice.rs:32
 //   ctx.add_per_item_jit_cost(10, 2, 100, n_items)?;
@@ -55,7 +56,8 @@ export function evalSlice(e: Slice, env: Env, ctx: EvalContext): SValue {
   const fromVal = evalExpr(e.from, env, ctx)
   const untilVal = evalExpr(e.until, env, ctx)
 
-  const inputColl = extractCollItems(inputVal)
+  // Keeps the helper's 'coll-input-not-coll' error behaviour exactly.
+  extractCollItems(inputVal)
 
   if (fromVal.kind !== 'Int') {
     throw new EvalError(
@@ -78,33 +80,12 @@ export function evalSlice(e: Slice, env: Env, ctx: EvalContext): SValue {
   const requestedRange = Math.max(0, untilI - fromI)
   ctx.addPerItemCost(COLL_SLICE_BASE, COLL_SLICE_PER_CHUNK, COLL_SLICE_CHUNK_SIZE, requestedRange)
 
-  // Intersection with collection bounds (Scala semantics, no throw on OOB).
-  // sigma-rust coll_slice.rs:36-41:
-  //   let range = from.max(0) as usize .. until.min(len) as usize;
-  //   match input_vec.get(range) { Some(s) => Coll(s), None => Coll([]) }  // OOB ⇒ empty
-  const len = inputColl.items.length
-  const clippedFrom = Math.max(0, fromI)
-  const clippedUntil = Math.min(len, untilI)
-
-  // sigma-rust returns the empty coll whenever the range is out of bounds — which
-  // INCLUDES a negative `until`: `until.min(len) as usize` wraps a negative value to a
-  // huge index, so the range end exceeds len and `input_vec.get(range)` is None. JS
-  // `Array.slice(from, negativeEnd)` would instead index from the END (a non-empty
-  // slice), so we must guard explicitly rather than lean on slice's clamping. The
-  // `clippedFrom >= clippedUntil` guard also covers the from>=until empty case.
-  //
-  // iter-30 (mainnet h=1,520,814 tx12/in0): `slice(Coll[Long], from, until)==slice(...)`
-  // where `until` evaluated negative. JS from-the-end slicing produced a non-empty
-  // operand, so a Coll-equality that sigma-rust saw as both-empty took our
-  // length-mismatch short-circuit — undercharging the eq by 15 (×2 ⇒ the +30 drift).
-  const items =
-    clippedFrom >= clippedUntil
-      ? []
-      : inputColl.items.slice(clippedFrom, clippedUntil)
-
-  return {
-    kind: 'Coll',
-    elem: inputColl.elem,
-    items,
-  }
+  // Scala's `Array.slice(from, until)` (CollsOverArrays.scala:40 `CollOverArray.slice`,
+  // :377 `PairOfCols.slice`): `from` clamps to 0 and `until` to the length; a negative
+  // `until` wraps to a huge usize in Scala-on-JVM/Rust and makes the range out of
+  // bounds, giving an empty collection. The module's `slice` applies the same clamping
+  // and keeps the receiver's class (specialised stays specialised, a pairs receiver
+  // slices each side through `pairColl`).
+  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  return slice(inputVal, fromI, untilI)
 }

@@ -22,7 +22,7 @@ import { blake2b } from '@noble/hashes/blake2.js'
 import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes } from '../_helpers'
+import { hexToBytes, withoutClass } from '../_helpers'
 import type { MethodCall, SType, SValue } from '../../src/mir/types'
 import { encodeVlqU } from '@ergots/scorex'
 
@@ -66,7 +66,7 @@ describe('Global.deserializeTo (106:4) — v6 P5a', () => {
   it('deserializeTo[Coll[Byte]]([3,1,2,3]) → Coll[Byte](1,2,3), cost 146', () => {
     const ctx = makeContext({ treeVersion: 3 })
     const r = evalMethodCall(deserExpr(COLL_BYTE, [3, 1, 2, 3]), Env.empty(), ctx)
-    expect(r).toEqual({
+    expect(withoutClass(r)).toEqual({
       kind: 'Coll',
       elem: SBYTE,
       items: [

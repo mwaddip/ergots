@@ -25,7 +25,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts, withoutClass } from '../_helpers'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
 
 const SLONG: SType = { tag: 'SLong' }
@@ -133,7 +133,7 @@ describe('SColl.patch — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

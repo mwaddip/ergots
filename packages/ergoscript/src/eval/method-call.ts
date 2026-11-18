@@ -72,6 +72,7 @@ import {
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
+import { indices as collIndices, zip as collZip } from '../coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalEncodeNbits } from './global-encode-nbits'
@@ -105,12 +106,10 @@ import {
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
 // SBox — element type for dataInputsCollOf.
-// SInt — element type for indicesCollOf.
 // SHeader — element type for headersCollOf.
 const SLONG: SType = { tag: 'SLong' }
 const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
 const SBOX: SType = { tag: 'SBox' }
-const SINT: SType = { tag: 'SInt' }
 const SHEADER: SType = { tag: 'SHeader' }
 
 export type HandlerFn = (
@@ -792,7 +791,11 @@ function registerHandlers(): void {
       )
     }
     ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
-    return indicesCollOf(n)
+    // `CollOverArray.indices` (CollsOverArrays.scala:68) calls
+    // `builder.fromArray(toArray.indices.toArray)` over `Array[Int]`, picking
+    // the Int-specialised subclass; `PairOfCols.indices` (:408) returns the
+    // shorter side's `indices` — again specialised Coll[Int].
+    return collIndices(obj)
   } })
 
   // SColl.zip (MethodCall, typeId=12, methodId=29)
@@ -821,7 +824,11 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    return zipCollsOf(obj, arg)
+    // `CollOverArray.zip` (CollsOverArrays.scala:42) and `PairOfCols.zip`
+    // (:396) both call `builder.pairColl(this, ys)`: equal lengths give a
+    // `PairOfCols` of the two operands as they are; otherwise the longer side
+    // is cut with its own `slice` (:183-203), which keeps each side's class.
+    return collZip(obj, arg)
   } })
 
   // SColl.flatMap (MethodCall, typeId=12, methodId=15) — phase 2h-f
@@ -1377,15 +1384,6 @@ function dataInputsCollOf(boxes: ErgoBox[]): SValue {
   }
 }
 
-// ---------- SColl.indices helper ----------
-
-/** Build a Coll[Int] = [0, 1, ..., n-1]. */
-function indicesCollOf(n: number): SValue {
-  const items: SValue[] = []
-  for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
-  return { kind: 'Coll', elem: SINT, items }
-}
-
 // ---------- SContext.headers helper ----------
 
 /** Convert a Header[] to a Coll[Header] SValue. */
@@ -1397,21 +1395,3 @@ function headersCollOf(headers: Header[]): SValue {
   }
 }
 
-// ---------- SColl.zip helper ----------
-
-/** Zip two Colls into Coll[STuple[T1, T2]], truncating to the shorter input. */
-function zipCollsOf(
-  coll1: SValue & { kind: 'Coll' },
-  coll2: SValue & { kind: 'Coll' }
-): SValue {
-  const len = Math.min(coll1.items.length, coll2.items.length)
-  const items: SValue[] = []
-  for (let i = 0; i < len; i++) {
-    items.push({ kind: 'Tuple', items: [coll1.items[i]!, coll2.items[i]!] })
-  }
-  return {
-    kind: 'Coll',
-    elem: { tag: 'STuple', items: [coll1.elem, coll2.elem] },
-    items,
-  }
-}

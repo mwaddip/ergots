@@ -75,6 +75,11 @@ import { exprParserFor } from './parse'
 import { LAST_CONSTANT_CODE, OP_TUPLE } from '../mir/opcodes'
 import { canonicalGePayload } from './_ge-canonical'
 import { decodeUtf8Lossy } from './_utf8'
+// The wire layer imports `fromData` from `../coll/build` directly, not from
+// `../coll`: `../coll` also re-exports `ops.ts`, whose transitive imports reach
+// the evaluator's error class (`../eval/*`). The wire layer stays independent
+// of the evaluator, as it is today.
+import { fromData } from '../coll/build'
 
 // JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
 // (SigmaConstants.scala:24, surfaced at ErgoBox.scala:127). The SBox data
@@ -491,7 +496,7 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
         for (let i = 0; i < len; i++) {
           items[i] = { kind: 'Byte', value: (raw[i]! << 24) >> 24 }
         }
-        return { kind: 'Coll', elem: t.elem, items }
+        return fromData(t.elem, items)
       }
       // SColl[SBoolean]: LSB-first bit-packed bytes.
       if (t.elem.tag === 'SBoolean') {
@@ -503,7 +508,7 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
           const bit = (byte >> (i & 7)) & 1
           items[i] = { kind: 'Boolean', value: bit === 1 }
         }
-        return { kind: 'Coll', elem: t.elem, items }
+        return fromData(t.elem, items)
       }
       // General case: the item RType first, then each item by `t.elem`. The JVM's deserializeColl
       // (CoreDataSerializer.scala:158-173) builds the item RType before it reads any item, an empty
@@ -514,7 +519,7 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
       for (let i = 0; i < len; i++) {
         items[i] = parseSValue(t.elem, treeVersion, r)
       }
-      return { kind: 'Coll', elem: t.elem, items }
+      return fromData(t.elem, items)
     }
 
     case 'SOption': {

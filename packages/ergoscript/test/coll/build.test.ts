@@ -15,6 +15,7 @@ import {
   byteColl,
   collOverArray,
   fromArray,
+  fromData,
   withClass,
 } from '../../src/coll/build'
 import type { SType, SValue } from '../../src/mir/types'
@@ -138,6 +139,50 @@ describe('byteColl (Colls.fromArray(Array[Byte]) or Array[Byte].toColl)', () => 
   it('accepts the empty input', () => {
     expect(byteColl(new Uint8Array(), true).items).toEqual([])
     expect(byteColl(new Uint8Array(), false).items).toEqual([])
+  })
+})
+
+describe('fromData (CoreDataSerializer.deserializeColl :166-191)', () => {
+  it('builds a specialised byte collection for SByte', () => {
+    expect(fromData(SBYTE, [byte(1), byte(2)])).toEqual({
+      kind: 'Coll',
+      elem: SBYTE,
+      items: [byte(1), byte(2)],
+      cls: { shape: 'array', specialised: true, array: 'byte' },
+    })
+  })
+
+  it('builds a plain collection for SInt', () => {
+    expect(fromData(SINT, [int(1)])).toEqual({
+      kind: 'Coll',
+      elem: SINT,
+      items: [int(1)],
+      cls: { shape: 'array', specialised: false, array: 'int' },
+    })
+  })
+
+  it('builds a pair collection with plain sides for a pair element type', () => {
+    const items: SValue[] = [pair(int(1), byte(2))]
+    expect(fromData(pairOf(SINT, SBYTE), items)).toEqual({
+      kind: 'Coll',
+      elem: pairOf(SINT, SBYTE),
+      items,
+      cls: {
+        shape: 'pairs',
+        ls: { shape: 'array', specialised: false, array: 'int' },
+        rs: { shape: 'array', specialised: false, array: 'byte' },
+      },
+    })
+  })
+
+  it('builds a plain collection over Coll for a nested collection element type', () => {
+    const inner = fromData(SBYTE, [byte(1)])
+    expect(fromData(collOf(SBYTE), [inner])).toEqual({
+      kind: 'Coll',
+      elem: collOf(SBYTE),
+      items: [inner],
+      cls: { shape: 'array', specialised: false, array: 'Coll' },
+    })
   })
 })
 

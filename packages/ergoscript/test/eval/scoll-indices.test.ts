@@ -16,7 +16,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts, specColl, withoutClass } from '../_helpers'
 import type { MethodCall as MethodCallExpr, SType, SValue } from '../../src/mir/types'
 
 // SType singletons used in test fixtures.
@@ -45,7 +45,9 @@ describe('SColl.indices handler (Layer C1)', () => {
       explicitTypeArgs: {},
     }
     const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({ kind: 'Coll', elem: SINT, items: [] })
+    // `CollOverArray.indices` (CollsOverArrays.scala:68) gives a specialised
+    // Coll[Int] in both shapes.
+    expect(result).toEqual(specColl(SINT, []))
     // Dispatcher 4 + Const arm 5 + handler base 20 + n=0 ⇒ 1 chunk ×2 = 22 → total 31
     expect(ctx.jitCost).toBe(31)
   })
@@ -66,15 +68,11 @@ describe('SColl.indices handler (Layer C1)', () => {
       explicitTypeArgs: {},
     }
     const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: SINT,
-      items: [
-        { kind: 'Int', value: 0 },
-        { kind: 'Int', value: 1 },
-        { kind: 'Int', value: 2 },
-      ],
-    })
+    expect(result).toEqual(specColl(SINT, [
+      { kind: 'Int', value: 0 },
+      { kind: 'Int', value: 1 },
+      { kind: 'Int', value: 2 },
+    ]))
     // Dispatcher 4 + Const arm 5 + handler base 20 + ceil(3/16)*2 = 2 → total 31
     expect(ctx.jitCost).toBe(31)
   })
@@ -116,7 +114,7 @@ describe('SColl.indices — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }
