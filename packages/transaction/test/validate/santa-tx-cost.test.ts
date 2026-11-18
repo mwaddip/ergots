@@ -39,10 +39,21 @@ const TX_FILES: TxFile[] = fs.readdirSync(fixtureDir)
   .filter(({ doc }) => doc.schema === 'santa-transaction/v1')
   .map(({ file, doc }) => ({ file, entries: doc.entries }));
 
-// The entries the JVM accepts and ergots rejects, each pinned in its own file's test.
+// The entries the JVM accepts and ergots rejects, each pinned in its own file's test. The
+// collection-class entries come from `collection-class-red.json`
+// (collection-class-conformance.test.ts): the same list that file maintains.
+const COLLECTION_CLASS_RED = JSON.parse(
+  fs.readFileSync(path.join(fixtureDir, 'collection-class-red.json'), 'utf8'),
+) as Record<string, Record<string, string[]>>;
 const REJECTED_BY_ERGOTS: Record<string, string[]> = {
   // Residual 7 (facts/ergoscript-eval.md, "The Deserialize substitution"): the untyped default and the root wrap.
   'deserialize-substitution-spend.json': ['root-boolean-default-true-accept#20'],
+  // generic-producers.json: 85 entries whose SELF, another box or an extension holds an expression
+  // as a register or variable value, which ergots' readers refuse before anything else is read.
+  'generic-producers.json': Object.values(COLLECTION_CLASS_RED['generic-producers.json'] ?? {}).flat().sort(),
+  // patch-array-class.json: 4 entries whose script calls a method ergots has no handler for
+  // (SGlobal.xor and SContext.selfBoxIndex).
+  'patch-array-class.json': Object.values(COLLECTION_CLASS_RED['patch-array-class.json'] ?? {}).flat().sort(),
 };
 
 const graded = TX_FILES.flatMap(({ file, entries }) =>
@@ -56,7 +67,9 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'cost-limit-boundary.json',
       'deserialize-context-111927.json',
       'deserialize-substitution-spend.json',
+      'generic-producers.json',
       'kept-tree-bytes-input.json',
+      'patch-array-class.json',
       'storage-rent-dust.json',
       'storage-rent-fallback.json',
       'storage-rent-fee-wrap.json',
@@ -64,7 +77,9 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'storage-rent-mixed-inputs.json',
       'storage-rent-recreation.json',
     ]);
-    expect(graded.length).toBe(30);
+    // 30 pre-existing + 16 generic-producers accepts ergots grades + 124 patch-array-class accepts
+    // ergots grades = 170.
+    expect(graded.length).toBe(170);
     for (const [file, names] of Object.entries(REJECTED_BY_ERGOTS)) {
       const valid = TX_FILES.find((f) => f.file === file)!.entries.filter((e) => e.expected.valid).map((e) => e.name);
       expect(names.filter((n) => !valid.includes(n))).toEqual([]);
