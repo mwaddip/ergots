@@ -1027,11 +1027,29 @@ export type EvalErrorCode =
    * (no JVM eval either) is the same class of node, and keeps its own
    * code, 'sigma-prop-is-proven-no-eval'.
    *
+   * Also the `ModQ` (0xe7), `ModQArith` (0xe8 PlusModQ, 0xe9 MinusModQ)
+   * and `TaggedVariable` (0x71) arms. None of the three JVM classes
+   * overrides `eval`: `ModQ` and `ModQArithOp` (ast/trees.scala:954-970)
+   * and `TaggedVariableNode` (ast/values.scala:455-460) inherit the
+   * default `Value.eval`, which throws (ast/values.scala:101-102) when a
+   * reduction reaches one. The nodes still PARSE — the JVM keeps
+   * `ModQSerializer`, `ModQArithOpSerializer` and
+   * `TaggedVariableSerializer` in its dispatch table
+   * (ValueSerializer.scala:97, 145-147) so a transaction whose output
+   * carries one of them parses. Each arm throws this code before it
+   * charges anything and before it evaluates an operand; a tree that
+   * holds one of them in a branch the evaluator does not take stays
+   * valid. `TrueLeaf` (0x7f) and `FalseLeaf` (0x80) parse as Boolean
+   * constants (ast/values.scala:771-790; facts/ergoscript-wire.md,
+   * "The six opcodes the JVM parses") and need no arm of their own.
+   *
    * Source: JVM-blessed vectors AvlTree.unsupported_eval_nodes.json
    * (tree_lookup @v2) + AvlTree.unsupported_eval_nodes_v6.json
    * (tree_lookup + create_avl_tree @v3), blessed_by jvm:sigma-state-6.0.3;
-   * trees.scala:79-91 + 1322-1338; for the bit nodes, the probe above
-   * (test/eval/jvm-no-eval-nodes.test.ts).
+   * SANTA `Unevaluated.node_kinds.json` (all 14 entries errored), blessed_by
+   * jvm:sigma-state-6.0.7; trees.scala:79-91 + 1322-1338; for the bit nodes,
+   * the probe above (test/eval/jvm-no-eval-nodes.test.ts); for the ModQ /
+   * ModQArith / TaggedVariable nodes, test/eval/six-opcodes.test.ts.
    *
    * ⚠ Grading coupling (load-bearing — do NOT rename to a not-impl code):
    * SANTA's dasher maps ONLY 'method-not-implemented' to its
