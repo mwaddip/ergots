@@ -66,7 +66,7 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
-import { filtered } from '../coll'
+import { filtered } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_filter.rs:61

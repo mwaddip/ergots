@@ -1125,6 +1125,21 @@ export type EvalErrorCode =
    *
    * Source: JVM SType.scala:200-205, values.scala:251-254;
    *         eval/_check-type.ts.
+   *
+   * Also the code the evaluator's collection facade (`eval/_coll.ts`) raises
+   * for a `CollTypeRefused` from the module (`coll/class.ts`): the item type
+   * `stypeToRType` has no runtime type for — a top-level `STypeVar`, an
+   * `SFunc` of arity other than one or with type parameters, and any `SType`
+   * tag the module does not know. Mirrors the JVM's `sys.error` arm of
+   * `Evaluation.stypeToRType`
+   * (`core/shared/src/main/scala/sigma/Evaluation.scala:54-55` at 6.0.7:
+   * `case _ => sys.error(s"Don't know how to convert SType $t to RType")`),
+   * reached from every call site that reads a collection's class tag, such
+   * as `ConcreteCollection.eval` (`values.scala:890`:
+   * `Array.ofDim[V#WrappedType](len)(tElement.classTag)` over
+   * `tElement = stypeToRType(elementType)` at `:881`) and
+   * `MapCollection.eval` (`transformers.scala:43`:
+   * `Evaluation.stypeToRType(mapper.tpe.tRange)`).
    */
   | 'unsupported-value-type'
 

@@ -16,7 +16,7 @@
 import { describe, it, expect } from 'vitest'
 import type { SType, SValue } from '../../src/mir/types'
 import { Env } from '../../src/eval/env'
-import { arrayClassOf, classOf, dataClass, runtimeClassOf } from '../../src/coll'
+import { arrayClassOf, classOf, CollTypeRefused, dataClass, runtimeClassOf } from '../../src/coll'
 
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 const SBYTE: SType = { tag: 'SByte' }
@@ -82,12 +82,23 @@ describe('arrayClassOf (stypeToRType class tags, Evaluation.scala:17-56)', () =>
     expect(arrayClassOf(SFUNC_INT_INT)).toBe('Function1')
   })
 
-  it('throws for a type stypeToRType refuses (SFunc of another arity, STypeVar)', () => {
-    expect(() => arrayClassOf({ tag: 'STypeVar', name: 'T' })).toThrow(/STypeVar/)
-    expect(() => arrayClassOf({ tag: 'SFunc', args: [], result: SINT, tpeParams: [] })).toThrow(/SFunc/)
-    expect(() =>
-      arrayClassOf({ tag: 'SFunc', args: [SINT, SINT], result: SINT, tpeParams: [] }),
-    ).toThrow(/SFunc/)
+  it('throws CollTypeRefused for a type stypeToRType refuses (SFunc of another arity, STypeVar)', () => {
+    // Mirrors the JVM's `_ =>` arm of `stypeToRType` (Evaluation.scala:54-55 at 6.0.7).
+    const tvCall = () => arrayClassOf({ tag: 'STypeVar', name: 'T' })
+    expect(tvCall).toThrow(CollTypeRefused)
+    expect(tvCall).toThrow(/STypeVar/)
+    const fn0Call = () => arrayClassOf({ tag: 'SFunc', args: [], result: SINT, tpeParams: [] })
+    expect(fn0Call).toThrow(CollTypeRefused)
+    expect(fn0Call).toThrow(/SFunc/)
+    const fn2Call = () => arrayClassOf({ tag: 'SFunc', args: [SINT, SINT], result: SINT, tpeParams: [] })
+    expect(fn2Call).toThrow(CollTypeRefused)
+    expect(fn2Call).toThrow(/SFunc/)
+    // The error carries the refused type's tag.
+    try { tvCall() } catch (e) {
+      expect(e).toBeInstanceOf(CollTypeRefused)
+      expect((e as CollTypeRefused).tag).toBe('STypeVar')
+      expect((e as CollTypeRefused).name).toBe('CollTypeRefused')
+    }
   })
 })
 

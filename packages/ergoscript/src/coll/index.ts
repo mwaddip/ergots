@@ -15,6 +15,6 @@ export type {
   PrimitiveArrayClass,
   ReferenceArrayClass,
 } from './class'
-export { arrayClassOf, classOf, dataClass, runtimeClassOf } from './class'
+export { arrayClassOf, classOf, CollTypeRefused, dataClass, runtimeClassOf } from './class'
 export { byteColl, collOverArray, fromArray, fromData } from './build'
 export { filtered, flatMapped, indices, mapped, reversed, slice, zip } from './ops'

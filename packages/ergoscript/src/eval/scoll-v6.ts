@@ -12,7 +12,7 @@ import type { SValue } from '../mir/types'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { sValueStructuralEq } from './bin-op/relation'
-import { reversed } from '../coll'
+import { reversed } from './_coll'
 
 // reverse (12:30) — Append.costKind PerItemCost(20,2,100) on receiver length.
 // JVM: methods.scala:1126-1141. tRange Coll[IV] (generic; resolved by P0).

@@ -13,6 +13,26 @@
 
 import type { SType, SValue } from '../mir/types'
 
+/**
+ * A typed refusal from the module when `stypeToRType` has no runtime type for
+ * the item type handed in: top-level `STypeVar`, `SFunc` of arity other than
+ * one or with type parameters, and any `SType` tag the module does not know.
+ *
+ * Mirrors the JVM's `sys.error` arm of `Evaluation.stypeToRType`
+ * (`core/shared/src/main/scala/sigma/Evaluation.scala:54-55` at 6.0.7). The
+ * evaluator's facade (`eval/_coll.ts`) wraps this into
+ * `EvalError('unsupported-value-type')`; callers outside the evaluator see
+ * this typed error directly, with the refused type's tag on the error object.
+ */
+export class CollTypeRefused extends Error {
+  readonly tag: string
+  constructor(message: string, tag: string) {
+    super(message)
+    this.name = 'CollTypeRefused'
+    this.tag = tag
+  }
+}
+
 /** A class tag of the five primitive array kinds (RType.scala's PrimitiveType,
  *  and the five classTag cases Scala specialises arrays on). */
 export type PrimitiveArrayClass = 'boolean' | 'byte' | 'short' | 'int' | 'long'
@@ -121,12 +141,21 @@ export function arrayClassOf(elem: SType): ArrayClass {
       return elem.items.length === 2 ? 'Tuple2' : 'Coll'
     case 'SFunc':
       if (elem.args.length === 1 && elem.tpeParams.length === 0) return 'Function1'
-      throw new Error(`arrayClassOf: stypeToRType refuses SFunc of arity ${elem.args.length}`)
+      throw new CollTypeRefused(
+        `arrayClassOf: stypeToRType refuses SFunc of arity ${elem.args.length}`,
+        'SFunc',
+      )
     case 'STypeVar':
-      throw new Error(`arrayClassOf: stypeToRType refuses STypeVar(${elem.name})`)
+      throw new CollTypeRefused(
+        `arrayClassOf: stypeToRType refuses STypeVar(${elem.name})`,
+        'STypeVar',
+      )
     default: {
       const exhaustive: never = elem
-      throw new Error(`arrayClassOf: unhandled SType ${(exhaustive as { tag: string }).tag}`)
+      throw new CollTypeRefused(
+        `arrayClassOf: unhandled SType ${(exhaustive as { tag: string }).tag}`,
+        (exhaustive as { tag: string }).tag,
+      )
     }
   }
 }

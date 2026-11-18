@@ -72,7 +72,7 @@ import {
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
-import { indices as collIndices, zip as collZip } from '../coll'
+import { indices as collIndices, zip as collZip } from './_coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalEncodeNbits } from './global-encode-nbits'

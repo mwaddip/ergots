@@ -36,7 +36,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { exprTpe } from '../mir/expr-tpe'
 import { assertValueTypeSupported } from './_check-type'
-import { fromArray } from '../coll'
+import { fromArray } from './_coll'
 
 export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(20)
@@ -75,21 +75,12 @@ export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValu
       )
     }
   }
-  try {
-    return fromArray(e.elemTpe, items, false)
-  } catch (err) {
-    // `ConcreteCollection.eval` (values.scala:890) reads `tElement.classTag`,
-    // which `Evaluation.stypeToRType`'s `_ =>` arm refuses for STypeVar and
-    // SFunc of other arities, throwing `RuntimeException`. The JVM reduces
-    // such a tree to an error; the module's `arrayClassOf` throws a plain
-    // `Error` here, which the santa runner catches as EvalError only, so
-    // translate it (one step away from the module's throw, not a rewrite of
-    // its semantics).
-    if (err instanceof Error && !(err instanceof EvalError)) {
-      throw new EvalError(err.message, 'collection-elem-kind-mismatch')
-    }
-    throw err
-  }
+  // `ConcreteCollection.eval` (values.scala:887-898) reads
+  // `tElement.classTag` through `stypeToRType` (Evaluation.scala:54-55 at
+  // 6.0.7): an item type that arm refuses (`STypeVar`, `SFunc` of arity
+  // other than one) rejects as `EvalError('unsupported-value-type')`, as
+  // the facade's guard turns the module's `CollTypeRefused` into.
+  return fromArray(e.elemTpe, items, false)
 }
 
 /**

@@ -34,7 +34,7 @@ import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals } from '../mir/stype-helpers'
-import { flatMapped } from '../coll'
+import { flatMapped } from './_coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
 // Source: scoll.rs:126

@@ -27,7 +27,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems } from './_coll-helpers'
-import { slice } from '../coll'
+import { slice } from './_coll'
 
 // Cost source: sigma-rust eval/coll_slice.rs:32
 //   ctx.add_per_item_jit_cost(10, 2, 100, n_items)?;
