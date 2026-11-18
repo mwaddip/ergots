@@ -42,6 +42,7 @@
 import { describe, it, expect } from 'vitest'
 import type { SType, SValue } from '../../src/mir/types'
 import { CollArrayStore, CollClassCast, flatMapped, mapped } from '../../src/coll'
+import { fromArray } from '../../src/coll/build'
 import { pairsColl, plainColl, synthesizeStubBox } from '../_helpers'
 
 const SBYTE: SType = { tag: 'SByte' }
@@ -179,6 +180,47 @@ describe('mapped — CollOverArray.map (CollsOverArrays.scala:28-31) and PairOfC
     expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'Object' })
     expect(out.items).toEqual([groupElem()])
   })
+
+  it('pairs-shape receiver + primitive range + matching item: accepts (new Array[Int] + aastore unboxes a matching Int)', () => {
+    const recv = pairsColl(
+      pairOf(SINT, SINT),
+      [pair(int(1), int(1))],
+      { shape: 'array', specialised: false, array: 'int' },
+      { shape: 'array', specialised: false, array: 'int' },
+    )
+    const out = mapped(recv, SINT, [int(42)])
+    expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'int' })
+    expect(out.items).toEqual([int(42)])
+  })
+
+  it('pairs-shape receiver + primitive range + mismatched-class item: CollClassCast (new Array[Int] aastore unbox of Long fails; row-compatible with #63 primitive side)', () => {
+    const recv = pairsColl(
+      pairOf(SINT, SINT),
+      [pair(int(1), int(1))],
+      { shape: 'array', specialised: false, array: 'int' },
+      { shape: 'array', specialised: false, array: 'int' },
+    )
+    expect(() => mapped(recv, SINT, [long(1n)])).toThrow(CollClassCast)
+  })
+
+  it('EMPTY array-shape receiver: no item is checked against the range class; result carries the range\'s class and is empty (CollsOverArrays.scala:28-31 maps zero items, builder.fromArray on an empty Array[B])', () => {
+    const recv = plainColl(SINT, [])
+    const out = mapped(recv, SBOX, [])
+    expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'Box' })
+    expect(out.items).toEqual([])
+  })
+
+  it('EMPTY pairs-shape receiver: no item is checked; result is plain CollOverArray of the range\'s class (CollsOverArrays.scala:317-324 map of zero items)', () => {
+    const recv = pairsColl(
+      pairOf(SINT, SINT),
+      [],
+      { shape: 'array', specialised: false, array: 'int' },
+      { shape: 'array', specialised: false, array: 'int' },
+    )
+    const out = mapped(recv, SBOX, [])
+    expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'Box' })
+    expect(out.items).toEqual([])
+  })
 })
 
 describe('flatMapped — CollOverArray.flatMap (CollsOverArrays.scala:70-73) and PairOfCols.flatMap (:410-411) at 6.0.7', () => {
@@ -274,5 +316,41 @@ describe('flatMapped — CollOverArray.flatMap (CollsOverArrays.scala:70-73) and
     const out = flatMapped(recv, SANY, [part])
     expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'Object' })
     expect(out.items).toEqual([int(1), groupElem()])
+  })
+})
+
+describe('fromArray on a pair elem routes to fromBoxedPairs and checks each component against its side\'s class (CollsOverArrays.scala:226-233 and :205-215)', () => {
+  it('each component matching its side\'s class: result is pairs with plain sides', () => {
+    const items: SValue[] = [pair(byte(1), long(10n)), pair(byte(2), long(20n))]
+    const out = fromArray(pairOf(SBYTE, SLONG), items, false)
+    expect(out.cls).toEqual({
+      shape: 'pairs',
+      ls: { shape: 'array', specialised: false, array: 'byte' },
+      rs: { shape: 'array', specialised: false, array: 'long' },
+    })
+    expect(out.items).toEqual(items)
+  })
+
+  it('pair whose RIGHT component is of another class: CollArrayStore (SANTA Coll.reference_store_ops map-pair-component-lie-errored#33; the aastore into the right side\'s Array[Box] refuses a GroupElement)', () => {
+    const items: SValue[] = [pair(int(1), groupElem())]
+    expect(() => fromArray(pairOf(SINT, SBOX), items, false)).toThrow(CollArrayStore)
+  })
+
+  it('pair whose LEFT component is of another primitive class: CollClassCast (new Array[Byte] + aastore unbox of Int)', () => {
+    const items: SValue[] = [pair(int(1), long(10n))]
+    expect(() => fromArray(pairOf(SBYTE, SLONG), items, false)).toThrow(CollClassCast)
+  })
+
+  it('pair-rebuild via fromArray after a lying PairOfCols map: CollArrayStore (SANTA Coll.reference_store_ops pair-map-lie-reverse-errored#35: G2.reverse calls builder.fromArray at a pair elem, which hits the component check and refuses a GroupElement into Array[Box])', () => {
+    // G2's class at the reverse-call site is a plain CollOverArray[Tuple2] of
+    // elem (SInt, SBox); reverse goes through fromArray at that elem, which
+    // routes the pair elem to fromBoxedPairs.
+    const items: SValue[] = [pair(int(1), groupElem())]
+    expect(() => fromArray(pairOf(SINT, SBOX), items, false)).toThrow(CollArrayStore)
+  })
+
+  it('a non-pair item at a pair elem: CollArrayStore (ergots\' fromArray guard; the JVM equivalent is the cast Array[Tuple2] aastore)', () => {
+    const items: SValue[] = [int(1)]
+    expect(() => fromArray(pairOf(SINT, SBOX), items, false)).toThrow(CollArrayStore)
   })
 })

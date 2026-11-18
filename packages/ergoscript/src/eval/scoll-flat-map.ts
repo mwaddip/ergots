@@ -152,9 +152,7 @@ export function evalSCollFlatMap(
     // Per-element lambda-arg binding cost: 5 (ADD_TO_ENV_COST). JVM applies the
     // FuncValue once per element, each application charging AddToEnvironmentDesc
     // = 5 to bind the arg before the body eval (`values.scala:1047`). Binding
-    // inline here without it under-charged 5/element vs JVM; sigma-rust shares
-    // the gap (`scoll.rs` flatmap_eval binds via env.insert, uncharged).
-    // JVM is canonical.
+    // inline here without it under-charged 5/element vs JVM.
     ctx.addCost(5)
     // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
     // JVM-faithful for v6. For inline flatMap lambdas capturedEnv == the caller

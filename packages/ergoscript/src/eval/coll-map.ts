@@ -41,7 +41,8 @@
  *
  * Env-extend convention: TS Env is immutable. For each item we call
  *   env.extend(closure.argIds[0], item) to create a new scope — no
- *   save/restore needed, unlike sigma-rust's mutable env.
+ *   save/restore needed; the previous scope is the still-live parent
+ *   binding.
  *
  * Output elem type (JVM `MapCollection.eval` `transformers.scala:43`:
  *   `tResItem = Evaluation.stypeToRType(mapper.tpe.tRange)`; the store runs
@@ -177,7 +178,8 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     // The JVM's closure reads the body's type after each application
-    // (values.scala:1080; spec §5 item 5).
+    // (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:
+    // `Value.checkType(body, res)` reads `body.tpe` before the shape check).
     readCheckedType(closure.body, ctx)
     outItems.push(itemRes)
   }

@@ -1,8 +1,7 @@
 /**
- * `map` and `flatMap` store through the result's array (phase: collection
- * value model stage 1). Each case rebuilds the tree of a SANTA
- * `Coll.reference_store_ops` row with the MIR helpers and runs the evaluator
- * — the row's `expected.value` or `expected.error` is the pin.
+ * `map` and `flatMap` store through the result's array. Each case
+ * evaluates the tree of a SANTA `Coll.reference_store_ops` row through the
+ * SANTA runner — the row's `expected.value` or `expected.error` is the pin.
  *
  * `CollOverArray.map` (CollsOverArrays.scala:28-31 at 6.0.7) stores each
  * mapped item through an `ArrayBuilder.ofXXX.+=`; `PairOfCols.map`
