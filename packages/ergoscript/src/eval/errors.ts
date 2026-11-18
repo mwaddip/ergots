@@ -116,6 +116,12 @@
  *    + 1 code added on 2026-09-30 ('deserialize-rebuild-failed': an ancestor the Deserialize
  *        rewrite rebuilds fails the constructor's checks, as Kiama's dup runs them; the same
  *        spec, §5) → 85.
+ *    + 2 codes added for the collection class rulings ('coll-class-cast': a cast of a value
+ *        or an array to another class a collection operation refuses — the JVM's
+ *        ClassCastException and the IllegalArgumentException Scala's array code raises in the
+ *        same places; 'coll-array-store': a store an array refuses — the JVM's
+ *        ArrayStoreException. CollsOverArrays.scala at 6.0.7: `getOrElse` :26 and :309-315,
+ *        the updated / updateMany / patch readers :48-57) → 87.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -1217,3 +1223,33 @@ export type EvalErrorCode =
    * Source: `eval/svalue-type.ts:66` (default arm).
    */
   | 'coll-map-elem-type-infer-failed'
+
+  // -------------------------------------------------------------------------
+  // Collection class rulings (2 new codes; 85 → 87)
+  // -------------------------------------------------------------------------
+  /**
+   * A collection operation refuses to cast a value or an array to another
+   * class. The evaluator's facade (`eval/_coll.ts`) raises this code for a
+   * `CollClassCast` the collection module (`coll/ops.ts`) throws:
+   *   - A specialised `CollOverArray.getOrElse` reading a default whose
+   *     runtime class is not the receiver's primitive class — the JVM
+   *     unboxes the default through `BoxesRunTime.unboxTo<T>` at the call,
+   *     before the range test (`CollsOverArrays.scala:26` at 6.0.7), so an
+   *     ill-typed default throws IN range and out.
+   *   - A `PairOfCols.getOrElse` reading a non-pair default out of range,
+   *     where the JVM reads `(d._1, d._2)` (`CollsOverArrays.scala:309-315`).
+   * The JVM throws `ClassCastException`, and `IllegalArgumentException` where
+   * Scala's array code raises it in the same places. ergots turns each into
+   * this one code: the spend is refused.
+   */
+  | 'coll-class-cast'
+  /**
+   * An array store a collection operation refuses: a primitive array handed
+   * an item of another class, or a reference array of one class handed an
+   * item the class does not accept. The evaluator's facade (`eval/_coll.ts`)
+   * raises this code for a `CollArrayStore` the collection module
+   * (`coll/ops.ts`) throws. The JVM throws `ArrayStoreException`
+   * (`CollsOverArrays.scala:48-57` and the updated / updateMany / patch
+   * readers).
+   */
+  | 'coll-array-store'

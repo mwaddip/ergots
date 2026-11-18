@@ -20,7 +20,7 @@
 
 import { describe, it, expect } from 'vitest'
 import { translateCollTypeRefused } from '../../src/eval/_coll'
-import { CollTypeRefused } from '../../src/coll'
+import { CollArrayStore, CollClassCast, CollTypeRefused } from '../../src/coll'
 import { EvalError, makeContext } from '../../src/eval/eval-context'
 import { Env } from '../../src/eval/env'
 import { evalExpr } from '../../src/eval/eval'
@@ -38,6 +38,30 @@ describe('the facade guard (eval/_coll.ts)', () => {
       expect(e).toBeInstanceOf(EvalError)
       expect((e as EvalError).code).toBe('unsupported-value-type')
       expect((e as EvalError).message).toBe('arrayClassOf: refuses STypeVar(T)')
+    }
+  })
+
+  it('translates CollClassCast into EvalError(coll-class-cast) with the same message', () => {
+    const inner = new CollClassCast('Coll[byte].getOrElse: a default of class boolean is not of the receivers class')
+    try {
+      translateCollTypeRefused(() => { throw inner })
+      throw new Error('expected a throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('coll-class-cast')
+      expect((e as EvalError).message).toBe('Coll[byte].getOrElse: a default of class boolean is not of the receivers class')
+    }
+  })
+
+  it('translates CollArrayStore into EvalError(coll-array-store) with the same message', () => {
+    const inner = new CollArrayStore('a store an array refuses')
+    try {
+      translateCollTypeRefused(() => { throw inner })
+      throw new Error('expected a throw')
+    } catch (e) {
+      expect(e).toBeInstanceOf(EvalError)
+      expect((e as EvalError).code).toBe('coll-array-store')
+      expect((e as EvalError).message).toBe('a store an array refuses')
     }
   })
 

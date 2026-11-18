@@ -193,13 +193,16 @@ describe('runtimeClassOf (the class of a value for an array store)', () => {
     expect(runtimeClassOf({ kind: 'Global' })).toBe('Global')
   })
 
-  it('throws for a Tuple of another arity than two', () => {
-    expect(() =>
+  it('returns Coll for a Tuple of another arity than two (TupleData carries Coll[Any])', () => {
+    expect(
       runtimeClassOf({
         kind: 'Tuple',
         items: [{ kind: 'Int', value: 0 }, { kind: 'Int', value: 0 }, { kind: 'Int', value: 0 }],
       }),
-    ).toThrow(/Tuple/)
+    ).toBe('Coll')
+    expect(
+      runtimeClassOf({ kind: 'Tuple', items: [{ kind: 'Byte', value: 0 }] }),
+    ).toBe('Coll')
   })
 })
 

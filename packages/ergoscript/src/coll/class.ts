@@ -33,6 +33,39 @@ export class CollTypeRefused extends Error {
   }
 }
 
+/**
+ * A cast of a value or an array to another class a collection operation
+ * refuses. Mirrors the JVM's `ClassCastException` on a specialised receiver's
+ * default unbox (`BoxesRunTime.unboxToByte` and its siblings at
+ * `CollsOverArrays.scala:26`) and `PairOfCols.getOrElse`'s read of a non-pair
+ * default as `(d._1, d._2)` (`CollsOverArrays.scala:309-315`), and the
+ * `IllegalArgumentException` Scala's array code raises in the same places.
+ * The evaluator's facade (`eval/_coll.ts`) wraps this into
+ * `EvalError('coll-class-cast')`; callers outside the evaluator see this
+ * typed error directly.
+ */
+export class CollClassCast extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CollClassCast'
+  }
+}
+
+/**
+ * A store an array refuses: a primitive array handed an item of another class,
+ * or a reference array of one class handed an item the class does not accept.
+ * Mirrors the JVM's `ArrayStoreException` (`CollsOverArrays.scala:48-57` and
+ * the `updated` / `updateMany` / `patch` readers). The evaluator's facade
+ * (`eval/_coll.ts`) wraps this into `EvalError('coll-array-store')`; callers
+ * outside the evaluator see this typed error directly.
+ */
+export class CollArrayStore extends Error {
+  constructor(message: string) {
+    super(message)
+    this.name = 'CollArrayStore'
+  }
+}
+
 /** A class tag of the five primitive array kinds (RType.scala's PrimitiveType,
  *  and the five classTag cases Scala specialises arrays on). */
 export type PrimitiveArrayClass = 'boolean' | 'byte' | 'short' | 'int' | 'long'
@@ -166,9 +199,9 @@ export function arrayClassOf(elem: SType): ArrayClass {
  * updated / updateMany / patch readers). Each `SValue` kind has one runtime
  * class, keyed by `kind`: a two-item `Tuple` is `Tuple2`, a `Lambda` is
  * `Function1`, every primitive is its primitive class, and every reference is
- * its reference class name. A `Tuple` of another arity has no single runtime
- * class here — ergots holds such a value as a `Tuple` today, and nothing in
- * this stage stores one into an array — so the function throws for it.
+ * its reference class name. A `Tuple` of another arity is `Coll` on the JVM
+ * (`TupleData` carries a `Coll[Any]` and `TupleType.classTag` is the class
+ * tag of a collection), so the function returns `'Coll'` for it.
  */
 export function runtimeClassOf(v: SValue): ArrayClass {
   switch (v.kind) {
@@ -213,8 +246,7 @@ export function runtimeClassOf(v: SValue): ArrayClass {
     case 'String':
       return 'String'
     case 'Tuple':
-      if (v.items.length === 2) return 'Tuple2'
-      throw new Error(`runtimeClassOf: Tuple of arity ${v.items.length} has no runtime class here`)
+      return v.items.length === 2 ? 'Tuple2' : 'Coll'
     default: {
       const exhaustive: never = v
       throw new Error(`runtimeClassOf: unhandled SValue kind ${(exhaustive as { kind: string }).kind}`)

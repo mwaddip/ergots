@@ -365,8 +365,8 @@ The residuals of the substitution (numbered as in the spec's "Residuals"):
 
 The class every value of kind `Coll` carries is described in "A collection's class" above; the two codes below belong to its builder and its operations.
 
-- **`'coll-class-cast'`** — a cast of a collection value or its array to another class: the receiver's cast of an argument's array in `startsWith`, `endsWith` and `patch` on a specialised collection, and `PairOfCols.startsWith` / `endsWith` over `toArray` with a non-pair argument. Mirrors the JVM's `ClassCastException` on these paths.
-- **`'coll-array-store'`** — a store the array refuses: `updated`, `updateMany` and `append` on a primitive array with an item or an operand over another array. Mirrors the JVM's `ArrayStoreException` and `IllegalArgumentException` on these paths.
+- **`'coll-class-cast'`** — a cast of a collection value or its array to another class: a specialised `CollOverArray.getOrElse` reading a default whose class is not the receiver's primitive class (unboxed at the call before the range test, `CollsOverArrays.scala:26`), and a `PairOfCols.getOrElse` reading a non-pair default out of range as `(d._1, d._2)` (`CollsOverArrays.scala:309-315`). Mirrors the JVM's `ClassCastException` and the `IllegalArgumentException` Scala's array code raises in the same places.
+- **`'coll-array-store'`** — a store the array refuses: a primitive array handed an item of another class, or a reference array of one class handed an item the class does not accept (`CollsOverArrays.scala:48-57` and the `updated` / `updateMany` / `patch` readers). Mirrors the JVM's `ArrayStoreException`.
 
 ### Sigma-protocol arms
 

@@ -29,7 +29,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
-import { classOf, type CollClass, type CollValue } from './class'
+import { classOf, CollClassCast, runtimeClassOf, type CollClass, type CollValue } from './class'
 import { collOverArray, fromArray, withClass } from './build'
 
 /**
@@ -192,6 +192,59 @@ export function indices(c: CollValue): CollValue {
  */
 export function zip(c: CollValue, ys: CollValue): CollValue {
   return pairColl(c, ys)
+}
+
+/**
+ * `CollOverArray.getOrElse(i, default: A)` (:26):
+ *     if (i >= 0 && i < toArray.length) toArray(i) else default
+ * The class is `@specialized`. On a SPECIALISED receiver the default is
+ * unboxed through `BoxesRunTime.unboxTo<T>` AT THE CALL, before the range
+ * test, so a default whose runtime class is not the receiver's primitive
+ * class throws, IN range and out. On a PLAIN receiver (whatever its array)
+ * the default is an object and is returned as it is when out of range,
+ * whatever its class; in range the item is returned.
+ *
+ * `PairOfCols.getOrElse(i, default)` (:309-315):
+ *     if (i >= 0 && i < this.length) this.apply(i)
+ *     else { val d = default; (d._1, d._2) }
+ * In range the default is not read, so a non-pair default is ignored. Out of
+ * range the default is read as a pair, so a default that is no pair throws,
+ * and a default that IS a pair is returned whatever its components' classes
+ * (measurement A of `.superpowers/sdd/2026-11-18-collection-value-model/
+ *  measure-1.md`: a pair default with components of another class reduces on
+ * every pair receiver, in range and out, at tree v0 and v3).
+ *
+ * A plain collection over `Tuple2[]` (shape `'array'`, array `'Tuple2'`: the
+ * class of `Box.tokens` and of a `map` over a pair collection) is a
+ * `CollOverArray`, so the plain rule applies: returns the item in range and
+ * the default out of range, whatever its class.
+ *
+ * @throws CollClassCast when the default's class fails the unbox the
+ *   specialised subclass runs, and when a non-pair default is read as a pair
+ *   on a pairs receiver out of range. The evaluator's facade turns it into
+ *   `EvalError('coll-class-cast')`.
+ */
+export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
+  const cls = classOf(c)
+  const n = c.items.length
+  const inBounds = i >= 0 && i < n
+  if (cls.shape === 'pairs') {
+    if (inBounds) return c.items[i]!
+    if (d.kind === 'Tuple' && d.items.length === 2) return d
+    throw new CollClassCast(
+      `PairOfCols.getOrElse: a default of kind ${d.kind} is no pair`,
+    )
+  }
+  if (cls.specialised) {
+    const dClass = runtimeClassOf(d)
+    if (dClass !== cls.array) {
+      throw new CollClassCast(
+        `Coll[${cls.array}].getOrElse: a default of class ${dClass} is not of the receiver's class`,
+      )
+    }
+    return inBounds ? c.items[i]! : d
+  }
+  return inBounds ? c.items[i]! : d
 }
 
 // ----- internals -----------------------------------------------------------

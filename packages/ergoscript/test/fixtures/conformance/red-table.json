@@ -736,13 +736,6 @@
       "getRegV5-live-reject#0"
     ]
   },
-  "v6/authored/ByIndex.default_specialisation.json": {
-    "collection-class": [
-      "v0_byte_constant_bool_default_in_range-errored#0",
-      "v0_byte_constant_bool_default_oob-errored#1",
-      "v3_byte_constant_bool_default_oob-errored#7"
-    ]
-  },
   "v6/authored/Coll.append_concat_v6.json": {
     "collection-class": [
       "store-BigInts-appended-empty-right-updateMany-foreign-v0-a3#322",
@@ -799,9 +792,6 @@
     ]
   },
   "v6/authored/Coll.pair_shape_map.json": {
-    "collection-class": [
-      "byindex_paircols_bool_default-errored#4"
-    ],
     "method-not-implemented": [
       "byindex_mapped_pair_bool_default-accept#5",
       "eq_mapped_vs_mapped-accept#10",

@@ -49,6 +49,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
+import { getOrElse, type CollValue } from './_coll'
 import { extractCollItems } from './_coll-helpers'
 import { readCheckedType } from './_check-type'
 import { upcastCost } from './bin-op/_numeric'
@@ -127,37 +128,32 @@ export function evalByIndex(e: ByIndex, env: Env, ctx: EvalContext): SValue {
   const indexVal = evalExpr(e.index, env, ctx)
 
   const inputColl = extractCollItems(inputVal)
+  const receiver = inputVal as CollValue
   const treeVersion = ctx.treeVersion ?? 0
   const idx = indexValue(e, indexVal, treeVersion, ctx)
 
   const inBounds = idx >= 0 && idx < inputColl.items.length
 
   if (e.default !== null) {
-    // ByIndex.eval (transformers.scala:256-273): checkType reads the default's type right after the default is
-    // evaluated, from v3 only when it is taken, before v3 always (spec §5 item 5).
+    // ByIndex.eval (transformers.scala:256-281): from tree v3 the default is evaluated and `checkType`d only out of
+    // range, then `getOrElse(index, default)`. In range the JVM calls `apply`, which the arm reads with `items[idx]`,
+    // the default untouched. Below v3 the default is always evaluated and `checkType`d, and `getOrElse` is called in
+    // range too.
     if (treeVersion >= LAZY_DEFAULT_MIN_VERSION) {
-      // V3+: lazy — default only evaluated on OOB.
-      // Mirrors: `val.map(Ok).unwrap_or_else(default_v)` (line 34)
       if (inBounds) {
         return inputColl.items[idx]!
       }
       const defaultVal = evalExpr(e.default, env, ctx)
       readCheckedType(e.default, ctx)
-      return defaultVal
+      return getOrElse(receiver, idx, defaultVal)
     } else {
-      // V0/V1/V2: eager — default always evaluated.
-      // Mirrors: `Ok(val.unwrap_or(default_v()?)` (line 36)
       const defaultVal = evalExpr(e.default, env, ctx)
       readCheckedType(e.default, ctx)
-      if (inBounds) {
-        return inputColl.items[idx]!
-      }
-      return defaultVal
+      return getOrElse(receiver, idx, defaultVal)
     }
   }
 
-  // No default: OOB throws.
-  // Mirrors: `.ok_or_else(|| EvalError::Misc(...))` (line 40-47)
+  // No default: the JVM calls `apply`, which rejects out of range.
   if (inBounds) {
     return inputColl.items[idx]!
   }

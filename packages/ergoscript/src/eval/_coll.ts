@@ -1,17 +1,27 @@
 /**
  * The evaluator's facade over `src/coll/`. Every evaluator arm, handler or
  * helper that calls into the collection module goes through this file: a
- * single site turns the module's typed refusal, `CollTypeRefused`, into the
- * evaluator's `EvalError('unsupported-value-type')`, and every other error
- * passes through untouched.
+ * single site turns the module's typed refusals into the evaluator's
+ * `EvalError` codes, and every other error passes through untouched.
  *
- * `CollTypeRefused` is what `arrayClassOf` throws when `stypeToRType` has no
- * runtime type for the item type (`core/shared/src/main/scala/sigma/Evaluation.scala:54-55`
- * at 6.0.7, the `case _ => sys.error` arm). The JVM throws through the same
- * path at every call site that reads a collection's class tag, such as
- * `ConcreteCollection.eval` (`values.scala:890`) and `MapCollection.eval`
- * (`transformers.scala:43`). This facade keeps the evaluator-to-module
- * boundary free of plain `Error`s.
+ * The typed refusals the module raises:
+ *   - `CollTypeRefused` → `EvalError('unsupported-value-type')`. What
+ *     `arrayClassOf` throws when `stypeToRType` has no runtime type for the
+ *     item type (`core/shared/src/main/scala/sigma/Evaluation.scala:54-55`
+ *     at 6.0.7, the `case _ => sys.error` arm). The JVM throws through the
+ *     same path at every call site that reads a collection's class tag,
+ *     such as `ConcreteCollection.eval` (`values.scala:890`) and
+ *     `MapCollection.eval` (`transformers.scala:43`).
+ *   - `CollClassCast` → `EvalError('coll-class-cast')`. The JVM's
+ *     `ClassCastException` on a specialised receiver's default unbox
+ *     (`CollsOverArrays.scala:26`) and on a pairs receiver reading a
+ *     non-pair default as `(d._1, d._2)` (`CollsOverArrays.scala:309-315`).
+ *   - `CollArrayStore` → `EvalError('coll-array-store')`. The JVM's
+ *     `ArrayStoreException` from an array store a collection operation
+ *     refuses (`CollsOverArrays.scala:48-57` and the updated / updateMany /
+ *     patch readers).
+ *
+ * This facade keeps the evaluator-to-module boundary free of plain `Error`s.
  */
 
 import type { SType, SValue } from '../mir/types'
@@ -23,11 +33,14 @@ import {
   flatMapped as _flatMapped,
   fromArray as _fromArray,
   fromData as _fromData,
+  getOrElse as _getOrElse,
   indices as _indices,
   mapped as _mapped,
   reversed as _reversed,
   slice as _slice,
   zip as _zip,
+  CollArrayStore,
+  CollClassCast,
   CollTypeRefused,
   type CollClass as _CollClass,
   type CollValue as _CollValue,
@@ -38,8 +51,11 @@ export type CollClass = _CollClass
 export type CollValue = _CollValue
 
 /**
- * Run `fn` and translate a `CollTypeRefused` thrown inside into
- * `EvalError('unsupported-value-type')`. Every other error passes through.
+ * Run `fn` and translate the collection module's three typed refusals into
+ * their `EvalError` codes: `CollTypeRefused` →
+ * `EvalError('unsupported-value-type')`, `CollClassCast` →
+ * `EvalError('coll-class-cast')`, `CollArrayStore` →
+ * `EvalError('coll-array-store')`. Every other error passes through.
  */
 function guard<T>(fn: () => T): T {
   try {
@@ -47,6 +63,12 @@ function guard<T>(fn: () => T): T {
   } catch (err) {
     if (err instanceof CollTypeRefused) {
       throw new EvalError(err.message, 'unsupported-value-type')
+    }
+    if (err instanceof CollClassCast) {
+      throw new EvalError(err.message, 'coll-class-cast')
+    }
+    if (err instanceof CollArrayStore) {
+      throw new EvalError(err.message, 'coll-array-store')
     }
     throw err
   }
@@ -110,6 +132,11 @@ export function indices(c: CollValue): CollValue {
 /** `Coll.zip` (`CollsOverArrays.scala:42`, `:396`). */
 export function zip(c: CollValue, ys: CollValue): CollValue {
   return guard(() => _zip(c, ys))
+}
+
+/** `Coll.getOrElse` (`CollsOverArrays.scala:26`, `:309-315`). */
+export function getOrElse(c: CollValue, i: number, d: SValue): SValue {
+  return guard(() => _getOrElse(c, i, d))
 }
 
 /**
