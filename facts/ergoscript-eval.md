@@ -166,7 +166,7 @@ type CollClass =
   | { shape: 'pairs'; ls: CollClass; rs: CollClass }              // the JVM's PairOfCols
 ```
 
-- **`elem` is the JVM's `tItem`:** the runtime item type of the object. It can differ from the static type of the expression that produced it: an empty left operand of `append` returns the right operand unread (`CollsOverArrays.scala:48-57`), and a tuple of another arity than two is a `Coll[Any]` (`CoreDataSerializer.scala:139-144`, `Evaluation.scala:99-102`).
+- **`elem` is the JVM's `tItem`:** the runtime item type of the object. It can differ from the static type of the expression that produced it: an empty left operand of `append` returns the right operand unread (`CollsOverArrays.scala:48-57`).
 - **`'array'` is a `CollOverArray` object** (`CollsOverArrays.scala:11`). `specialised` says whether the object is the specialised subclass for one primitive item type or the plain class. `array` is the runtime class of the underlying array: a primitive array (`'boolean'`, `'byte'`, `'short'`, `'int'`, `'long'`), `'Object'` for `Object[]`, or one reference-class name. `'Object'` is the array class of a `Coll[Any]`.
 - **`'pairs'` is a `PairOfCols` object** (`CollsOverArrays.scala:274`): two collections, one per side of the pair. Each side is again a `CollClass`, and each side has its own `elem` and item array.
 - **`cls` absent is the class the data reader gives** for `elem` (`CoreDataSerializer.deserializeColl`, `:166-191`): the first row of the producer table below, applied to this value. A value a reader or a public-API caller hands in without `cls` is read this way; every value built inside `packages/*/src` has `cls` set.
@@ -177,9 +177,7 @@ type CollClass =
 | Producer | Result |
 |---|---|
 | The data reader, `CoreDataSerializer.deserializeColl` (`:166-191`): a tree constant, a constant in a register or a context variable | `Coll[Boolean]` and `Coll[Byte]`: specialised, over the primitive array (`:172`, `:174`). Every other item type: the plain class over an array of the item type's class tag (`:176-190`). A collection of pairs: a `PairOfCols` whose sides are plain |
-| The data reader on a tuple (`CoreDataSerializer.scala:139-144`) | a pair: a `Tuple2`. Any other arity: a plain collection of `Any` over `Object[]` |
-| `ConcreteCollection.eval` (`ast/values.scala:887-898`), and its `value` (`:882-885`) which a register or a variable holding the expression reads | the plain class over an array of the element type's class tag, for every item type |
-| `Tuple.value` (`ast/values.scala:818-822`), which a register or a variable holding a `Tuple` expression reads | a plain collection of `Any` over `Object[]`, at every arity, two included: a `Tuple` expression of two items in a register is not a pair, and a read of it at its pair type throws |
+| `ConcreteCollection.eval` (`ast/values.scala:887-898`) | the plain class over an array of the element type's class tag, for every item type |
 | `map`, `flatMap` (`CollsOverArrays.scala:28`, `:70`) | always plain |
 | `slice`, `filter`, `patch`, `updated`, `updateMany`, `reverse`, `append`, `take` (`CollsOverArrays.scala:39, 36, 94, 100, 106, 59, 48, 82`) | the receiver's class |
 | `indices` (`CollsOverArrays.scala:68`) | specialised `Coll[Int]`, the only one a script can make |
@@ -190,9 +188,9 @@ type CollClass =
 | `<Byte, Short, Int, Long>.toBytes`; `SELF.creationInfo._2` | plain, over `byte[]` |
 | `<numeric>.toBits` | specialised `Coll[Boolean]` |
 | A header's fields, a token id, `propositionBytes`, an output's `id`, `LastBlockUtxoRootHash.digest` | specialised |
-| The pre-header's `parentId` and `votes`; R1 and R3's bytes read as registers; a collection expression in a register or a variable | plain. For the pre-header the evidence is SANTA `Coll.patch_array_class_context_v6` #551 (`CONTEXT.preHeader.parentId.patch(0, <an empty Coll[Boolean]>, 0)`) answering at cost 106 and its header twin #343 refusing |
+| The pre-header's `parentId` and `votes`; R1 and R3's bytes read as registers | plain. For the pre-header the evidence is SANTA `Coll.patch_array_class_context_v6` #551 (`CONTEXT.preHeader.parentId.patch(0, <an empty Coll[Boolean]>, 0)`) answering at cost 106 and its header twin #343 refusing |
 | `Box.tokens`, and R2 read as a register | a plain collection over `Tuple2[]`, not a `PairOfCols` |
-| `AvlTree.get`, and the inner collection of `AvlTree.getMany` | specialised, over `byte[]` (SANTA `AvlTree.item_bind_v6` `get-tree-control-v0-a3#84`: `patch(0, <an empty Coll[Boolean]>, 0)` throws on `tree.get(k, p).get` and on `tree.getMany(Coll(k), p)(0).get` at tree v0 and v3). The outer collection of `AvlTree.getMany` is a plain collection over its item type's class |
+| `AvlTree.get`, and the inner collection of `AvlTree.getMany` | specialised, over `byte[]`. The two classes were measured on sigma-state 6.0.7 with the tree, key and proof of SANTA `AvlTree.item_bind_v6` `get-tree-control-v0-a3#84`: `patch(0, <an empty Coll[Boolean]>, 0)` throws on `tree.get(k, p).get` and on `tree.getMany(Coll(k), p)(0).get` at tree v0 and v3, and answers on a `map` result. The outer collection of `AvlTree.getMany` is a plain collection over its item type's class |
 
 ### Readers
 
@@ -202,14 +200,12 @@ A collection's class decides the verdict of these operations:
 |---|---|
 | `getOrElse(i, d)` (`CollsOverArrays.scala:26`); `ByIndex` with a default (`ast/transformers.scala:256-281`) | A specialised receiver unboxes the default, so a default of another class throws, in range too. A plain receiver returns it as it is. Below tree v3 `ByIndex` always evaluates the default and hands it over; from v3 it reads in range without touching it |
 | `PairOfCols.getOrElse` (`CollsOverArrays.scala:309-315`) | reads `default._1` and `default._2`, so a default that is no pair throws out of range. The plain collection over `Tuple2[]` returns it |
-| `startsWith`, `endsWith` (`CollsOverArrays.scala:44`, `:46`) | A specialised receiver casts the argument's array to its own, even an empty one. A plain receiver compares item by item, with Scala's `==` |
+| `startsWith`, `endsWith` (`CollsOverArrays.scala:44`, `:46`) | A specialised receiver casts the argument's array to its own, even an empty one. A plain receiver compares item by item |
 | `PairOfCols.startsWith`, `endsWith` (`CollsOverArrays.scala:398-406`) | With a `PairOfCols` argument: side by side. With any other argument: over `toArray`, which casts the argument's array |
 | `patch` (`CollsOverArrays.scala:94`) | A specialised receiver casts the patch's array to its own, even when nothing is replaced (SANTA `Coll.patch_array_class_v6`) |
 | `updated`, `updateMany` (`CollsOverArrays.scala:100`, `:106`) | The item is stored into the array. A primitive array refuses an item of another class on both object classes. A reference array checks the item's class only: `Coll[Coll[Int]].updated(0, Coll[Long])` returns |
 | `append` (`CollsOverArrays.scala:48-57`) | An empty receiver returns the other operand unread. Otherwise the two arrays are copied into a new one of the receiver's class tag: a primitive receiver refuses an operand over another array even when it is empty; a reference receiver refuses only an item of another class, so an empty operand of another class is accepted |
-| `equals` (`CollsOverArrays.scala:142-154`, `:276-287`) | compares `tItem` first. A `PairOfCols` and a plain collection over `Tuple2[]` are equal only from tree v3 |
-| `Platform.liftToConstant` (`data/jvm/src/main/scala/sigma/Platform.scala:16-63`) | lifts a collection by its `tItem` (`:59-61`) |
-| A consumer that needs the array of a class: the hashes, `ByteArrayToBigInt`, `AtLeast`, `SigmaPropBytes`, the AvlTree key and proof arguments, `powHit`'s byte arguments | throws over a collection whose array is of another class, for example `Object[]`. `Xor` reads items and answers (SANTA `Coll.generic_producers_v6`) |
+| `equals` (`CollsOverArrays.scala:142-154`, `:276-287`) | A `PairOfCols` and a plain collection over `Tuple2[]` are equal only from tree v3 |
 
 ### Errors
 
@@ -367,7 +363,7 @@ The residuals of the substitution (numbered as in the spec's "Residuals"):
 
 The class every value of kind `Coll` carries is described in "A collection's class" above; the two codes below belong to its builder and its operations.
 
-- **`'coll-class-cast'`** — a cast of a collection value or its array to another class: the receiver's cast of an argument's array in `startsWith`, `endsWith` and `patch` on a specialised collection, `PairOfCols.startsWith` / `endsWith` over `toArray` with a non-pair argument, and the cast a consumer that needs the array of a class makes on a collection whose array is of another class. Mirrors the JVM's `ClassCastException` on these paths.
+- **`'coll-class-cast'`** — a cast of a collection value or its array to another class: the receiver's cast of an argument's array in `startsWith`, `endsWith` and `patch` on a specialised collection, and `PairOfCols.startsWith` / `endsWith` over `toArray` with a non-pair argument. Mirrors the JVM's `ClassCastException` on these paths.
 - **`'coll-array-store'`** — a store the array refuses: `updated`, `updateMany` and `append` on a primitive array with an item or an operand over another array. Mirrors the JVM's `ArrayStoreException` and `IllegalArgumentException` on these paths.
 
 ### Sigma-protocol arms
