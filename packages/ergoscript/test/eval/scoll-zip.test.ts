@@ -17,7 +17,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, withoutClass } from '../_helpers'
+import { hexToBytes, hydrateSValue, pairsColl, rehydrateEvalOpts, withoutClass } from '../_helpers'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
 
 const SLONG: SType = { tag: 'SLong' }
@@ -45,11 +45,13 @@ describe('SColl.zip handler (Layer C1)', () => {
       explicitTypeArgs: {},
     }
     const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(withoutClass(result)).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'STuple', items: [SLONG, SLONG] },
-      items: [],
-    })
+    // `builder.pairColl(this, ys)` (`CollsOverArrays.scala:42`, `:183-203`)
+    // keeps each side's class. Both sides are long constants read by the
+    // data reader into plain `Coll[Long]`.
+    const PLAIN_LONG = { shape: 'array' as const, specialised: false as const, array: 'long' as const }
+    expect(result).toEqual(
+      pairsColl({ tag: 'STuple', items: [SLONG, SLONG] }, [], PLAIN_LONG, PLAIN_LONG),
+    )
     // Dispatcher 4 + Const(obj) 5 + Const(arg) 5 + handler: base 10 + n=0 ⇒ 1 chunk ×1 = 11 → total 25
     expect(ctx.jitCost).toBe(25)
   })
@@ -81,15 +83,19 @@ describe('SColl.zip handler (Layer C1)', () => {
       explicitTypeArgs: {},
     }
     const result = evalMethodCall(e, Env.empty(), ctx)
-    expect(withoutClass(result)).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'STuple', items: [SLONG, SLONG] },
-      items: [
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 1n }, { kind: 'Long', value: 10n }] },
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 2n }, { kind: 'Long', value: 20n }] },
-        { kind: 'Tuple', items: [{ kind: 'Long', value: 3n }, { kind: 'Long', value: 30n }] },
-      ],
-    })
+    const PLAIN_LONG = { shape: 'array' as const, specialised: false as const, array: 'long' as const }
+    expect(result).toEqual(
+      pairsColl(
+        { tag: 'STuple', items: [SLONG, SLONG] },
+        [
+          { kind: 'Tuple', items: [{ kind: 'Long', value: 1n }, { kind: 'Long', value: 10n }] },
+          { kind: 'Tuple', items: [{ kind: 'Long', value: 2n }, { kind: 'Long', value: 20n }] },
+          { kind: 'Tuple', items: [{ kind: 'Long', value: 3n }, { kind: 'Long', value: 30n }] },
+        ],
+        PLAIN_LONG,
+        PLAIN_LONG,
+      ),
+    )
     // Dispatcher 4 + Const(obj) 5 + Const(arg) 5 + handler: base 10 + ceil(3/10)*1=1 → total 25
     expect(ctx.jitCost).toBe(25)
   })

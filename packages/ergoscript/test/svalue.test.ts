@@ -3,7 +3,7 @@ import type { SType, SValue } from '../src/mir/types'
 import { parseSValue, SValueParseError } from '../src/wire/parse-svalue'
 import { serializeSValue, SValueSerializeError } from '../src/wire/serialize-svalue'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
-import { withoutClass } from './_helpers'
+import { asRead } from './_helpers'
 
 describe('SValue (variant smoke tests)', () => {
   it('Boolean variant', () => {
@@ -323,7 +323,10 @@ describe('SValue wire round-trip', () => {
   for (const { name, t, v, bytes, treeVersion: tv = 0 } of cases) {
     it(`parses ${name}`, () => {
       const r = new ByteReader(new Uint8Array(bytes))
-      expect(withoutClass(parseSValue(t, tv, r))).toEqual(v)
+      // `parseSValue` returns the data reader's Coll (`fromData`, which calls
+      // `CoreDataSerializer.deserializeColl` at 6.0.7, :166-191): compare the
+      // actual as it is, name the expected with `asRead(v)`.
+      expect(parseSValue(t, tv, r)).toEqual(asRead(v))
       // After parsing the value, the reader must be exhausted (no trailing bytes).
       expect(r.isExhausted).toBe(true)
     })

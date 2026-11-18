@@ -19,7 +19,7 @@ import {
   withClass,
 } from '../../src/coll/build'
 import type { SType, SValue } from '../../src/mir/types'
-import { pairsColl, plainColl, specColl, withoutClass } from '../_helpers'
+import { asRead, pairsColl, plainColl, specColl, withoutClass } from '../_helpers'
 
 const SBOOLEAN: SType = { tag: 'SBoolean' }
 const SBYTE: SType = { tag: 'SByte' }
@@ -268,5 +268,34 @@ describe('test helpers for a collection with a class', () => {
   it('withoutClass leaves a value without cls as it is (structurally equal)', () => {
     const v: SValue = { kind: 'Coll', elem: SBYTE, items: [byte(1)] }
     expect(withoutClass(v)).toEqual(v)
+  })
+
+  it('asRead adds the data reader class at every depth; input untouched', () => {
+    const inner: SValue = { kind: 'Coll', elem: SBYTE, items: [byte(1), byte(2)] }
+    const outer: SValue = { kind: 'Coll', elem: collOf(SBYTE), items: [inner] }
+    const out = asRead(outer) as CollValue
+    expect(out.cls).toEqual({ shape: 'array', specialised: false, array: 'Coll' })
+    const innerOut = out.items[0]! as CollValue
+    expect(innerOut.cls).toEqual({ shape: 'array', specialised: true, array: 'byte' })
+    // Input is not mutated.
+    expect((outer as CollValue).cls).toBeUndefined()
+    expect((inner as CollValue).cls).toBeUndefined()
+  })
+
+  it('asRead recurses through Tuple items and Option value', () => {
+    const c: SValue = { kind: 'Coll', elem: SBYTE, items: [byte(1)] }
+    const t: SValue = { kind: 'Tuple', items: [c, int(0)] }
+    const got = asRead(t) as SValue & { kind: 'Tuple' }
+    expect((got.items[0] as CollValue).cls).toEqual({ shape: 'array', specialised: true, array: 'byte' })
+    const opt: SValue = { kind: 'Option', elem: collOf(SBYTE), value: c }
+    const gotOpt = asRead(opt) as SValue & { kind: 'Option' }
+    const innerOpt = gotOpt.value as CollValue
+    expect(innerOpt.cls).toEqual({ shape: 'array', specialised: true, array: 'byte' })
+  })
+
+  it('asRead keeps an existing cls (does not overwrite)', () => {
+    const c: CollValue = { kind: 'Coll', elem: SBYTE, items: [byte(1)], cls: { shape: 'array', specialised: false, array: 'byte' } }
+    const got = asRead(c) as CollValue
+    expect(got.cls).toEqual({ shape: 'array', specialised: false, array: 'byte' })
   })
 })

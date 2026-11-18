@@ -9,6 +9,7 @@
 
 import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import type { ArrayClass, CollClass, CollValue } from '../../src/coll'
+import { dataClass } from '../../src/coll'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
@@ -483,6 +484,32 @@ export function pairsColl(
   rs: CollClass,
 ): CollValue {
   return { kind: 'Coll', elem, items, cls: { shape: 'pairs', ls, rs } }
+}
+
+/**
+ * Deep-copy an `SValue`, adding `cls: dataClass(elem)` to every collection
+ * that has no `cls` at every depth (items of collections, items of tuples,
+ * an option's value recurse). The input is not mutated.
+ *
+ * Used where the inline expectation names a value the DATA READER produces
+ * (a parsed constant, a value deserialised through `deserializeTo`, a round
+ * trip through the data reader): the reader's class is `dataClass(elem)`
+ * (`CoreDataSerializer.deserializeColl` :166-191 at 6.0.7).
+ */
+export function asRead(v: SValue): SValue {
+  switch (v.kind) {
+    case 'Coll': {
+      const items = v.items.map(asRead)
+      const cls = v.cls ?? dataClass(v.elem)
+      return { kind: 'Coll', elem: v.elem, items, cls }
+    }
+    case 'Tuple':
+      return { kind: 'Tuple', items: v.items.map(asRead) }
+    case 'Option':
+      return { kind: 'Option', elem: v.elem, value: v.value === null ? null : asRead(v.value) }
+    default:
+      return v
+  }
 }
 
 /**

@@ -29,7 +29,7 @@ import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseExpr } from '../../src/wire/parse'
 import { serializeExpr } from '../../src/wire/serialize'
 import { ByteReader, ByteWriter, deriveHeaderId } from '@ergots/scorex'
-import { hexToBytes, withoutClass } from '../_helpers'
+import { asRead, hexToBytes } from '../_helpers'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
 
@@ -97,9 +97,16 @@ function deserializeValue(T: SType, bytes: Uint8Array): SValue {
  */
 function roundTrip(T: SType, value: SValue): SValue {
   const bytes = serializeValue(T, value)
-  // deserializeTo's output carries the data reader's `cls` on Coll values;
-  // the input does not. Strip for a structural round-trip comparison.
-  return withoutClass(deserializeValue(T, bytes))
+  return deserializeValue(T, bytes)
+}
+
+/**
+ * The expected round-trip result for a value `v`: the data reader's class
+ * sits on every collection the deserialisation builds, applied through
+ * `asRead` (a no-op on values that carry no collection).
+ */
+function expected(v: SValue): SValue {
+  return asRead(v)
 }
 
 /**
@@ -151,80 +158,80 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
 
   it('round-trip Byte(0)', () => {
     const v: SValue = { kind: 'Byte', value: 0 }
-    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Byte(-128)', () => {
     const v: SValue = { kind: 'Byte', value: -128 }
-    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Byte(127)', () => {
     const v: SValue = { kind: 'Byte', value: 127 }
-    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SByte' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Short(0)', () => {
     const v: SValue = { kind: 'Short', value: 0 }
-    expect(roundTrip({ tag: 'SShort' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SShort' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Short(-32768)', () => {
     const v: SValue = { kind: 'Short', value: -32768 }
-    expect(roundTrip({ tag: 'SShort' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SShort' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Int(0)', () => {
     const v: SValue = { kind: 'Int', value: 0 }
-    expect(roundTrip(SINT, v)).toEqual(v)
+    expect(roundTrip(SINT, v)).toEqual(expected(v))
   })
 
   it('round-trip Int(12345)', () => {
     const v: SValue = { kind: 'Int', value: 12345 }
-    expect(roundTrip(SINT, v)).toEqual(v)
+    expect(roundTrip(SINT, v)).toEqual(expected(v))
   })
 
   it('round-trip Int(-2147483648)', () => {
     const v: SValue = { kind: 'Int', value: -2147483648 }
-    expect(roundTrip(SINT, v)).toEqual(v)
+    expect(roundTrip(SINT, v)).toEqual(expected(v))
   })
 
   it('round-trip Long(0)', () => {
     const v: SValue = { kind: 'Long', value: 0n }
-    expect(roundTrip({ tag: 'SLong' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SLong' }, v)).toEqual(expected(v))
   })
 
   it('round-trip Long(9007199254740993n)', () => {
     // above Number.MAX_SAFE_INTEGER — exercises bigint path
     const v: SValue = { kind: 'Long', value: 9007199254740993n }
-    expect(roundTrip({ tag: 'SLong' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SLong' }, v)).toEqual(expected(v))
   })
 
   it('round-trip BigInt(0)', () => {
     const v: SValue = { kind: 'BigInt', value: 0n }
-    expect(roundTrip({ tag: 'SBigInt' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SBigInt' }, v)).toEqual(expected(v))
   })
 
   it('round-trip BigInt(12345678901234567890n)', () => {
     const v: SValue = { kind: 'BigInt', value: 12345678901234567890n }
-    expect(roundTrip({ tag: 'SBigInt' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SBigInt' }, v)).toEqual(expected(v))
   })
 
   it('round-trip UnsignedBigInt(0)', () => {
     const v: SValue = { kind: 'UnsignedBigInt', value: 0n }
-    expect(roundTrip({ tag: 'SUnsignedBigInt' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SUnsignedBigInt' }, v)).toEqual(expected(v))
   })
 
   it('round-trip UnsignedBigInt(255)', () => {
     const v: SValue = { kind: 'UnsignedBigInt', value: 255n }
-    expect(roundTrip({ tag: 'SUnsignedBigInt' }, v)).toEqual(v)
+    expect(roundTrip({ tag: 'SUnsignedBigInt' }, v)).toEqual(expected(v))
   })
 
   // ── Coll[Byte] ─────────────────────────────────────────────────────────────
 
   it('round-trip Coll[Byte] empty', () => {
     const v: SValue = { kind: 'Coll', elem: SBYTE, items: [] }
-    expect(roundTrip(COLL_BYTE, v)).toEqual(v)
+    expect(roundTrip(COLL_BYTE, v)).toEqual(expected(v))
   })
 
   it('round-trip Coll[Byte]([1,2,3])', () => {
@@ -237,7 +244,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         { kind: 'Byte', value: 3 },
       ],
     }
-    expect(roundTrip(COLL_BYTE, v)).toEqual(v)
+    expect(roundTrip(COLL_BYTE, v)).toEqual(expected(v))
   })
 
   // ── Coll[Int] ──────────────────────────────────────────────────────────────
@@ -245,7 +252,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
   it('round-trip Coll[Int] empty', () => {
     const T: SType = { tag: 'SColl', elem: SINT }
     const v: SValue = { kind: 'Coll', elem: SINT, items: [] }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   it('round-trip Coll[Int]([1, -1, 32768])', () => {
@@ -259,7 +266,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         { kind: 'Int', value: 32768 },
       ],
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   // ── Option[Int] ────────────────────────────────────────────────────────────
@@ -267,7 +274,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
   it('round-trip Option[Int](None)', () => {
     const T: SType = { tag: 'SOption', elem: SINT }
     const v: SValue = { kind: 'Option', elem: SINT, value: null }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   it('round-trip Option[Int](Some(5))', () => {
@@ -277,7 +284,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
       elem: SINT,
       value: { kind: 'Int', value: 5 },
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   // ── Tuple ──────────────────────────────────────────────────────────────────
@@ -291,7 +298,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         { kind: 'Long', value: 9999n },
       ],
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   it('round-trip Tuple(Byte, Byte)', () => {
@@ -303,7 +310,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         { kind: 'Byte', value: -1 },
       ],
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   // ── GroupElement ───────────────────────────────────────────────────────────
@@ -339,7 +346,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         valueLengthOpt: null,
       },
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   it('round-trip AvlTree (valueLengthOpt Some)', () => {
@@ -353,7 +360,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
         valueLengthOpt: 16,
       },
     }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   // ── Header (V2 only) ───────────────────────────────────────────────────────
@@ -372,7 +379,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
     const header = makeV2Header()
     header.id = deriveHeaderId(header)
     const v: SValue = { kind: 'Header', value: header }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   it('round-trip Header V5 with unparsed bytes (4 bytes)', () => {
@@ -386,7 +393,7 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
     header.version = 5
     header.id = deriveHeaderId(header)
     const v: SValue = { kind: 'Header', value: header }
-    expect(roundTrip(T, v)).toEqual(v)
+    expect(roundTrip(T, v)).toEqual(expected(v))
   })
 
   // ── Box ────────────────────────────────────────────────────────────────────
@@ -420,36 +427,27 @@ describe('serialize/deserializeTo round-trip (v6 P5a)', () => {
 
   it('round-trip Box with Coll[Byte] register (R4)', () => {
     const T: SType = { tag: 'SBox' }
+    const registerColl: SValue = {
+      kind: 'Coll',
+      elem: SBYTE,
+      items: [
+        { kind: 'Byte', value: 10 },
+        { kind: 'Byte', value: 20 },
+      ],
+    }
     const box = makeBox({
-      registers: {
-        4: {
-          tpe: COLL_BYTE,
-          value: {
-            kind: 'Coll',
-            elem: SBYTE,
-            items: [
-              { kind: 'Byte', value: 10 },
-              { kind: 'Byte', value: 20 },
-            ],
-          },
-        },
-      },
+      registers: { 4: { tpe: COLL_BYTE, value: registerColl } },
     })
     const bytes = serializeValue(T, { kind: 'Box', value: box })
-    const got = deserializeValue(T, bytes) as SValue & { kind: 'Box' }
-    // The deserialized register value is a Coll that carries the data reader's
-    // `cls`; the input value does not. Compare without it, as `withoutClass`
-    // does at Coll/Tuple/Option positions.
-    const r4 = got.value.registers?.[4]
-    const strippedR4 = r4 !== undefined ? { tpe: r4.tpe, value: withoutClass(r4.value) } : undefined
-    const strippedGot = {
-      ...got,
-      value: { ...got.value, registers: { ...got.value.registers, 4: strippedR4 } },
+    const got = deserializeValue(T, bytes)
+    // The deserialised register value is the data reader's Coll[Byte] —
+    // specialised over `byte[]` (`CoreDataSerializer.deserializeColl` :174).
+    const boxWithRead = {
+      ...box,
+      retainedBytes: bytes,
+      registers: { 4: { tpe: COLL_BYTE, value: asRead(registerColl) } },
     }
-    expect(strippedGot).toEqual({
-      kind: 'Box',
-      value: { ...box, retainedBytes: bytes },
-    })
+    expect(got).toEqual({ kind: 'Box', value: boxWithRead })
   })
 })
 
