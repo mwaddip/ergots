@@ -15,22 +15,27 @@
  * pair-shape rule in `CollsOverArrays.scala:142-154, :276-287` lives on
  * `Coll.equals`, which the comparer does not call.
  *
- * Measured at tree v0, v1, v2, v3 with a 6.0.7 JVM probe: a 2-item
- * `Coll[(Int, Int)]` constant equals its own `map(x => x)` as `TrueProp` under
- * `BoolToSigmaProp` at every tree version in that band, and `NEQ` of the same
- * is `FalseProp`. SANTA eval `Coll.pair_shape_map.json`
- * `eq_paircols_vs_mapped-accept#9` pins the v3 whole-tree JIT cost at 95 and
- * the v3 whole-tree value at `true`.
+ * Measured with the 6.0.7 JVM probe at REAL tree versions 0, 1, 2, 3 (header
+ * bytes `0x08`, `0x09`, `0x0a`, `0x0b`; `ErgoTree.getVersion` is `h & 0x07`,
+ * `data/shared/src/main/scala/sigma/ast/ErgoTree.scala:261`, so the header's
+ * low 3 bits are the version `fullReduction` reads from
+ * `VersionContext.current` at `:29`). A 2-item `Coll[(Int, Int)]` constant
+ * equals its own `map(x => x)` as `TrueProp` under `BoolToSigmaProp` at each
+ * of those tree versions; `NEQ` of the same is `FalseProp`.
  *
- * The `sValueEquals` arm's cost is the Coll arm's rule:
+ * The `sValueEquals` arm's cost does not read `ctx.treeVersion` at all (the
+ * Coll arm of `src/eval/bin-op/relation.ts` has no version branch), so the
+ * loop over `[0, 1, 2, 3]` below is one assertion written at four versions:
+ * it pins that the arm takes the same Boolean and the same cost at each.
+ *
+ * The arm's cost on a 2-pair `Coll[(Int, Int)]`:
  *   `COLL_MATCH_TYPE_COST(1)` paid up front;
  *   for `elem = STuple`, no COA bulk path (`isCoaCollElem` returns false),
  *   item-wise recursion through `compareSValues`;
  *   `addPerItemJitCost(EQ_COLL_DEFAULT_PER_ITEM={10,2,1}, compared)` after
- *   the loop.
- * For a 2-pair Coll where every pair element is `Int`:
- *   per pair = `EQ_TUPLE_COST(4)` + 2 * `EQ_PRIM_COST(3)` = 10
- *   two pairs = 20
+ *   the loop;
+ *   per pair = `EQ_TUPLE_COST(4)` + 2 * `EQ_PRIM_COST(3)` = 10;
+ *   two pairs = 20;
  *   outer coll total = 1 + 20 + (10 + 2 * ceil(2/1)) = 1 + 20 + 14 = 35.
  */
 import { describe, expect, it } from 'vitest'
@@ -65,49 +70,48 @@ function mappedPairColl(items: Array<[number, number]>): CollValue {
 
 const SAMPLE: Array<[number, number]> = [[1, 2], [3, 4]]
 
-describe('pair collection vs its mapped form, EQ and NEQ', () => {
-  // The two shapes of a 2-pair `Coll[(Int, Int)]` at each tree version. The
-  // Boolean is probe-pinned; the cost is the `sValueEquals` arm's own model
-  // (the item-walk charge on `elem = STuple`), which iter-20 pinned
-  // (`coll-eq-avltree-cost.test.ts`). The whole-tree JIT cost (SANTA
-  // `eq_paircols_vs_mapped-accept#9`, 95 at v3) covers the surrounding node
-  // evaluations too and is pinned by that row, through the conformance
-  // harness, not here.
+describe('the EQ arm does not branch on the tree version: the direct pair-vs-mapped case', () => {
+  // The Boolean is pinned by the probe's tree-vN line, as noted on each
+  // assertion. The 35 cost is the arm's own composition on the input: the
+  // arm reads no `ctx.treeVersion`, so the four tree versions share one
+  // path through `sValueEquals`'s Coll arm, and this is the assertion that
+  // pins that the arm takes the same Boolean and the same cost at each
+  // version.
   const EXPECTED_EQ_COST = 35
 
   for (const treeVersion of [0, 1, 2, 3]) {
     describe(`tree version ${treeVersion}`, () => {
-      it('EQ(pair, pair.map(x=>x)) is true (probe pair-vs-mapped-eq-and-ne.out lines 3-6)', () => {
+      it('EQ(pair, pair.map(x=>x)) is true (probe line "EQ pair=mapped, tree v' + treeVersion + '" reduces to TrueProp)', () => {
         const ctx = makeContext({ treeVersion })
         const eq = sValueEquals(pairConstColl(SAMPLE), mappedPairColl(SAMPLE), ctx)
         expect(eq).toBe(true)
         expect(ctx.jitCost).toBe(EXPECTED_EQ_COST)
       })
 
-      it('EQ(pair.map(x=>x), pair) is true (same, mirror operand order)', () => {
+      it('EQ(pair.map(x=>x), pair) is true (same probe line by symmetry of `equalDataValues`\'s Coll arm, which takes l and r as Coll[_] equivalently)', () => {
         const ctx = makeContext({ treeVersion })
         const eq = sValueEquals(mappedPairColl(SAMPLE), pairConstColl(SAMPLE), ctx)
         expect(eq).toBe(true)
         expect(ctx.jitCost).toBe(EXPECTED_EQ_COST)
       })
 
-      it('NEQ(pair, pair.map(x=>x)) is false (probe pair-vs-mapped-eq-and-ne.out lines 9-10)', () => {
-        // sValueEquals returns the EQ; the NEQ arm in `evalRelationOp` is
-        // `!eq`, so an equal pair gives NEQ false. Charge is the same as EQ.
+      it('NEQ(pair, pair.map(x=>x)) is false (probe line "NEQ pair!=mapped, tree v' + treeVersion + '" reduces to FalseProp)', () => {
+        // `sValueEquals` returns the EQ; the NEQ arm in `evalRelationOp` is
+        // `!eq`, so an equal pair gives NEQ false. Charge matches EQ.
         const ctx = makeContext({ treeVersion })
         const eq = sValueEquals(pairConstColl(SAMPLE), mappedPairColl(SAMPLE), ctx)
         expect(!eq).toBe(false)
         expect(ctx.jitCost).toBe(EXPECTED_EQ_COST)
       })
 
-      it('EQ(pair, pair) same shape on both sides is true (ergots data reader rule)', () => {
+      it('EQ(pair, pair) same shape on both sides is true (the arm takes the item-walk path for either input shape)', () => {
         const ctx = makeContext({ treeVersion })
         const eq = sValueEquals(pairConstColl(SAMPLE), pairConstColl(SAMPLE), ctx)
         expect(eq).toBe(true)
         expect(ctx.jitCost).toBe(EXPECTED_EQ_COST)
       })
 
-      it('EQ(mapped, mapped) both array shape over Tuple2 is true (same arm, same cost)', () => {
+      it('EQ(mapped, mapped) both array shape over Tuple2 is true (same path, same cost)', () => {
         const ctx = makeContext({ treeVersion })
         const eq = sValueEquals(mappedPairColl(SAMPLE), mappedPairColl(SAMPLE), ctx)
         expect(eq).toBe(true)
@@ -117,21 +121,22 @@ describe('pair collection vs its mapped form, EQ and NEQ', () => {
   }
 })
 
-describe('pair collection vs its mapped form, nested in a Coll', () => {
+describe('pair vs mapped nested in a Coll — the arm composes without a version branch', () => {
   // `Coll[Coll[(Int, Int)]]` of length 1, inner shapes differing. The outer
   // comparer recurses the inner compare through `equalDataValues` case 2
   // (`DataValueComparer.scala:316-327`), not through `Coll.equals`, so again
-  // the pair-shape rule is not reached at any tree version. The cost is the
-  // outer item-walk at `elem = SColl`: no COA bulk path (SColl is not in the
-  // seven descriptor types), so one inner recursion plus the outer
-  // `addPerItemJitCost(default, 1)`.
+  // the pair-shape rule is not reached at any tree version. Boolean is
+  // derived from the direct pair-vs-mapped probe line at each of v0..v3 by
+  // the same arm composition the direct case exercises; cost is the arm's
+  // own rule on nested recursion (one inner compare + outer `addPerItemJitCost`
+  // on n=1).
   const INNER_ELEM: SType = { tag: 'SColl', elem: PAIR_II }
-  const INNER_COST = 35 // one inner Coll compare, same as the direct case above
+  const INNER_COST = 35
   const OUTER_COST = 1 /* outer MATCH */ + INNER_COST + (10 + 2 * 1) /* outer addPerItem n=1 */
   // = 1 + 35 + 12 = 48
 
   for (const treeVersion of [0, 3]) {
-    it(`v${treeVersion}: Coll[Coll[(Int,Int)]] inner pair vs inner mapped is true, cost ${OUTER_COST}`, () => {
+    it(`tree v${treeVersion}: Coll[Coll[(Int,Int)]] inner pair vs inner mapped is true, cost ${OUTER_COST} (derived from "EQ pair=mapped, tree v${treeVersion}" by the arm's composition)`, () => {
       const outerPairInner: CollValue = {
         kind: 'Coll',
         elem: INNER_ELEM,
@@ -152,16 +157,17 @@ describe('pair collection vs its mapped form, nested in a Coll', () => {
   }
 })
 
-describe('pair collection vs its mapped form, inside an Option', () => {
+describe('pair vs mapped inside an Option — the arm composes without a version branch', () => {
   // `Option[Coll[(Int, Int)]]`, Some on both sides, inner shapes differ.
   // Comparer: `equalDataValues` case 7 (Option) at `:361-385` — fixed cost
   // `EQ_OPTION_COST(4)`, then recurse `equalDataValues(opt1.get, opt2.get)`
-  // which is one inner Coll compare. No `Coll.equals` call.
+  // which is one inner Coll compare. No `Coll.equals` call. Boolean is
+  // derived from "EQ pair=mapped, tree v{N}" by the arm's composition.
   const OPT_ELEM: SType = { tag: 'SOption', elem: PAIR_II }
-  const OPT_COST = 4 /* EQ_OPTION_COST */ + 35 // inner Coll compare = 35
+  const OPT_COST = 4 + 35 // EQ_OPTION_COST + inner Coll compare
 
   for (const treeVersion of [0, 3]) {
-    it(`v${treeVersion}: Some(pair) == Some(mapped) is true, cost ${OPT_COST}`, () => {
+    it(`tree v${treeVersion}: Some(pair) == Some(mapped) is true, cost ${OPT_COST}`, () => {
       const left: SValue = { kind: 'Option', elem: OPT_ELEM, value: pairConstColl(SAMPLE) }
       const right: SValue = { kind: 'Option', elem: OPT_ELEM, value: mappedPairColl(SAMPLE) }
       const ctx = makeContext({ treeVersion })
@@ -172,15 +178,16 @@ describe('pair collection vs its mapped form, inside an Option', () => {
   }
 })
 
-describe('pair collection vs its mapped form, inside a Tuple', () => {
+describe('pair vs mapped inside a Tuple — the arm composes without a version branch', () => {
   // Tuple of two Coll[(Int, Int)]. Comparer: `equalDataValues` case 3
   // (Tuple2) at `:316-327` — EQ_TUPLE_COST(4), then recurse each component
   // via `equalDataValues`, which enters the Coll arm and dispatches to the
-  // generic item-walk. No `Coll.equals` call.
-  const TUP_COST = 4 /* EQ_TUPLE_COST */ + 35 /* inner */ + 35 /* inner */
+  // generic item-walk. No `Coll.equals` call. Boolean is derived from
+  // "EQ pair=mapped, tree v{N}" by the arm's composition.
+  const TUP_COST = 4 /* EQ_TUPLE_COST */ + 35 + 35
 
   for (const treeVersion of [0, 3]) {
-    it(`v${treeVersion}: (pair, pair) == (mapped, mapped) is true, cost ${TUP_COST}`, () => {
+    it(`tree v${treeVersion}: (pair, pair) == (mapped, mapped) is true, cost ${TUP_COST}`, () => {
       const left: SValue = {
         kind: 'Tuple',
         items: [pairConstColl(SAMPLE), pairConstColl(SAMPLE)],
