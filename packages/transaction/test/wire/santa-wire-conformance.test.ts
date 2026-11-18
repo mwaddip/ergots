@@ -108,6 +108,7 @@ const CONSTRUCTION_FILES: [string, number][] = [
   ['Transaction.tree_bool_pair_form.json', 14],
   ['Transaction.tree_nested_degrade.json', 20],
   ['Transaction.methodcall_type_id_order.json', 4],
+  ['Transaction.unevaluated_node_kinds.json', 32],
 ];
 
 const BIT_OP: Reject = { cls: ExprParseError, code: 'bit-op-operand-not-numeric' };
@@ -198,6 +199,17 @@ const ERRORS: Record<string, Reject> = {
   'methodcall-type-id-order-v3-args-assert-tx#0': { cls: ExprParseError, code: 'method-call-empty-args' },
   'methodcall-type-id-order-sany-obj-v1-tx#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
   'methodcall-type-id-order-v1-unsized-tx#3': UNSIZED('method-type-no-methods'),
+  // unevaluated_node_kinds. The other 26 entries are accepts (ModQ, PlusModQ, MinusModQ and TaggedVariable parse in
+  // size-flagged and unsized trees alike). The six rejects: #26 Option data in an unsized v0 tree, the
+  // SerializerException over the soft failure; #27 and #28 the old layout's type byte is no type, at v0 and v3;
+  // #29 and #30 a Boolean operand to a bit operation (the BitOp require, trees.scala:913); #31 a Filter whose
+  // input is no collection.
+  'unevaluated-create-avl-tree-v0-reject-tx#26': UNSIZED('soption-tree-version-too-low'),
+  'unevaluated-old-layout-v0-reject-tx#27': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-old-layout-v3-reject-tx#28': { cls: STypeParseError, code: 'type-prefix-invalid' },
+  'unevaluated-bool-operand-v0-reject-tx#29': BIT_OP,
+  'unevaluated-bool-operand-v3-reject-tx#30': BIT_OP,
+  'unevaluated-spip-filter-v0-reject-tx#31': { cls: ExprTpeError, code: 'filter-input-not-scoll' },
 };
 
 // The accepted entries whose output tree the JVM degrades, with the error ergots degrades it on; every other

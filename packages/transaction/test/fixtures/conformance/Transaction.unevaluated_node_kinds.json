@@ -1,0 +1,365 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.unevaluated_node_kinds",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "unevaluated-bit_shift_left-v0-tx#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftLeft(1, 2) == 4) — `BitOp` with the `<<` opcode — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f7040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_shift_right-v0-tx#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftRight(1, 2) == 4) — `BitOp` with the `>>` opcode — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f6040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_shift_right_zeroed-v0-tx#2",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftRightZeroed(1, 2) == 4) — `BitOp` with `>>>` — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f8040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-mod_q-v0-tx#3",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(ModQ(BigInt 1) == BigInt 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193e7060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-plus_mod_q-v0-tx#4",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(PlusModQ(BigInt 1, BigInt 1) == BigInt 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193e8060101060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-minus_mod_q-v0-tx#5",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(MinusModQ(BigInt 1, BigInt 1) == BigInt 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193e9060101060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-sigma_prop_is_proven-v0-tx#6",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(SigmaPropIsProven(sigmaProp(true))) — the one node of the thirteen with a build check that reads a child's TYPE (`val opType`, `transformers.scala:321-325`) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d1cfd10101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-tagged_variable-v0-tx#7",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(TaggedVariable(1, Boolean)) — `TaggedVariable.apply` is deprecated upstream since 7.0.0 (\"Use ValUse / GetVar; scheduled for retirement in v7.0\"), so this kind has an announced end; it parses and has no `eval` today — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d1710101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_or-v0-tx#8",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitOr(5, 3) == 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f2040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_and-v0-tx#9",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitAnd(5, 3) == 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f3040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_xor-v0-tx#10",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitXor(5, 3) == 1) — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f5040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_inversion-v0-tx#11",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitInversion(5) == -6) — the only one of the thirteen whose `costKind` is `notSupportedError` as well — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f1040a040b010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-create_avl_tree_four_value_getvar-v0-tx#12",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(CreateAvlTree(flags, digest33, 32, getVar[Int](1)) == the same) — the FOUR-VALUE layout at tree version 0, with the fourth argument as an expression (`e30104`) instead of a `None` constant. Rule 1009 guards data values, not expressions, so this is the form that reaches a v0 parser at all — the only way to ask a reader whether it takes four values or three plus an option tag — at tree version 0, UNSIZED. The JVM parses the node and the carrier round-trips to its own bytes; evaluating it throws (the eval family). An implementation with no reader for this node kind has NO degrade path here and refuses the carrier: the live arm of this family, an over-reject of a box the JVM accepts.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193b602070e210000000000000000000000000000000000000000000000000000000000000000000440e30104b602070e210000000000000000000000000000000000000000000000000000000000000000000440e30104010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bit_shift_left-v3-tx#13",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftLeft(1, 2) == 4) — `BitOp` with the `<<` opcode — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f7040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_shift_right-v3-tx#14",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftRight(1, 2) == 4) — `BitOp` with the `>>` opcode — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f6040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_shift_right_zeroed-v3-tx#15",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitShiftRightZeroed(1, 2) == 4) — `BitOp` with `>>>` — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f8040204040408010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-mod_q-v3-tx#16",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(ModQ(BigInt 1) == BigInt 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193e7060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-plus_mod_q-v3-tx#17",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(PlusModQ(BigInt 1, BigInt 1) == BigInt 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b0cd193e8060101060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-minus_mod_q-v3-tx#18",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(MinusModQ(BigInt 1, BigInt 1) == BigInt 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b0cd193e9060101060101060101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-sigma_prop_is_proven-v3-tx#19",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(SigmaPropIsProven(sigmaProp(true))) — the one node of the thirteen with a build check that reads a child's TYPE (`val opType`, `transformers.scala:321-325`) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b05d1cfd10101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-tagged_variable-v3-tx#20",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(TaggedVariable(1, Boolean)) — `TaggedVariable.apply` is deprecated upstream since 7.0.0 (\"Use ValUse / GetVar; scheduled for retirement in v7.0\"), so this kind has an announced end; it parses and has no `eval` today — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b04d1710101010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-create_avl_tree_four_value-v3-tx#21",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(CreateAvlTree(flags, digest33, 32, None) == the same) — the FOUR-VALUE layout `CreateAvlTreeSerializer` writes, twice under an EQ so the layout appears on both sides — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b56d193b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_or-v3-tx#22",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitOr(5, 3) == 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f2040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_and-v3-tx#23",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitAnd(5, 3) == 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f3040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_xor-v3-tx#24",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitXor(5, 3) == 1) — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f5040a04060402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bit_inversion-v3-tx#25",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "sigmaProp(BitInversion(5) == -6) — the only one of the thirteen whose `costKind` is `notSupportedError` as well — at tree version 3, SIZE-FLAGGED. The same parse, but an implementation without the reader raises rule 1002 (`NotImplementedOpCode`), a ValidationException the size bit turns into a degrade that re-serializes verbatim — so this row is green either way and the v0 twin is what separates. It is the regression guard that the degrade path stays open.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b07d193f1040a040b010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-create-avl-tree-v0-reject-tx#26",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "The four-value CreateAvlTree layout at tree version 0, UNSIZED. Its fourth field is a `None: Option[Int]` CONSTANT, and rule 1009 (`CheckSerializableTypeCode`) refuses that data value at v0 — type code 36. With no size bit there is nothing to degrade behind, so the carrier is REJECTED. The JVM will not WRITE this tree at v0 either (its serializer re-enters the version context at the tree's own version), so the bytes are composed; the v3 twin above is the accepted form.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800b602070e2100000000000000000000000000000000000000000000000000000000000000000004402800010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-old-layout-v0-reject-tx#27",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "CreateAvlTree in the fork's OLD layout — three values and then a bare `00` where the fourth value belongs. `00` is read as a type prefix and `TypeSerializer` has no type code 0 (`:138`): REJECTED. This is the arm that tells the two layouts apart.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193b602070e21000000000000000000000000000000000000000000000000000000000000000000044000b602070e21000000000000000000000000000000000000000000000000000000000000000000044000010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-old-layout-v3-reject-tx#28",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "The same old layout, SIZE-FLAGGED at v3 — still REJECTED. An `InvalidTypePrefix` is not a ValidationException, so the size bit does not degrade it: the pair pins that the layout error is fatal at every version, unlike a missing opcode.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b54d193b602070e21000000000000000000000000000000000000000000000000000000000000000000044000b602070e21000000000000000000000000000000000000000000000000000000000000000000044000010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-bool-operand-v0-reject-tx#29",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "`BitShiftLeft(true, 2)` at v0: `BitOp`'s `require(left.tpe.isNumTypeOrNoType && ...)` throws an IllegalArgumentException at BUILD, inside the parse. Note what the JVM then SAYS: `deserializeErgoTree` rethrows any IAE as `SerializerException(\"Tree version (0) is above activated script version (3)\")` (`ErgoTreeSerializer.scala:191-193`) — a message hard-coded for an unrelated hypothesis. The real reason, `invalid types left:SBoolean, right:SInt`, survives only as the CAUSE. Match on classes, not messages.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d193f7010104040408010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "unevaluated-bool-operand-v3-reject-tx#30",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "The same Boolean operand SIZE-FLAGGED at v3 — still REJECTED, and this is the half worth having: the IAE is rethrown inside the inner try, BEFORE the catch that turns a ValidationException into a degrade, so the size bit cannot save a failed build check.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d0b09d193f7010104040408010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "unevaluated-spip-filter-v0-reject-tx#31",
+      "kind" : "Transaction",
+      "source" : "santa:authored-unevaluated-node-kinds",
+      "description" : "`sigmaProp(SigmaPropIsProven(Filter(1, (x: Int) => true)))`: SigmaPropIsProven is the one of the thirteen whose build check reads a child's TYPE (`val opType`), and `Filter.tpe` casts SInt to SCollection — a ClassCastException, not a ValidationException, so no degrade. The companion of the PropertyCall receiver-type family: the same cast, reached through a node that never evaluates.",
+      "bytes_hex" : "01111fe931b351c3a9a8e39337b885bb903fb708ad284d74e1bace5d0f345bb0360000000001c0843d00d1cfb50402d90101040101010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    }
+  ]
+}
