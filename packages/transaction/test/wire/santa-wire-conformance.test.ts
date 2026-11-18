@@ -263,8 +263,10 @@ function expectReject(bytesHex: string, want: Reject): void {
 const outputTree = (bytesHex: string) =>
   boxTreeOf(parseTransaction(hexToBytes(bytesHex)).outputCandidates[0]!.ergoTreeBytes);
 
-describe.each(CONSTRUCTION_FILES)('SANTA %s (jvm:sigma-state-6.0.6)', (file, count) => {
-  const entries = loadEntries(file);
+for (const [file, count] of CONSTRUCTION_FILES) {
+  const data = JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { blessed_by: string; entries: WireEntry[] };
+  describe(`SANTA ${file} (${data.blessed_by})`, () => {
+  const entries = data.entries;
   it(`holds ${count} entries`, () => expect(entries.length).toBe(count));
   for (const e of entries) {
     const known = KNOWN_RESIDUAL[e.name];
@@ -299,9 +301,10 @@ describe.each(CONSTRUCTION_FILES)('SANTA %s (jvm:sigma-state-6.0.6)', (file, cou
       });
     }
   }
-});
+  });
+}
 
-it('every pinned construction entry names an entry of its kind in the three files', () => {
+it('every pinned construction entry names an entry of its kind in the construction files', () => {
   const all = CONSTRUCTION_FILES.flatMap(([file]) => loadEntries(file));
   const errored = new Set(all.filter((e) => e.error === 'errored').map((e) => e.name));
   const accepted = new Set(all.filter((e) => e.error !== 'errored').map((e) => e.name));

@@ -7,7 +7,7 @@
  *
  * The JVM reads a signed Byte (`r.getByte()`) and a type under the tree's
  * version (`r.getType()`), then builds `TaggedVariableNode(varId, tpe)`
- * (`values.scala:455-458`). Its own apply is `@deprecated("Use ValUse /
+ * (`values.scala:455-460`). Its own apply is `@deprecated("Use ValUse /
  * GetVar; TaggedVariable is scheduled for retirement in v7.0", since =
  * "7.0.0")` — the kind has an announced end but parses today. The static
  * type of the node is the `tpe` read.

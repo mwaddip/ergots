@@ -59,6 +59,51 @@ describe('TrueLeaf 7f and FalseLeaf 80', () => {
     expect(t.body).toEqual(ref.body)
   })
 
+  it('a size-flagged tree holding 80: parses and its body equals that of 0b03d10100', () => {
+    const t = parseTree(hex('0b02d180'))
+    expect(isUnparsedTree(t)).toBe(false)
+    if (isUnparsedTree(t)) throw new Error('unreachable')
+    const ref = parseTree(hex('0b03d10100'))
+    if (isUnparsedTree(ref)) throw new Error('unreachable')
+    expect(t.body).toEqual(ref.body)
+  })
+
+  it('80 in an output box: the tree is written in the constant form with its true size', () => {
+    // The bytes of SANTA box-c3-falseleaf-opcode-accept#3, with the tree `00d180` replaced by
+    // `0b02d180`. The JVM re-encodes a parsed box tree from its structure
+    // (ErgoBoxCandidate.scala:142; ErgoTreeSerializer.scala:105-127): the Boolean constant writes
+    // back as `01 00` and the size recomputes to 3, so the tree comes back as `0b03d10100`.
+    const input = hex('c0843d0b02d1800100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400')
+    const expected = 'c0843d0b03d101000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'
+    const box = parseSValue({ tag: 'SBox' }, 3, new ByteReader(input))
+    const w = new ByteWriter()
+    serializeSValue({ tag: 'SBox' }, box, 3, w)
+    expect(toHex(w.toBytes())).toBe(expected)
+  })
+
+  it('7f takes one reader level, an inline constant two', () => {
+    // ValueSerializer.scala:395-409 raises the reader level once for any value; a constant then
+    // goes through the data serializer, which raises it again (CoreDataSerializer.scala:99-101),
+    // and CaseObjectSerialization reads nothing (CaseObjectSerialization.scala:10-18). So the
+    // deepest chain of a one-operand node over 7f that parses is exactly one deeper than the
+    // deepest over `01 01`. ModQ's reader (0xe7) is the one-operand opcode, as in the ModQ
+    // depth test below: its erased `asBigInt` cast accepts an operand of any type at parse.
+    const maxFor = (tail: string): number => {
+      let n = 1
+      for (;;) {
+        const body = 'e7'.repeat(n) + tail
+        try {
+          parseExpr(new ByteReader(hex(body)), [], [], new Map(), 0)
+          n++
+        } catch {
+          return n - 1
+        }
+        if (n > 1000) throw new Error('unexpected: parseExpr never halted')
+      }
+    }
+    expect(maxFor('7f') - maxFor('0101')).toBe(1)
+  })
+
   it('in an output box the tree is written in the constant form with its true size', () => {
     // The bytes of SANTA box-c3-trueleaf-opcode-accept#2, with the tree `00d17f` replaced by
     // `0b02d17f` (the size-flagged variant of the same two-byte body). The JVM re-encodes a
@@ -108,6 +153,38 @@ describe('TrueLeaf 7f and FalseLeaf 80', () => {
     if (isUnparsedTree(ta) || isUnparsedTree(tb)) throw new Error('unreachable')
     expect(ta.body).toEqual(tb.body)
     expect(toHex(serializeTree(ta))).toBe(toHex(serializeTree(tb)))
+  })
+
+  it('7f and 80: no other value of the opcode byte gives the same written tree', () => {
+    // For each of `00d17f` and `00d180`, for every other value of the opcode byte, either
+    // parseTree throws or serializeTree(parseTree(changed)) differs from the original's written
+    // form (`00d10101` for 7f, `00d10100` for 80; 7f and 80 write back through the constant
+    // path, so the round-trip is not the identity).
+    for (const [input, writtenForm] of [['00d17f', '00d10101'], ['00d180', '00d10100']] as const) {
+      const orig = hex(input)
+      const origByte = orig[2]!
+      for (let v = 0; v <= 255; v++) {
+        if (v === origByte) continue
+        const changed = new Uint8Array(orig)
+        changed[2] = v
+        let parsed: ReturnType<typeof parseTree> | undefined
+        try {
+          parsed = parseTree(changed)
+        } catch {
+          continue
+        }
+        let out: Uint8Array
+        try {
+          out = serializeTree(parsed)
+        } catch {
+          continue
+        }
+        expect(
+          toHex(out),
+          `${input}: changing byte 2 from 0x${origByte.toString(16)} to 0x${v.toString(16)} round-trips to the written form`,
+        ).not.toBe(writtenForm)
+      }
+    }
   })
 
   describe('a v3 MethodCall with no argument whose object is TrueLeaf is a hard reject', () => {
@@ -213,6 +290,16 @@ describe('ModQ e7, PlusModQ e8, MinusModQ e9', () => {
     const t = parseTree(hex(bytes))
     expect(isUnparsedTree(t)).toBe(false)
     expect(toHex(serializeTree(t))).toBe(bytes)
+  })
+
+  it('e8 and e9 in a size-flagged tree parse and round-trip to themselves', () => {
+    // 0b (v3 sized) + 0c (body size 12) + the 12-byte bodies of the PlusModQ and MinusModQ trees
+    // above. SANTA Box.unevaluated_node_kinds rows #17 and #18 hold these trees.
+    for (const bytes of ['0b0cd193e8060101060101060101', '0b0cd193e9060101060101060101']) {
+      const t = parseTree(hex(bytes))
+      expect(isUnparsedTree(t)).toBe(false)
+      expect(toHex(serializeTree(t))).toBe(bytes)
+    }
   })
 })
 

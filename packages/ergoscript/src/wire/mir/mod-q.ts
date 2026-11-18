@@ -9,7 +9,7 @@
  *
  * The JVM casts each operand to `BigIntValue` via the erased `asBigInt`
  * (`ast/syntax.scala:144`, `v.asInstanceOf[Value[SBigInt.type]]`), so an
- * operand of any type parses. No constructor check runs (`ast/trees.scala:954-972`).
+ * operand of any type parses. No constructor check runs (`ast/trees.scala:954-970`).
  * The static type is `SBigInt` (`ast/trees.scala:957, 968`).
  *
  * `ModQSerializer` and `ModQArithOpSerializer` are kept in the JVM's dispatch

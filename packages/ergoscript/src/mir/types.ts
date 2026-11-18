@@ -880,7 +880,7 @@ export interface CreateAvlTree {
 /**
  * ModQ: `x mod q` on a BigInt (opcode 0xe7). One-operand node. JVM
  * `ModQSerializer` reads one value and casts it to BigInt through the erased
- * `asBigInt` (ast/syntax.scala:144): no operand check (trees.scala:954-962).
+ * `asBigInt` (ast/syntax.scala:144): no operand check (trees.scala:954-963).
  * The static type is `SBigInt` (trees.scala:957). The JVM keeps the serializer
  * in place for consensus deserialization though it never evaluates the node;
  * ergots mirrors that at the wire layer here.
@@ -894,7 +894,7 @@ export interface ModQ {
  * ModQArith: `x + y mod q` (0xe8) and `x - y mod q` (0xe9) on two BigInts.
  * Two-operand node. JVM `ModQArithOpSerializer` reads two values through the
  * same erased `asBigInt` (ast/syntax.scala:144): no operand check
- * (trees.scala:964-972). The static type is `SBigInt` (trees.scala:968). The
+ * (trees.scala:965-970). The static type is `SBigInt` (trees.scala:968). The
  * `op` discriminator picks the opcode at serialize: `'PlusModQ'` → 0xe8,
  * `'MinusModQ'` → 0xe9.
  */
@@ -912,7 +912,7 @@ export interface ModQArith {
  * [0, 255] and writes it with a raw `put(byte)`. The static type is `tpe`
  * (values.scala:455). The JVM parses the node though it never evaluates it:
  * the companion is retained for consensus-level wire compatibility and
- * `TaggedVariable.apply` is deprecated upstream (values.scala:448-458).
+ * `TaggedVariable.apply` is deprecated upstream (values.scala:474-476).
  */
 export interface TaggedVariable {
   tag: 'TaggedVariable'

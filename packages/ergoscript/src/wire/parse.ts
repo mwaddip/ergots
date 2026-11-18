@@ -349,7 +349,7 @@ export function exprParserFor(opcode: number): ExprParser {
     case OP.OP_TAGGED_VARIABLE:
       // TaggedVariableSerializer (ValueSerializer.scala:97, TaggedVariableSerializer.scala). The JVM
       // parses the node though it never evaluates it; the companion is retained for consensus-level
-      // wire compatibility and `TaggedVariable.apply` is deprecated upstream (ast/values.scala:448-458).
+      // wire compatibility and `TaggedVariable.apply` is deprecated upstream (ast/values.scala:474-476).
       return (r, _ct, _cv, _vd, tv) => parseTaggedVariable(r, tv)
     case OP.OP_OPTION_GET:
       return parseOptionGet
@@ -496,15 +496,15 @@ export function exprParserFor(opcode: number): ExprParser {
       )
     case OP.OP_MOD_Q:
       // The JVM parses the node though it never evaluates it (ValueSerializer.scala:145,
-      // ModQSerializer.scala; ast/trees.scala:954-962; FixedCost(JitCost(1))). Its serializer stays
+      // ModQSerializer.scala; ast/trees.scala:954-963; FixedCost(JitCost(1))). Its serializer stays
       // in the dispatch table so a transaction whose output carries this node parses, and the
       // script is not executed during validation.
       return parseModQ
     case OP.OP_PLUS_MOD_Q:
-      // ModQArithOpSerializer (PlusModQ), ValueSerializer.scala:146. ast/trees.scala:964-972.
+      // ModQArithOpSerializer (PlusModQ), ValueSerializer.scala:146. ast/trees.scala:965-970.
       return (r, ct, cv, vd, tv) => parseModQArith('PlusModQ', r, ct, cv, vd, tv)
     case OP.OP_MINUS_MOD_Q:
-      // ModQArithOpSerializer (MinusModQ), ValueSerializer.scala:147. ast/trees.scala:964-972.
+      // ModQArithOpSerializer (MinusModQ), ValueSerializer.scala:147. ast/trees.scala:965-970.
       return (r, ct, cv, vd, tv) => parseModQArith('MinusModQ', r, ct, cv, vd, tv)
     case OP.OP_COLL_SHIFT_RIGHT:
       throw new ExprParseError(

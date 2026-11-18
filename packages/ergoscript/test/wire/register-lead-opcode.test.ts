@@ -12,7 +12,9 @@
  * known opcode keeps the hard `'sbox-register-unsupported-expr'`. A lead that is one of the six
  * opcodes the JVM parses (`71`, `7f`, `80`, `e7`, `e8`, `e9`) is a known opcode like any other, so
  * ergots keeps the hard code there too. The JVM accepts `7f` and `80` as Boolean constants
- * (residual 4 below), and rejects the other four — `71`, `e7`, `e8`, `e9` — at the register's cast.
+ * (residual 4 below), and rejects the other four — `71`, `e7`, `e8`, `e9` — at the register's cast
+ * when the payload parses; where the payload holds a soft failure first the JVM degrades the
+ * enclosing sized tree instead (the `e784` row of residual 4 below).
  *
  * Every JVM verdict below is from a live sigma-state 6.0.6 probe (the tree as output 0 of a
  * transaction, parsed under VersionContext(3, 3)).
@@ -69,9 +71,12 @@ describe('a nested register lead the JVM parses stays a hard reject', () => {
   for (const [name, r4] of [
     // JVM: ClassCastException, Height$ cannot be cast to EvaluatedValue.
     ['lead 0xa3, HEIGHT', 'a3'],
-    // JVM: ClassCastException for ModQ and TaggedVariableNode too — the register parse rejects on
-    // the lead byte and never reaches the cast (residual 4: ergots accepts a Constant or a Tuple).
+    // JVM: ClassCastException for ModQ, ModQArithOp and TaggedVariableNode too — the register
+    // parse rejects on the lead byte and never reaches the cast (residual 4: ergots accepts a
+    // Constant or a Tuple).
     ['lead 0xe7, ModQ(BigInt 5)', 'e7060105'],
+    ['lead 0xe8, PlusModQ(BigInt 1, BigInt 1)', 'e8060101060101'],
+    ['lead 0xe9, MinusModQ(BigInt 1, BigInt 1)', 'e9060101060101'],
     ['lead 0x71, TaggedVariable(1, Int)', '710104'],
   ] as const) {
     it(`${name}: rejected, as in the JVM`, () => {

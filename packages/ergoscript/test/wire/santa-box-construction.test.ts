@@ -102,8 +102,14 @@ const ERRORS: Record<string, Reject> = {
   'methodcall-type-id-order-sany-obj-v1-box#1': { cls: SValueParseError, code: 'not-implemented-phase-2a' },
   'methodcall-type-id-order-v1-unsized-box#3': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'method-type-no-methods' },
   // Box.unevaluated_node_kinds.json rows #26-#31: boxes whose trees the JVM rejects before reaching
-  // the unevaluated node kind. ergots' rejects are those `master` gives today for these rows; rows
-  // #3, #4, #5 and #7 are the ones this task turns green.
+  // the unevaluated node kind. #26: rule 1009 `CheckSerializableTypeCode` refuses an Option[Int] at
+  // v0, as the fourth value of the CreateAvlTree layout; the unsized carrier has nothing to degrade
+  // behind. #27, #28: type code 0 has no `TypeSerializer` entry (`TypeSerializer.scala:138`);
+  // `InvalidTypePrefix` is no ValidationException, so the v3 size bit does not degrade it. #29,
+  // #30: `BitShiftLeft(true, 2)` fails BitOp's `require(left.tpe.isNumTypeOrNoType)` as an
+  // IllegalArgumentException, rethrown inside the inner try before the catch that turns a
+  // ValidationException into a degrade (`ErgoTreeSerializer.scala:191-193`). #31: `Filter.tpe`
+  // casts SInt to SCollection, a ClassCastException the v0 tree does not degrade on.
   'unevaluated-create-avl-tree-v0-reject-box#26': { cls: ErgoTreeParseError, code: 'soft-fork-without-size-bit', cause: 'soption-tree-version-too-low' },
   'unevaluated-old-layout-v0-reject-box#27': { cls: STypeParseError, code: 'type-prefix-invalid' },
   'unevaluated-old-layout-v3-reject-box#28': { cls: STypeParseError, code: 'type-prefix-invalid' },
