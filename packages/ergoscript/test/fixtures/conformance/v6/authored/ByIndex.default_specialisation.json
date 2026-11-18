@@ -1,0 +1,251 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "ByIndex.default_specialisation",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "v0_byte_constant_bool_default_in_range-errored#0",
+      "script" : "[N1] `ByIndex(Coll[Byte] CONSTANT, 0, default = true)` at **tree version 0**. Below v3 the default is ALWAYS evaluated and handed to `getOrElse` (`transformers.scala:271-276`), so a specialised receiver throws EVEN FOR AN IN-RANGE INDEX. **SEPARATING, and the v0 half of the version witness** — compare N7, the same body at tree v3, which evaluates.",
+      "tree_bytes_hex" : "00b20e030102030400010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "v0_byte_constant_bool_default_oob-errored#1",
+      "script" : "[N2] The same at index 9, out of range: throws at v0 too. **SEPARATING.**",
+      "tree_bytes_hex" : "00b20e030102030412010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "v0_byte_concrete_bool_default_in_range-accept#2",
+      "script" : "[N3] The GENERIC twin in range returns the element `Byte 1` at cost 75: the eager default is evaluated and passed, but nothing casts it.",
+      "tree_bytes_hex" : "00b28303020201020202030400010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v0_byte_concrete_bool_default_oob-accept#3",
+      "script" : "[N4] The generic twin OUT OF RANGE returns **the mistyped default itself — `true`, a `java.lang.Boolean` out of a collection declared `Coll[Byte]`** — at cost 75. The JVM hands a script a value of the wrong type rather than refusing. **The most consequential accept in the round:** an implementation that type-checks the default here OVER-REJECTS.",
+      "tree_bytes_hex" : "00b28303020201020202030412010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v0_byte_constant_good_default_in_range-accept#4",
+      "script" : "[N5] **CONTROL:** the specialised receiver with a well-typed `Byte 7` default returns `Byte 1` at cost 45 — so N1 is about the default's type, and the 45 (not 40) is the EAGER default's extra 5.",
+      "tree_bytes_hex" : "00b20e030102030400010207",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 45,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v0_byte_concrete_good_default_oob-accept#5",
+      "script" : "[N6] **CONTROL:** the generic receiver out of range with a well-typed default returns `Byte 7` at cost 75.",
+      "tree_bytes_hex" : "00b28303020201020202030412010207",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 7
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v3_byte_constant_bool_default_in_range-accept#6",
+      "script" : "[N7] **THE VERSION WITNESS.** The SAME body as N1 at **tree version 3**, where the default is LAZY (`transformers.scala:261-270` uses `apply` in range and never touches the default): it returns `Byte 1` at cost 40. One tree version apart, a specialised receiver with an ill-typed default goes from a hard throw to a clean value, and the cost gap 40-vs-45 is the eager evaluation that is no longer done.",
+      "tree_bytes_hex" : "0b0bb20e030102030400010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v3_byte_constant_bool_default_oob-errored#7",
+      "script" : "[N8] At v3 the lazy default IS reached once the index is out of range, so the specialised receiver throws again. **SEPARATING** — and with N7 it shows the v3 behaviour is laziness, not a dropped check.",
+      "tree_bytes_hex" : "0b0bb20e030102030412010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "v3_byte_concrete_bool_default_in_range-accept#8",
+      "script" : "[N9] The generic twin in range: `Byte 1` at cost 70 (five less than N3 — the lazy default).",
+      "tree_bytes_hex" : "0b0fb28303020201020202030400010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v3_byte_concrete_bool_default_oob-accept#9",
+      "script" : "[N10] The generic twin out of range still returns the mistyped `true`, at cost 75. The over-reject risk of N4 is not confined to old trees.",
+      "tree_bytes_hex" : "0b0fb28303020201020202030412010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v3_byte_constant_good_default_in_range-accept#10",
+      "script" : "[N11] **CONTROL:** well-typed default, specialised receiver, `Byte 1` at cost 40 — the same as N7, which is what makes N7's accept about laziness rather than about the default.",
+      "tree_bytes_hex" : "0b0bb20e030102030400010207",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 1
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "v3_byte_concrete_good_default_oob-accept#11",
+      "script" : "[N12] **CONTROL:** generic receiver, out of range, well-typed default: `Byte 7` at cost 75.",
+      "tree_bytes_hex" : "0b0fb28303020201020202030412010207",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Byte",
+          "value" : 7
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    }
+  ]
+}

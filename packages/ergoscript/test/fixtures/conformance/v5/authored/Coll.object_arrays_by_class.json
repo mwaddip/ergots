@@ -1,0 +1,116 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.object_arrays_by_class",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-pre-activation",
+  "entries" : [
+    {
+      "name" : "objpairs-SP-ZM-value-v0-a2#0",
+      "script" : "[objpairs|SP|ZM|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((<sigmaprop>,1),(1,2),(2,3)) at cost 67.  // tree v0, activated 2",
+      "tree_bytes_hex" : "00dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-value-v1-a2#1",
+      "script" : "[objpairs|SP|ZM|value|v1] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((<sigmaprop>,1),(1,2),(2,3)) at cost 67.  // tree v1, activated 2",
+      "tree_bytes_hex" : "0959dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 1
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-good-v0-a2#2",
+      "script" : "[objpairs|SP|ZM|updateMany-good|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((<sigmaprop>,1),(1,2),(2,3)) at cost 123.  // tree v0, activated 2",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100dc0c1d1401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179801100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-good-v1-a2#3",
+      "script" : "[objpairs|SP|ZM|updateMany-good|v1] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((<sigmaprop>,1),(1,2),(2,3)) at cost 123.  // tree v1, activated 2",
+      "tree_bytes_hex" : "098b01dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100dc0c1d1401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179801100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 1
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-bad-v0-a2#4",
+      "script" : "[objpairs|SP|ZM|updateMany-bad|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(1,2),(2,3)) at cost 187.  // tree v0, activated 2",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-bad-v1-a2#5",
+      "script" : "[objpairs|SP|ZM|updateMany-bad|v1] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(1,2),(2,3)) at cost 187.  // tree v1, activated 2",
+      "tree_bytes_hex" : "09be01dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 1
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

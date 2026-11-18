@@ -1,0 +1,86 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.store_runtime_array_class",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-reference-store",
+  "entries" : [
+    {
+      "name" : "empty-box-coll-append-groupelement-accept#0",
+      "script" : "[R1] `Coll[Box]() ++ Coll[GroupElement](g)` — 1 at cost 86: `append` with an EMPTY receiver returns `other` unchanged (CollsOverArrays.scala:49), so the value is a Coll[Box] over a GroupElement[], with no lie anywhere in the tree. The setup of R2.",
+      "tree_bytes_hex" : "0b09b1b383006383010782",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 86,
+        "error" : null
+      }
+    },
+    {
+      "name" : "groupelement-backed-box-coll-box-item-errored#1",
+      "script" : "[R2] `(Coll[Box]() ++ Coll[GroupElement](g)).updated(0, SELF)` — THROWS `ArrayStoreException: sigma.data.CBox` (in an InvocationTargetException): a WELL-TYPED item, a Box into a Coll[Box], is refused because the store goes into the RUNTIME array, a GroupElement[]. SEPARATING: an implementation that checks the item against the static item type, or does not check, returns 1.",
+      "tree_bytes_hex" : "0b10b1dc0c14b383006383010782020400a7",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "long-backed-int-coll-int-item-errored#2",
+      "script" : "[R3] `If(false, Coll(1), Coll(1L)).updated(0, 5)` — THROWS `ClassCastException: Integer cannot be cast to Long` (in an InvocationTargetException): an Int into a Coll[Int] whose runtime array is long[]. SEPARATING, as R2.",
+      "tree_bytes_hex" : "0b16b1dc0c1495010083010404028301050502020400040a",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "long-backed-int-coll-reverse-accept#3",
+      "script" : "[R4] `If(false, Coll(1), Coll(1L)).reverse` — 1 at cost 80: `reverse` stores no new item. CONTROL for R3.",
+      "tree_bytes_hex" : "0b11b1db0c1e95010083010404028301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    }
+  ]
+}

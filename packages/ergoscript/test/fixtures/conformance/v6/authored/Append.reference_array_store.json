@@ -1,0 +1,282 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Append.reference_array_store",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "append_ge_empty_box_arg-accept#0",
+      "script" : "[K1] `Append(Coll[GroupElement](g), ys)` where `ys` is declared `Coll[GroupElement]` and evaluates to an EMPTY `Coll[Box]`: **ACCEPTED**, cost 87, and the result is a `Coll[GroupElement]`. `safeConcatArrays_v5` allocates by the receiver's ClassTag and `System.arraycopy` between two REFERENCE arrays checks each element — and there is none. **The contrast that makes it worth having:** the same shape on a PRIMITIVE-backed receiver throws even for an empty ill-typed operand (the array itself is cast), so emptiness saves a reference append and not a primitive one.",
+      "tree_bytes_hex" : "0b0eb383010782950100830007830063",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SGroupElement"
+          },
+          "items" : [
+            {
+              "kind" : "GroupElement",
+              "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_ge_one_box_arg-errored#1",
+      "script" : "[K2] **CONTROL / the bound:** one `Box` in that argument and the same append throws `ArrayStoreException`. **SEPARATING:** an implementation that refuses K1 over-rejects, and one that accepts K2 over-accepts — both halves are needed to state the rule.",
+      "tree_bytes_hex" : "0b10b38301078295010083010782830163a7",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append_empty_box_recv_ge_arg-accept#2",
+      "script" : "[K3] The EMPTY ill-typed collection on the LEFT: accepted at cost 87, because `CollOverArray.append` returns `other` unchanged when the receiver is empty (`CollsOverArrays.scala:49`) — a different reason from K1's, and the same answer.",
+      "tree_bytes_hex" : "0b0eb395010083000783006383010782",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SGroupElement"
+          },
+          "items" : [
+            {
+              "kind" : "GroupElement",
+              "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            }
+          ]
+        },
+        "cost" : 87,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_ge_ge-accept#3",
+      "script" : "[K4] **CONTROL:** the well-typed append, cost 82. K1's 87 is the `If` that carries the lie, not the append.",
+      "tree_bytes_hex" : "0b09b38301078283010782",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SGroupElement"
+          },
+          "items" : [
+            {
+              "kind" : "GroupElement",
+              "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            },
+            {
+              "kind" : "GroupElement",
+              "bytes_hex" : "0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+            }
+          ]
+        },
+        "cost" : 82,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_context_size-accept#4",
+      "script" : "[K5] `Append(Coll[Context](CONTEXT), Coll[Context](CONTEXT)).size` is **2** at cost 78 — ACCEPTED. The collection is `[Lsigma/Context;`, so `System.arraycopy` takes it like any object array.",
+      "tree_bytes_hex" : "0b0ab1b3830165fe830165fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 78,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_global_size-accept#5",
+      "script" : "[K6] The same for `Coll[Global]`, backed by `[Lsigma/SigmaDslBuilder;`: **2** at cost 86.",
+      "tree_bytes_hex" : "0b0ab1b383016add83016add",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 86,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_function_size-accept#6",
+      "script" : "[K7] And for `Coll[Int => Int]` of two lambdas, backed by `[Lscala/Function1;`: **2** at cost 86. A collection of FUNCTIONS appends.",
+      "tree_bytes_hex" : "0b1cb1b383017001040400d9010104040283017001040400d90101040404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 86,
+        "error" : null
+      }
+    },
+    {
+      "name" : "context_size_control-accept#7",
+      "script" : "[K8] **CONTROL:** the same `SizeOf` with no append is **1** at cost 35 — the baseline that makes K5's 2 the append's doing.",
+      "tree_bytes_hex" : "0b05b1830165fe",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "global_size_control-accept#8",
+      "script" : "[K9] **CONTROL** for K6: **1** at cost 39.",
+      "tree_bytes_hex" : "0b05b183016add",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "function_size_control-accept#9",
+      "script" : "[K10] **CONTROL** for K7: **1** at cost 39.",
+      "tree_bytes_hex" : "0b0eb183017001040400d90101040402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_context_global_item-errored#10",
+      "script" : "[K11] **THE BOUND:** one `Global` inside a collection declared `Coll[Context]` and the append throws `ArrayStoreException` — the element store checks the class even between two REFERENCE arrays. Note the class arrives BARE, not inside an `InvocationTargetException`: `Append` is a dedicated node and not a reflective MethodCall. **SEPARATING:** an implementation that reaches K5-K7 by dropping the element check reaches this too, and over-accepts.",
+      "tree_bytes_hex" : "0b10b1b3830165fe95010083006583016add",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append_context_empty_global_item-accept#11",
+      "script" : "[K12] The EMPTY ill-typed operand is ACCEPTED, **1** at cost 92 — K1's asymmetry reproduced on a second pair of reference item types. So \"emptiness saves a reference append\" is the rule, not a `GroupElement`/`Box` accident.",
+      "tree_bytes_hex" : "0b0fb1b3830165fe95010083006583006a",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 92,
+        "error" : null
+      }
+    }
+  ]
+}

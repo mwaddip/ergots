@@ -1,0 +1,86 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.append_node_array_class",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-reference-store",
+  "entries" : [
+    {
+      "name" : "int-coll-append-empty-long-errored#0",
+      "script" : "[P1] `Coll[Int] constant (1,2,3) ++ ConcreteCollection[Long]()` — THROWS `ArrayStoreException: arraycopy: type mismatch: can not copy long[] into int[]`, though the operand is EMPTY: the node `System.arraycopy`s each operand into an array of the receiver's class (CollectionUtil.scala:34-42), which refuses mismatched primitive arrays before it looks at the length. `patch` RETURNS on the same shape (Coll.reference_store_ops B8). SEPARATING: an implementation that checks items, or skips an empty operand, returns 3.",
+      "tree_bytes_hex" : "0b0ab1b31003020406830005",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "int-coll-append-int-accept#1",
+      "script" : "[P2] `Coll[Int] constant (1,2,3) ++ ConcreteCollection[Int](7)` — 4 at cost 66. CONTROL for P1.",
+      "tree_bytes_hex" : "0b0cb1b31003020406830104040e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 4
+        },
+        "cost" : 66,
+        "error" : null
+      }
+    },
+    {
+      "name" : "box-coll-append-groupelement-errored#2",
+      "script" : "[P3] `Coll[Box](SELF) ++ Coll[GroupElement](g)` — THROWS `ArrayStoreException: arraycopy: type mismatch` (GroupElement[] into Box[]). SEPARATING.",
+      "tree_bytes_hex" : "0b0ab1b3830163a783010782",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "box-coll-append-empty-groupelement-accept#3",
+      "script" : "[P4] `Coll[Box](SELF) ++ Coll[GroupElement]()` — 1 at cost 86: between two REFERENCE arrays `arraycopy` checks element by element, so an empty operand passes, unlike P1's primitive arrays.",
+      "tree_bytes_hex" : "0b09b1b3830163a7830007",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 86,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -1,0 +1,266 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.specialisation_prefix_suffix",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "startswith_byte_constant_long_arg-errored#0",
+      "script" : "[S1] `Coll[Byte](1,2,3)` CONSTANT (specialised `$mcB$sp`) `.startsWith(ys)` where `ys` is declared `Coll[Byte]` but evaluates to a `Coll[Long]` — the lie carried by an `If` whose branches disagree, so no static check can reject it. `CollOverArray.startsWith` (`:44`) is `toArray.startsWith(ys.toArray)`, and in specialised code that casts the ARGUMENT's array to `[B`: `ClassCastException`. **SEPARATING, and the second separating family after getOrElse** — here it is the argument's array that is cast, not an item.",
+      "tree_bytes_hex" : "0b16dc0c1f0e030102030195010083010202018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_byte_concrete_long_arg-accept#1",
+      "script" : "[S2] The GENERIC twin with the SAME argument RETURNS **`true`** at cost 90 — because Scala's `Array.startsWith` compares boxed elements and `java.lang.Long(1) == java.lang.Byte(1)` numerically. **THE WORST ROW IN THE FAMILY and the one to lead with:** the JVM does not merely accept the ill-typed argument, it answers TRUE. An implementation holding one representation cannot produce both this and S1.",
+      "tree_bytes_hex" : "0b1adc0c1f8303020201020202030195010083010202018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_bool_constant_long_arg-errored#2",
+      "script" : "[S3] The same on the `$mcZ$sp` kind: a `Coll[Boolean]` CONSTANT with a `Coll[Long]` argument throws. **SEPARATING.**",
+      "tree_bytes_hex" : "0b12dc0c1f0d0305019501008501018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_bool_concrete_long_arg-accept#3",
+      "script" : "[S4] Its generic twin returns **`false`** at cost 90 — the boxed comparison runs and simply fails (a Boolean is not numerically equal to 1L). Together with S2 this says the generic answer is the ITEMS' answer, not a refusal.",
+      "tree_bytes_hex" : "0b12dc0c1f850305019501008501018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_indices_long_arg-errored#4",
+      "script" : "[S5] The same on the `$mcI$sp` kind (`indices`): throws. **SEPARATING.**",
+      "tree_bytes_hex" : "0b19dc0c1fdb0c0e0e030102030195010083010404008301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_int_concrete_long_arg-accept#5",
+      "script" : "[S6] Its generic twin returns `false` at cost 90 (`0` is not `1L`).",
+      "tree_bytes_hex" : "0b1adc0c1f8303040400040204040195010083010404008301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_byte_constant_empty_long_arg-errored#6",
+      "script" : "[S7] A ZERO-LENGTH ill-typed argument still throws on the specialised receiver: the array cast precedes any length check. **SEPARATING, and the sharpest of the set** — there is no element to compare, so an implementation can only reproduce it by modelling the cast.",
+      "tree_bytes_hex" : "0b12dc0c1f0e0301020301950100830002830005",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_byte_concrete_empty_long_arg-accept#7",
+      "script" : "[S8] Its generic twin returns `true` at cost 85 — vacuously, every collection starts with an empty one.",
+      "tree_bytes_hex" : "0b16dc0c1f83030202010202020301950100830002830005",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_byte_constant_wellformed-accept#8",
+      "script" : "[S9] **CONTROL:** the specialised receiver with a well-typed `Coll[Byte](1)` argument returns `true` at cost 45. S1 is not about startsWith being unavailable.",
+      "tree_bytes_hex" : "0b0edc0c1f0e03010203018301020201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 45,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_byte_concrete_wellformed-accept#9",
+      "script" : "[S10] **CONTROL:** the generic receiver, same argument, `true` at cost 75.",
+      "tree_bytes_hex" : "0b12dc0c1f830302020102020203018301020201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "endswith_byte_constant_long_arg-errored#10",
+      "script" : "[E1] `endsWith` (`:46`) is the same shape as `startsWith` and throws on the specialised receiver. **SEPARATING.**",
+      "tree_bytes_hex" : "0b16dc0c200e030102030195010083010202018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "endswith_byte_concrete_long_arg-accept#11",
+      "script" : "[E2] Its generic twin returns **`false`** at cost 90 — with the SAME argument that made S2 `true`. The asymmetry is the data, not the types: `(1,2,3)` starts with `1L` and does not end with it. A row that pins the comparison as numeric rather than refused.",
+      "tree_bytes_hex" : "0b1adc0c208303020201020202030195010083010202018301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "endswith_byte_constant_wellformed-accept#12",
+      "script" : "[E3] **CONTROL:** the specialised receiver with `Coll[Byte](3)` returns `true` at cost 45.",
+      "tree_bytes_hex" : "0b0edc0c200e03010203018301020203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 45,
+        "error" : null
+      }
+    }
+  ]
+}

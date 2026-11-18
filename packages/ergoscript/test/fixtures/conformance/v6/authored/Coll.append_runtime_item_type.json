@@ -1,0 +1,179 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.append_runtime_item_type",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-coll-runtime-item-types",
+  "entries" : [
+    {
+      "name" : "append-left-lies-errored#0",
+      "script" : "{ X.append(Coll(3)) }  // JVM: REJECTS, ArrayStoreException \"can not copy int[] into long[]\": concatArrays allocates by the LEFT's ClassTag (long[], from X's runtime items) and System.arraycopy refuses the int[] right side (CollectionUtil.scala:34-42)",
+      "tree_bytes_hex" : "0b17b395010083020404020404830205050205048301040406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append-right-lies-errored#1",
+      "script" : "{ Coll(3).append(X) }  // JVM: REJECTS, ArrayStoreException \"can not copy long[] into int[]\" — the mirror: allocation follows the left (int[]) and the long[] right side will not copy in",
+      "tree_bytes_hex" : "0b17b383010404069501008302040402040483020505020504",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append-empty-left-accept#2",
+      "script" : "{ E.append(Coll(3)) }  // JVM: ACCEPTS: Coll[Int](3). An EMPTY left side short-circuits — CollOverArray.append returns the right side as it is, with its own item type, and never allocates (CollsOverArrays.scala:48-57). The one row of this family that survives a mismatch",
+      "tree_bytes_hex" : "0b11b395010083010404028300058301040406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 3
+            }
+          ]
+        },
+        "cost" : 82,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append-empty-right-errored#3",
+      "script" : "{ Coll(3).append(E) }  // JVM: REJECTS, ArrayStoreException \"can not copy long[] into int[]\" — an empty RIGHT side does NOT short-circuit. System.arraycopy checks element types before length, so a ZERO-LENGTH long[] still refuses to copy into an int[]. This is the asymmetry worth knowing: empty on the left saves the call, empty on the right does not",
+      "tree_bytes_hex" : "0b11b383010404069501008301040402830005",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append-reference-items-accept#4",
+      "script" : "{ If(false, Coll(Coll(1)), Coll(Coll(2L))).append(Coll(Coll(3))) }  // JVM: ACCEPTS, and the result is a Coll[Coll[LONG]] — the left's RUNTIME item type, not the node's declared Coll[Coll[Int]]. REFERENCE items allocate as Coll[] and a Coll[] copies into a Coll[] whatever its own element type, so nothing throws",
+      "tree_bytes_hex" : "0b1cb3950100830110830104040283011183010505048301108301040406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SLong"
+            }
+          },
+          "items" : [
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SLong"
+              },
+              "items" : [
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            },
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SInt"
+              },
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 3
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 127,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append-unrelated-classes-errored#5",
+      "script" : "{ If(false, Coll(SELF), Coll(groupGenerator)).append(Coll(SELF)) }  // JVM: REJECTS, ArrayStoreException \"can not copy sigma.Box[] into sigma.GroupElement[]\". Reference items accept only while the classes are compatible; UNRELATED classes throw, so #4's acceptance is about Coll[]-into-Coll[] and not about references in general",
+      "tree_bytes_hex" : "0b10b3950100830163a783010782830163a7",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append-pair-items-errored#6",
+      "script" : "{ If(false, Coll((1, 1)), Coll((1L, 1L))).append(Coll((2, 2))) }  // JVM: REJECTS, ArrayStoreException \"can not copy int[] into long[]\": a pair collection is a PairOfCols, so append unzips it (CollsOverArrays.scala:379-382) and the clash happens on the underlying PRIMITIVE arrays",
+      "tree_bytes_hex" : "0b1fb3950100830158860204020402830159860205020502830158860204040404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}
