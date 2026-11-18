@@ -7,10 +7,12 @@
  *     { () => Colls.xor(ls, rs) }
  * with `Xor.costKind = PerItemCost(10, 2, 128)` (`:1015-1016`). The chunks
  * arithmetic is
- *   chunks(n) = (n - 1) / 128 + 1          when n >= 1
- *             = 0                          when n == 0
- * (`core/shared/src/main/scala/sigma/ast/CostKind.scala:24`; toward-zero
- * division), and the composite is `cost(n) = base + chunks(n) * perChunk`.
+ *   chunks(n) = (n - 1) / 128 + 1          at n >= 1 and at n == 0
+ * (`core/shared/src/main/scala/sigma/ast/CostKind.scala:24-26`; toward-zero
+ * division makes `trunc((0 - 1) / 128) + 1 == 1`), and the composite is
+ * `cost(n) = base + chunks(n) * perChunk`. Xor's `chunkSize = 128`, so an
+ * empty-operand call (min = 0) charges `base + perChunk = 12`; `addPerItemCost`
+ * in `packages/ergoscript/src/eval/eval-context.ts:190-198` matches.
  *
  * Three probe trees (same shape, `BoolToSigmaProp(SizeOf(Xor(l, r)) == N)`
  * at the arg's `N = min(|l|, |r|)` so the tree reduces to TrueProp):

@@ -1,7 +1,7 @@
 /**
  * `map` and `flatMap` store through the result's array. Each case
- * evaluates the tree of a SANTA `Coll.reference_store_ops` row through the
- * SANTA runner — the row's `expected.value` or `expected.error` is the pin.
+ * evaluates the tree of a SANTA `Coll.reference_store_ops` row through
+ * `evalSantaEntry` — the row's `expected.value` or `expected.error` is the pin.
  *
  * `CollOverArray.map` (CollsOverArrays.scala:28-31 at 6.0.7) stores each
  * mapped item through an `ArrayBuilder.ofXXX.+=`; `PairOfCols.map`

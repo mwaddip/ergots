@@ -34,10 +34,6 @@ export const RED_REASONS: Record<string, { item: number; why: string }> = {
     item: 27,
     why: "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   },
-  cost: {
-    item: 22,
-    why: 'The value is right and only the cost differs.',
-  },
   'method-call-type': {
     item: 6,
     why: "ergots builds the tree and evaluates it; the JVM refuses it at parse because the call's return type keeps a type variable (the patch method's SFunc tRange is Coll[IV]) and the EQ's Constraints$SameType2 check fails on Coll[IV] against Coll[Unit] (data/shared/src/main/scala/sigma/ast/SigmaBuilder.scala Constraints$SameType2).",
