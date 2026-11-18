@@ -581,18 +581,26 @@ export function evalFullContextEntry(e: SantaFullCtxEntry): SantaActual {
   }
 }
 
-// ---- Row check + red table (same two-way shape as the ergoscript tests) ----
+// ---- Row check + red table ----
 
 /**
- * The red-reason ids, each named by the board item that owns closing the
- * rows. A row placed under a reason outside this stage names the item that
- * will close it; a row whose root cause is settled by this stage goes
- * under `collection-class`.
+ * The red table for SANTA full-context conformance.
+ *
+ * A red row is a full-context entry whose ergots outcome differs from its
+ * JVM-blessed expectation. Each row is listed in `red-table.json` under one
+ * reason id; `RED_REASONS` below gives each reason id a numeric `item` and
+ * one sentence that says what ergots does on the rows listed under the id.
+ *
+ * The row check `rowMismatch` is used by `full-context.test.ts` two ways:
+ * a row NOT in the table must match (returns `null`), and a row IN the
+ * table must NOT match (returns a non-null failure message). A listed row
+ * that matches fails its test with the sentinel text
+ * `row is green; remove it from the red table`.
  */
 export const RED_REASONS: Record<string, { item: number; why: string }> = {
   'collection-class': {
     item: 22,
-    why: "The row's verdict depends on a collection's runtime class, which the evaluator does not read yet.",
+    why: "The evaluator reads no collection class, so the row's verdict rests on one it does not have.",
   },
   'tuple-as-collection': {
     item: 23,
@@ -608,7 +616,7 @@ export const RED_REASONS: Record<string, { item: number; why: string }> = {
   },
   'expression-register': {
     item: 4,
-    why: "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is tested.",
+    why: "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
   },
   cost: {
     item: 22,
