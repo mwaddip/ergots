@@ -24,7 +24,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../mir/types'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 
 // Shared SType singletons for R3 / ExtractCreationInfo return type.
 // STuple[SInt, SColl[SByte]] matches sigma-rust's `ExtractCreationInfo::tpe()`:
@@ -55,11 +55,15 @@ export function creationInfoTupleSValue(box: ErgoBox): SValue {
   // (eval/extract_creation_info.rs:18). Mirror the i32 wrap so JS Numbers
   // outside i32 range produce the same SValue.Int the sigma-rust evaluator
   // would.
+  // JVM `creationInfo._2` is a PLAIN `Coll[Byte]` — `ExtractCreationInfo.eval`
+  // (`sigma/ast/transformers.scala:488-502`) builds the tuple's bytes side
+  // through `Colls.fromArray[Byte](arr)(Byte_RType)` at the erased type, which
+  // takes the generic (non-specialised) `fromArray` branch.
   return {
     kind: 'Tuple',
     items: [
       { kind: 'Int', value: box.creationHeight | 0 },
-      bytesToCollByteSValue(combined),
+      byteColl(combined, false),
     ],
   }
 }

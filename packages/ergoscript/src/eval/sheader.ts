@@ -15,7 +15,7 @@
 
 import { EvalError } from './eval-context'
 import type { EvalContext } from './eval-context'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 import { GROUP_GENERATOR_BYTES } from './_group-generator'
 import type { SValue } from '../mir/types'
 import type { Header } from '@ergots/scorex'
@@ -44,7 +44,9 @@ function assertHeaderObj(
 export function evalSHeaderId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'id')
-  return bytesToCollByteSValue(obj.value.id)
+  // JVM `CHeader.id` is a specialised `Coll[Byte]` — `CHeader.scala:18`
+  // `id = Colls.fromArray(id)` under the concrete `Byte` type.
+  return byteColl(obj.value.id, true)
 }
 
 /**
@@ -65,7 +67,9 @@ export function evalSHeaderVersion(obj: SValue, _args: SValue[], ctx: EvalContex
 export function evalSHeaderParentId(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'parentId')
-  return bytesToCollByteSValue(obj.value.parentId)
+  // JVM `CHeader.parentId` is a specialised `Coll[Byte]` — `CHeader.scala:21`
+  // `parentId = Colls.fromArray(parentId)` under the concrete `Byte` type.
+  return byteColl(obj.value.parentId, true)
 }
 
 /**
@@ -75,7 +79,9 @@ export function evalSHeaderParentId(obj: SValue, _args: SValue[], ctx: EvalConte
 export function evalSHeaderAdProofsRoot(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'ADProofsRoot')
-  return bytesToCollByteSValue(obj.value.adProofsRoot)
+  // JVM `CHeader.ADProofsRoot` is a specialised `Coll[Byte]` — `CHeader.scala:23`
+  // under the concrete `Byte` type.
+  return byteColl(obj.value.adProofsRoot, true)
 }
 
 /**
@@ -117,7 +123,9 @@ export function evalSHeaderStateRoot(obj: SValue, _args: SValue[], ctx: EvalCont
 export function evalSHeaderTransactionsRoot(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'transactionsRoot')
-  return bytesToCollByteSValue(obj.value.transactionRoot)
+  // JVM `CHeader.transactionsRoot` is a specialised `Coll[Byte]` —
+  // `CHeader.scala:34` under the concrete `Byte` type.
+  return byteColl(obj.value.transactionRoot, true)
 }
 
 /**
@@ -167,7 +175,9 @@ export function evalSHeaderHeight(obj: SValue, _args: SValue[], ctx: EvalContext
 export function evalSHeaderExtensionRoot(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'extensionRoot')
-  return bytesToCollByteSValue(obj.value.extensionRoot)
+  // JVM `CHeader.extensionRoot` is a specialised `Coll[Byte]` —
+  // `CHeader.scala:44` under the concrete `Byte` type.
+  return byteColl(obj.value.extensionRoot, true)
 }
 
 /**
@@ -207,7 +217,9 @@ export function evalSHeaderPowOnetimePk(obj: SValue, _args: SValue[], ctx: EvalC
 export function evalSHeaderPowNonce(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'powNonce')
-  return bytesToCollByteSValue(obj.value.autolykosSolution.nonce)
+  // JVM `CHeader.powNonce` is a specialised `Coll[Byte]` —
+  // `CHeader.scala:55` `Colls.fromArray(powNonce)` under the concrete `Byte`.
+  return byteColl(obj.value.autolykosSolution.nonce, true)
 }
 
 /**
@@ -231,7 +243,9 @@ export function evalSHeaderPowDistance(obj: SValue, _args: SValue[], ctx: EvalCo
 export function evalSHeaderVotes(obj: SValue, _args: SValue[], ctx: EvalContext): SValue {
   ctx.addCost(ACCESSOR_COST)
   assertHeaderObj(obj, 'votes')
-  return bytesToCollByteSValue(obj.value.votes)
+  // JVM `CHeader.votes` is a specialised `Coll[Byte]` — `CHeader.scala:61`
+  // `Colls.fromArray(votes)` under the concrete `Byte` type.
+  return byteColl(obj.value.votes, true)
 }
 
 /**

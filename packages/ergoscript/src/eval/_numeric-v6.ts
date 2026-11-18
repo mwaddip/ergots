@@ -5,7 +5,8 @@
  * Spec: docs/specs/2026-06-02-ergoscript-v6-p1-numeric-methods-design.md
  */
 import type { SValue, SType } from '../mir/types'
-import { bytesToCollByteSValue, I256_MIN, I256_MAX } from './_byte-coll'
+import { I256_MIN, I256_MAX } from './_byte-coll'
+import { byteColl, fromArray } from './_coll'
 import type { HandlerFn } from './method-call'
 import { EvalError } from './eval-context'
 import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
@@ -175,10 +176,19 @@ const ubiDesc: NumV6 = {
 const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc, ubiDesc]
 
 function makeToBytes(t: NumV6): HandlerFn {
+  // JVM `Byte/Short/Int/Long.toBytes` go through `IntegralType.toBytes` and
+  // down to the generic `Colls.fromArray[Byte](...)` under an ERASED `Byte`
+  // parameter — PLAIN (`sigma/ast/methods.scala` `toBytesMethod_eval`,
+  // `IntegralOps.scala`, routing `arr.toColl` in `Extensions.scala:16-19`).
+  // `BigInt.toBytes` and `UnsignedBigInt.toBytes` route through
+  // `CBigInt.toBytes` / `CUnsignedBigInt.toBytes`
+  // (`CBigInt.scala:65-67`, `CUnsignedBigInt.scala:26-28`), which call
+  // `Colls.fromArray(arr)` at the CONCRETE `Byte` type — SPECIALISED.
+  const specialised = t.kind === 'BigInt' || t.kind === 'UnsignedBigInt'
   return (obj, _args, ctx) => {
     ctx.addCost(5)
     requireKind(obj, t.kind, `${t.kind}.toBytes`)
-    return bytesToCollByteSValue(t.toBE((obj as { value: number | bigint }).value))
+    return byteColl(t.toBE((obj as { value: number | bigint }).value), specialised)
   }
 }
 function makeToBits(t: NumV6): HandlerFn {
@@ -193,7 +203,10 @@ function makeToBits(t: NumV6): HandlerFn {
         items[i * 8 + (7 - bit)] = { kind: 'Boolean', value: ((byte >> bit) & 1) === 1 }
       }
     }
-    return { kind: 'Coll', elem: SBOOLEAN, items }
+    // `<numeric>.toBits` builds a `Coll[Boolean]` through `Colls.fromArray`
+    // at the concrete `Boolean` type (`ExactNumeric.toBits`,
+    // `NumericOps.scala`) — SPECIALISED Coll[Boolean].
+    return fromArray(SBOOLEAN, items, true)
   }
 }
 

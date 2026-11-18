@@ -28,7 +28,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 
 export function evalLongToByteArray(
   e: LongToByteArray,
@@ -48,5 +48,8 @@ export function evalLongToByteArray(
   // sigma-rust loop `for i in (0..8).rev() { buf[i] = (val & 0xFF) as i8; val >>= 8 }`.
   const out = new Uint8Array(8)
   new DataView(out.buffer).setBigInt64(0, inputV.value, false)
-  return bytesToCollByteSValue(out)
+  // JVM `LongToByteArray` returns `Colls.fromArray(Longs.toByteArray(v))` at
+  // the concrete `Byte` type (`LongOps.scala`, `toByteArray_eval`
+  // in `trees.scala`) — specialised.
+  return byteColl(out, true)
 }

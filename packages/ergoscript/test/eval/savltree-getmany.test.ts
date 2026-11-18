@@ -22,7 +22,7 @@ import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { evalSAvlTreeGetMany } from '../../src/eval/savltree'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, plainColl, rehydrateEvalOpts, captureEvalError, withoutClass } from '../_helpers'
 
 interface GetManyEntry {
   name: string
@@ -47,7 +47,7 @@ describe('SAvlTree.getMany — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }
@@ -135,12 +135,13 @@ describe('SAvlTree.getMany — empty keys + construct-failing proof (JVM-canonic
     const ctx = makeContext({})
     const result = evalSAvlTreeGetMany(ctx, treeObj, [emptyKeys, garbageProof])
 
-    // Result: empty Coll[Option[Coll[Byte]]].
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } },
-      items: [],
-    })
+    // Result: empty Coll[Option[Coll[Byte]]]. `AvlTree.getMany` builds the
+    // outer through `keys.map`, a plain `CollOverArray` over the reference
+    // item type `Option[Coll[Byte]]` (`CollsOverArrays.scala:317-324`).
+    expect(result).toEqual(plainColl(
+      { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } },
+      [],
+    ))
 
     // Cost: createVerifier only — no lookup charges (chargedOps(null, 0) = 0).
     // proofLen=100: chunks = Math.trunc(99/64)+1 = 2 → 110 + 20*2 = 150.
@@ -220,12 +221,11 @@ describe('SAvlTree.getMany — F4 pin 12: empty-keys + VALID proof (Task 7)', ()
     const ctx = makeContext({})
     const result = evalSAvlTreeGetMany(ctx, treeObj, [emptyKeys, proofColl])
 
-    // Result: empty Coll[Option[Coll[Byte]]].
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } },
-      items: [],
-    })
+    // Result: empty Coll[Option[Coll[Byte]]]. Same plain class as pin 11.
+    expect(result).toEqual(plainColl(
+      { tag: 'SOption', elem: { tag: 'SColl', elem: { tag: 'SByte' } } },
+      [],
+    ))
 
     // Cost: createVerifier only.
     // proofLen=81: chunks = Math.trunc((81-1)/64)+1 = 1+1 = 2 → 110+40=150.

@@ -16,7 +16,7 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts , withoutClass } from '../_helpers'
 import type { MethodCall as MethodCallExpr } from '../../src/mir/types'
 
 interface FixtureEntry {
@@ -42,7 +42,7 @@ describe('SGroupElement.getEncoded — fixture-driven (Layer C1)', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

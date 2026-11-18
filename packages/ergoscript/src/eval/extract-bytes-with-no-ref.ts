@@ -34,7 +34,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 import { serializeBoxBytesWithoutRef } from '../wire/ergo-box-bytes'
 
 // Cost source: sigma-rust eval/extract_bytes_with_no_ref.rs:15 — ctx.add_jit_cost(12)?
@@ -54,5 +54,8 @@ export function evalExtractBytesWithNoRef(
       'extract-input-not-box'
     )
   }
-  return bytesToCollByteSValue(serializeBoxBytesWithoutRef(input.value))
+  // JVM `.bytesWithoutRef` is a specialised `Coll[Byte]` — `CBox.scala:26`
+  // `bytesWithoutRef = Colls.fromArray(ebox.bytesWithNoRef)` goes through
+  // the `Byte`-specialised `fromArray` (`CollsOverArrays.scala:226-233`).
+  return byteColl(serializeBoxBytesWithoutRef(input.value), true)
 }

@@ -46,7 +46,6 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { activatedScriptVersion } from './_activated-version'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE, creationInfoTupleSValue } from './_box-synthesis'
 import { boxBytesOf, boxIdOf } from './_box-id'
 import { serializeBoxBytesWithoutRef } from '../wire/ergo-box-bytes'
@@ -72,7 +71,13 @@ import {
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
-import { indices as collIndices, zip as collZip } from './_coll'
+import {
+  byteColl,
+  collOverArray,
+  fromArray,
+  indices as collIndices,
+  zip as collZip,
+} from './_coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalEncodeNbits } from './global-encode-nbits'
@@ -230,7 +235,9 @@ function registerHandlers(): void {
     if (obj.kind !== 'Box') {
       throw new EvalError(`SBox.propositionBytes expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
-    return bytesToCollByteSValue(obj.value.ergoTreeBytes)
+    // JVM `box.propositionBytes` is specialised — `CBox.scala:27`
+    // `Colls.fromArray(ebox.propositionBytes)` under the concrete `Byte` type.
+    return byteColl(obj.value.ergoTreeBytes, true)
   } })
 
   // SBox.bytes (99:3) — op-form ExtractBytes (extract-bytes.ts), cost 12.
@@ -241,7 +248,8 @@ function registerHandlers(): void {
     }
     // JVM `.bytes` basis: parse-retained slice, canonical re-serialization only
     // for constructed boxes (shared with box-EQ + 99:5 id via boxBytesOf/boxIdOf).
-    return bytesToCollByteSValue(boxBytesOf(obj.value))
+    // Specialised — `CBox.scala:25` `Colls.fromArray(ebox.bytes)` under `Byte`.
+    return byteColl(boxBytesOf(obj.value), true)
   } })
 
   // SBox.bytesWithoutRef (99:4) — op-form ExtractBytesWithNoRef (extract-bytes-with-no-ref.ts), cost 12.
@@ -251,7 +259,8 @@ function registerHandlers(): void {
       throw new EvalError(`SBox.bytesWithoutRef expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
     // ALWAYS canonical re-serialization (no retained candidate slice JVM-side).
-    return bytesToCollByteSValue(serializeBoxBytesWithoutRef(obj.value))
+    // Specialised — `CBox.scala:26` `Colls.fromArray(ebox.bytesWithNoRef)` under `Byte`.
+    return byteColl(serializeBoxBytesWithoutRef(obj.value), true)
   } })
 
   // SBox.id (99:5) — op-form ExtractId (extract-id.ts), cost 12.
@@ -261,8 +270,9 @@ function registerHandlers(): void {
       throw new EvalError(`SBox.id expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
     // blake2b256 over the `.bytes` basis: Box.id == blake2b256(Box.bytes) by
-    // construction (boxIdOf shares boxBytesOf).
-    return bytesToCollByteSValue(boxIdOf(obj.value))
+    // construction (boxIdOf shares boxBytesOf). Specialised — `CBox.scala:24`
+    // `Colls.fromArray(ebox.id)` under the concrete `Byte` type.
+    return byteColl(boxIdOf(obj.value), true)
   } })
 
   // SBox.creationInfo (99:6) — op-form ExtractCreationInfo (extract-creation-info.ts), cost 16.
@@ -330,7 +340,10 @@ function registerHandlers(): void {
         'context-field-missing'
       )
     }
-    return bytesToCollByteSValue(ctx.preHeader.minerPk)
+    // `preHeader.minerPk.getEncoded` — `CGroupElement.scala:16`
+    // `Colls.fromArray(GroupElementSerializer.toBytes(...))` is specialised,
+    // the concrete `Byte` branch. Matches `ErgoLikeContext.scala:171`.
+    return byteColl(ctx.preHeader.minerPk, true)
   } })
 
   // SContext.selfBoxIndex (PropertyCall, typeId=101, methodId=8)
@@ -397,7 +410,14 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value.parentId)
+    // JVM `preHeader.parentId` is PLAIN — `CPreHeader.scala:23`
+    // `parentId = _parentId` reads the already-wrapped field, which the
+    // chain's deserializer builds with `.toColl` (`Extensions.scala:16-19`)
+    // under an ERASED `Byte` type parameter, taking the generic `fromArray`
+    // branch (not the specialised one). SANTA `Coll.patch_array_class_context_v6`
+    // #551 `CONTEXT.preHeader.parentId.patch(0, <empty Coll[Boolean]>, 0)`
+    // answers at cost 106; the header twin #343 refuses.
+    return byteColl(obj.value.parentId, false)
   } })
 
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
@@ -486,8 +506,8 @@ function registerHandlers(): void {
   // SPreHeader.votes (PropertyCall, typeId=105, methodId=7)
   // Source (JVM canonical): methods.scala:1847 (SPreHeaderMethods) —
   // FixedCost(JitCost(10)). Returns Coll[Byte] (3 bytes). NO version gate (v1+).
-  // Pattern A cost 10 (charged before obj check). Wraps via bytesToCollByteSValue
-  // (per-byte sign-extend), same as SPreHeader.parentId (105:2).
+  // Pattern A cost 10 (charged before obj check). Same route as
+  // SPreHeader.parentId (105:2) — a PLAIN `Coll[Byte]`.
   HANDLERS.set(handlerKey(105, 7), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(10)
     if (obj.kind !== 'PreHeader') {
@@ -496,7 +516,8 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value.votes)
+    // JVM `preHeader.votes` is PLAIN, same route as `parentId` above.
+    return byteColl(obj.value.votes, false)
   } })
 
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
@@ -664,7 +685,10 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value)
+    // `CGroupElement.getEncoded` (`CGroupElement.scala:16`) is
+    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` under
+    // the concrete `Byte` type — specialised.
+    return byteColl(obj.value, true)
   } })
 
   // SGroupElement.negate (MethodCall, typeId=7, methodId=5) — v5 method
@@ -1360,38 +1384,48 @@ registerHandlers()
 
 // ---------- SBox.tokens helper ----------
 
-/** Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue. */
+/**
+ * Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue.
+ *
+ * JVM `box.tokens` (`CBox.scala:34`, `ErgoBoxCandidate.scala:128-130`)
+ * builds the outer collection with `fromArray[(Coll[Byte], Long)]` under a
+ * REFERENCE item type — no `@specialized` branch, no pair routing — so the
+ * result is a plain `CollOverArray` over `Tuple2[]`, NOT a `PairOfCols`
+ * (`CollsOverArrays.scala:11`, :274). Each token id is specialised: the
+ * JVM's `Token.id` is `Colls.fromArray(id)` under the concrete `Byte` type.
+ */
 function tokensCollOf(box: ErgoBox): SValue {
-  return {
-    kind: 'Coll',
-    elem: STUPLE_COLLBYTE_LONG,
-    // token amounts: signed-i64 view (JVM as Long; F3.5)
-    items: box.tokens.map((t) => ({
-      kind: 'Tuple',
-      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
-    })),
-  }
+  const items: SValue[] = box.tokens.map((t) => ({
+    kind: 'Tuple',
+    items: [byteColl(t.id, true), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
+  }))
+  return collOverArray(STUPLE_COLLBYTE_LONG, items)
 }
 
 // ---------- SContext.dataInputs helper ----------
 
-/** Convert an ErgoBox[] to a Coll[Box] SValue. */
+/**
+ * Convert an ErgoBox[] to a Coll[Box] SValue. JVM `CContext.dataInputs` is
+ * built by `dataBoxes.toArray.map(_.toTestBox).toColl`
+ * (`ErgoLikeContext.scala:148`), which goes through
+ * `Colls.fromArray(arr)` under an erased reference type — the generic,
+ * plain `fromArray` branch (`CollsOverArrays.scala:226-233`). Shape
+ * `'array'`, plain, over `Box`.
+ */
 function dataInputsCollOf(boxes: ErgoBox[]): SValue {
-  return {
-    kind: 'Coll',
-    elem: SBOX,
-    items: boxes.map((b) => ({ kind: 'Box', value: b })),
-  }
+  return fromArray(SBOX, boxes.map((b) => ({ kind: 'Box', value: b })), false)
 }
 
 // ---------- SContext.headers helper ----------
 
-/** Convert a Header[] to a Coll[Header] SValue. */
+/**
+ * Convert a Header[] to a Coll[Header] SValue. JVM `CContext.headers` is
+ * passed to the constructor as the already-wrapped collection; chain code
+ * builds it with `.toColl` on an `Array[Header]` (`Extensions.scala:16-19`)
+ * under an erased reference type — the generic, plain `fromArray` branch.
+ * Shape `'array'`, plain, over `Header`.
+ */
 function headersCollOf(headers: Header[]): SValue {
-  return {
-    kind: 'Coll',
-    elem: SHEADER,
-    items: headers.map((h) => ({ kind: 'Header', value: h })),
-  }
+  return fromArray(SHEADER, headers.map((h) => ({ kind: 'Header', value: h })), false)
 }
 

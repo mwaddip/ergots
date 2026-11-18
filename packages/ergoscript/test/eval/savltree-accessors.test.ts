@@ -33,7 +33,7 @@ import {
   evalSAvlTreeKeyLength,
   evalSAvlTreeValueLengthOpt,
 } from '../../src/eval/savltree'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts , withoutClass } from '../_helpers'
 import type { SValue, SType } from '../../src/mir/types'
 
 interface AccessorEntry {
@@ -71,7 +71,7 @@ for (const { handler, file } of ACCESSOR_FIXTURES) {
         const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
         const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
         const value = evaluateWith(tree, ctx)
-        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
         expect(ctx.jitCost).toBe(entry.expected_cost)
       })
     }

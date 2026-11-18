@@ -36,7 +36,7 @@ import type { GlobalVars, SType, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl, fromArray } from './_coll'
 import { GROUP_GENERATOR_BYTES } from './_group-generator'
 
 // Cost constants — source: sigma-rust eval/global_vars.rs inline comments.
@@ -89,11 +89,10 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      return {
-        kind: 'Coll',
-        elem: SBOX_TYPE,
-        items: ctx.outputs.map((b) => ({ kind: 'Box' as const, value: b })),
-      }
+      // JVM `CContext.outputs` is built by `.toArray.map(_.toTestBox).toColl`
+      // (`ErgoLikeContext.scala:159`), the generic `fromArray` branch over
+      // the reference `Box` item type — plain, no pair routing.
+      return fromArray(SBOX_TYPE, ctx.outputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'Inputs': {
       ctx.addCost(INPUTS_COST)
@@ -103,11 +102,9 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      return {
-        kind: 'Coll',
-        elem: SBOX_TYPE,
-        items: ctx.inputs.map((b) => ({ kind: 'Box' as const, value: b })),
-      }
+      // JVM `CContext.inputs` is built the same way as `outputs` above —
+      // plain `CollOverArray` over `Box[]`.
+      return fromArray(SBOX_TYPE, ctx.inputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'MinerPubKey': {
       ctx.addCost(MINER_PUB_KEY_COST)
@@ -118,10 +115,11 @@ export function evalGlobalVars(
         )
       }
       // MinerPubkey returns Coll[Byte] (33 compressed bytes), not GroupElement.
-      // Sigma-rust: `ctx.pre_header.miner_pk.sigma_serialize_bytes()?.into()`
-      // The miner_pk field in our TS PreHeader is already the 33-byte
-      // compressed SEC1 bytes (set by the EvalOpts.preHeader.minerPk field).
-      return bytesToCollByteSValue(ctx.preHeader.minerPk)
+      // `ErgoLikeContext.scala:171` hands the context `preHeader.minerPk.getEncoded`,
+      // which is `CGroupElement.scala:16` `Colls.fromArray(toBytes(...))` under
+      // the concrete `Byte` type — specialised. The miner_pk field in our TS
+      // PreHeader is already the 33-byte compressed SEC1 bytes.
+      return byteColl(ctx.preHeader.minerPk, true)
     }
     case 'GroupGenerator': {
       ctx.addCost(GROUP_GENERATOR_COST)

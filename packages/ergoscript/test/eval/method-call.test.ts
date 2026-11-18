@@ -20,7 +20,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
 import type { MethodCall, PropertyCall } from '../../src/mir/types'
-import { hexToBytes, hydrateSValue, synthesizeStubBox, captureEvalError, parseParsedTree as parseTree } from '../_helpers'
+import { hexToBytes, hydrateSValue, synthesizeStubBox, captureEvalError, parseParsedTree as parseTree , withoutClass } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -225,7 +225,7 @@ describe('method-call fixture entries (Tasks 4-6: SBox.tokens + SContext.dataInp
         dataInputs,
       })
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

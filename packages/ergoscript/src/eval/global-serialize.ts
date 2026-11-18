@@ -27,7 +27,7 @@
 
 import { ByteWriter } from '@ergots/scorex'
 import { serializeSValue } from '../wire/serialize-svalue'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 import { sValueType } from './svalue-type'
 import { serializeCost } from './serialize-cost'
 import { EvalError, type EvalContext } from './eval-context'
@@ -89,5 +89,8 @@ export function evalGlobalSerialize(
     )
   }
 
-  return bytesToCollByteSValue(w.toBytes())
+  // JVM `Global.serialize_eval` ends `Colls.fromArray(w.toBytes)`
+  // (`sigma/ast/methods.scala:1981`) under the concrete `Byte` type —
+  // specialised.
+  return byteColl(w.toBytes(), true)
 }

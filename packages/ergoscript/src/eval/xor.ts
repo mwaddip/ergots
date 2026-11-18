@@ -33,7 +33,8 @@ import type { SValue, Xor } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
+import { collByteToUint8Array } from './_byte-coll'
+import { byteColl } from './_coll'
 
 export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
   // Pattern B: eval children FIRST, then guard, then charge.
@@ -49,5 +50,7 @@ export function evalXor(e: Xor, env: Env, ctx: EvalContext): SValue {
   const outLen = Math.min(l.length, r.length)
   const out = new Uint8Array(outLen)
   for (let i = 0; i < outLen; i++) out[i] = l[i]! ^ r[i]!
-  return bytesToCollByteSValue(out)
+  // JVM `Xor` returns the paired byte result wrapped through `Colls.fromArray`
+  // at the concrete `Byte` type (`Xor.eval` in `trees.scala`) — specialised.
+  return byteColl(out, true)
 }

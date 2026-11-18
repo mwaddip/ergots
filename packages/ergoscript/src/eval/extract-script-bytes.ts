@@ -23,7 +23,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 
 // Cost source: sigma-rust eval/extract_script_bytes.rs:15 — inline literal
 //   ctx.add_jit_cost(10)?;
@@ -43,5 +43,8 @@ export function evalExtractScriptBytes(
       'extract-input-not-box'
     )
   }
-  return bytesToCollByteSValue(input.value.ergoTreeBytes)
+  // JVM `ExtractScriptBytes` returns `box.propositionBytes`, a specialised
+  // `Coll[Byte]` built via `Colls.fromArray(Array[Byte])` under the
+  // concrete `Byte` type (`CollsOverArrays.scala:226-233`, specialised arm).
+  return byteColl(input.value.ergoTreeBytes, true)
 }

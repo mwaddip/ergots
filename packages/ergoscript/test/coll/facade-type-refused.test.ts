@@ -26,7 +26,7 @@ import { Env } from '../../src/eval/env'
 import { evalExpr } from '../../src/eval/eval'
 import { evalMap } from '../../src/eval/coll-map'
 import { evalSlice } from '../../src/eval/coll-slice'
-import type { Expr, Map as MapExpr, Slice as SliceExpr, SType, SValue } from '../../src/mir/types'
+import type { Expr, Map as MapExpr, Slice as SliceExpr, SType } from '../../src/mir/types'
 
 describe('the facade guard (eval/_coll.ts)', () => {
   it('translates CollTypeRefused into EvalError(unsupported-value-type) with the same message', () => {

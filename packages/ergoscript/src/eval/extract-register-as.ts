@@ -32,7 +32,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { sTypeEquals } from '../mir/stype-helpers'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl, collOverArray } from './_coll'
 import { creationInfoTupleSValue, SINT, SCOLL_BYTE } from './_box-synthesis'
 
 // Cost source: sigma-rust eval/extract_reg_as.rs:21 — ctx.add_jit_cost(50)
@@ -66,14 +66,18 @@ const STUPLE_INT_COLLBYTE: SType = {
 function tokensToCollTupleSValue(
   tokens: { id: Uint8Array; amount: bigint }[]
 ): SValue {
+  // R2 mirrors `Box.tokens` (`CBox.scala:34`, `ErgoBoxCandidate.scala:128-130`):
+  // a plain `CollOverArray` over a pair ITEM type, with the pair held as the
+  // runtime `Tuple2` rather than routed to `PairOfCols`. The token id is
+  // specialised (`Token.id` is `Colls.fromArray` under the concrete `Byte`).
   const items: SValue[] = tokens.map((t) => ({
     kind: 'Tuple' as const,
     items: [
-      bytesToCollByteSValue(t.id),
+      byteColl(t.id, true),
       { kind: 'Long' as const, value: BigInt.asIntN(64, t.amount) },
     ],
   }))
-  return { kind: 'Coll', elem: STUPLE_COLLBYTE_LONG, items }
+  return collOverArray(STUPLE_COLLBYTE_LONG, items)
 }
 
 /**
@@ -95,10 +99,17 @@ export function getRegisterEntry(
       // R0 → SLong(box.value) — signed-i64 view (JVM `as Long`; F3.5)
       return { tpe: SLONG, value: { kind: 'Long', value: BigInt.asIntN(64, box.value) } }
     case 1:
-      // R1 → SColl[SByte] of box.ergoTreeBytes (script_bytes in sigma-rust)
+      // R1 → SColl[SByte] of box.ergoTreeBytes. JVM `ErgoBoxCandidate.get(R1)`
+      // (`ErgoBoxCandidate.scala:76`) wraps `propositionBytes` through
+      // `ByteArrayConstant(bytes)`; the constant's data value is
+      // `Colls.fromArray(bytes)` at the ERASED `Byte` type held by the
+      // `Constant.value` field — the generic `fromArray` branch, PLAIN. Note
+      // the asymmetry with the box PROPERTY `propositionBytes` (99:2), which
+      // reads the same bytes through `CBox.scala:27` under the concrete
+      // `Byte` and is specialised.
       return {
         tpe: SCOLL_BYTE,
-        value: bytesToCollByteSValue(box.ergoTreeBytes),
+        value: byteColl(box.ergoTreeBytes, false),
       }
     case 2:
       // R2 → SColl[STuple[SColl[SByte], SLong]] of tokens_raw

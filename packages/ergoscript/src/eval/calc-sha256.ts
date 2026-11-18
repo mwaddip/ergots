@@ -26,7 +26,8 @@ import type { CalcSha256, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
+import { collByteToUint8Array } from './_byte-coll'
+import { byteColl } from './_coll'
 
 export function evalCalcSha256(
   e: CalcSha256,
@@ -38,5 +39,7 @@ export function evalCalcSha256(
   // Pattern B: charge AFTER eval-child + AFTER type guard.
   ctx.addPerItemCost(80, 8, 64, bytes.length)
   const digest = sha256(bytes)
-  return bytesToCollByteSValue(digest)
+  // JVM `CalcSha256` builds the result through `Colls.fromArray` at the
+  // concrete `Byte` type — specialised, like `CalcBlake2b256`.
+  return byteColl(digest, true)
 }
