@@ -466,7 +466,12 @@ export function patch(
   }
   if (cls.shape === 'pairs') {
     const sides = splitSides(c, cls)
-    const patchSides = unzipForPatch(p)
+    // An empty operand of unknown class stands in as two empty operands per
+    // side: `patch` on each side with its own empty gives the receiver side
+    // back by the side's class rule, and `pairColl` rebuilds the pair.
+    const patchSides = isUnknown(p)
+      ? { ls: empty(sides.ls.elem), rs: empty(sides.rs.elem) }
+      : unzipForPatch(p)
     return pairColl(
       patch(sides.ls, from, patchSides.ls, replaced),
       patch(sides.rs, from, patchSides.rs, replaced),

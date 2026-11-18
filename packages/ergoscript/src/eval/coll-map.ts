@@ -201,13 +201,16 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
         ? sValueType(outItems[0]!)
         : (outElemTpe ?? inputColl.elem)
 
-  // An empty output whose `outElem` contains ergots' own `SAny` is the C1
-  // case: the JVM has the real range at this call and gives the result its
-  // array; ergots cannot name it, and the result carries the unknown class.
-  // Every reader by class takes it by the empty-of-the-receiver's-class
-  // rule.
+  // Where the mapper's static range type is not concrete (either `exprTpe`
+  // is not `SFunc`, or it is `SFunc` but the range holds `SAny` at any
+  // depth) and the output is empty, the result is the empty collection of
+  // unknown class. The JVM has the real range at this call and gives the
+  // result its array; ergots cannot name it. A class made from the
+  // receiver's item type is a guess like any other, so this arm takes the
+  // one fact that `outElemTpe` encoded (`staticConcrete`) rather than a
+  // second test on `outElem`.
   if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
-  if (outItems.length === 0 && hasSAny(outElem)) {
+  if (outItems.length === 0 && !staticConcrete) {
     return empty(outElem)
   }
   // `MapCollection.eval` (transformers.scala:40-46) calls

@@ -95,6 +95,41 @@ describe('unknown as an operand: a reader by class does not refuse it', () => {
     })
   })
 
+  it('patch on a pairs receiver with a plain-sided class and unknown operand returns the receiver', () => {
+    const recv = pairsColl(
+      { tag: 'STuple', items: [SBYTE, SLONG] },
+      [pair(byte(1), long(10n)), pair(byte(2), long(20n))],
+      { shape: 'array', specialised: false, array: 'byte' },
+      { shape: 'array', specialised: false, array: 'long' },
+    )
+    const u = emptyOfUnknownClass(SANY)
+    const out = patch(recv, 0, u, 0)
+    expect(out.items).toEqual([pair(byte(1), long(10n)), pair(byte(2), long(20n))])
+    expect(out.elem).toEqual({ tag: 'STuple', items: [SBYTE, SLONG] })
+    expect(classOf(out)).toEqual({
+      shape: 'pairs',
+      ls: { shape: 'array', specialised: false, array: 'byte' },
+      rs: { shape: 'array', specialised: false, array: 'long' },
+    })
+  })
+
+  it('patch on a pairs receiver with a specialised side and unknown operand returns the receiver', () => {
+    const recv = pairsColl(
+      { tag: 'STuple', items: [SBYTE, SLONG] },
+      [pair(byte(1), long(10n)), pair(byte(2), long(20n))],
+      { shape: 'array', specialised: true, array: 'byte' },
+      { shape: 'array', specialised: false, array: 'long' },
+    )
+    const u = emptyOfUnknownClass(SANY)
+    const out = patch(recv, 0, u, 0)
+    expect(out.items).toEqual([pair(byte(1), long(10n)), pair(byte(2), long(20n))])
+    expect(classOf(out)).toEqual({
+      shape: 'pairs',
+      ls: { shape: 'array', specialised: true, array: 'byte' },
+      rs: { shape: 'array', specialised: false, array: 'long' },
+    })
+  })
+
   it('patch on a specialised receiver with an unknown empty patch gives an empty patch result', () => {
     const recv = specColl(SBYTE, [byte(1), byte(2), byte(3)])
     const u = emptyOfUnknownClass(SANY)
@@ -117,6 +152,30 @@ describe('unknown as an operand: a reader by class does not refuse it', () => {
     const out = updateMany(recv, [], u)
     expect(out.items).toEqual([byte(1), byte(2)])
     expect(classOf(out)).toEqual({ shape: 'array', specialised: true, array: 'byte' })
+  })
+
+  it('startsWith and endsWith on a pairs receiver with an unknown empty argument are true', () => {
+    const recv = pairsColl(
+      { tag: 'STuple', items: [SBYTE, SLONG] },
+      [pair(byte(1), long(10n))],
+      { shape: 'array', specialised: true, array: 'byte' },
+      { shape: 'array', specialised: false, array: 'long' },
+    )
+    const u = emptyOfUnknownClass(SANY)
+    expect(startsWith(recv, u, eq)).toBe(true)
+    expect(endsWith(recv, u, eq)).toBe(true)
+  })
+
+  it('updateMany on a pairs receiver with an unknown empty values-coll leaves the items unchanged', () => {
+    const recv = pairsColl(
+      { tag: 'STuple', items: [SBYTE, SLONG] },
+      [pair(byte(1), long(10n)), pair(byte(2), long(20n))],
+      { shape: 'array', specialised: true, array: 'byte' },
+      { shape: 'array', specialised: false, array: 'long' },
+    )
+    const u = emptyOfUnknownClass(SANY)
+    const out = updateMany(recv, [], u)
+    expect(out.items).toEqual([pair(byte(1), long(10n)), pair(byte(2), long(20n))])
   })
 })
 

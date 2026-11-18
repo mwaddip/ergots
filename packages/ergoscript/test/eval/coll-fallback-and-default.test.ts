@@ -114,3 +114,24 @@ describe('C3 — the unzip of a lying pair-array operand stores each component',
     expect((r as { value: { kind: string } }).value.kind).toBe('SigmaProp')
   })
 })
+
+describe('IMP-1 — patch on a pairs receiver with an empty unknown operand', () => {
+  // sigmaProp(size(Coll(1.toByte).zip(Coll(SELF)).patch(0, CONTEXT.headers.map{(h: Header) => (CONTEXT.preHeader.version, SELF)}, 0)) == 1)
+  // The mapper range types as (Byte, Box) in sigma-state 6.0.7 (`CONTEXT.preHeader.version`
+  // is Byte, `SELF` is Box), matching the receiver's pair elem (Byte, Box). The JVM
+  // reduces at cost 17. Ergots' method-signature catalog has no entry for 105:1, so
+  // `CONTEXT.preHeader.version` types as `SAny`; the map arm builds an empty of the
+  // unknown class over the pair elem `STuple(SAny, SBox)`; the pairs-branch of `patch`
+  // short-circuits on the unknown operand and returns the receiver.
+  it('IMP-1 at tree v3 reduces', () => {
+    const r = reduce('0b2bd193b1dc0c13dc0c1d0e010101830163a7030400addb6502fed90101688602db6901db6508fea704000402')
+    expect(r.verdict).toBe('reduced')
+    expect((r as { value: { kind: string } }).value.kind).toBe('SigmaProp')
+  })
+
+  it('IMP-1 at tree v0 reduces', () => {
+    const r = reduce('082bd193b1dc0c13dc0c1d0e010101830163a7030400addb6502fed90101688602db6901db6508fea704000402')
+    expect(r.verdict).toBe('reduced')
+    expect((r as { value: { kind: string } }).value.kind).toBe('SigmaProp')
+  })
+})
