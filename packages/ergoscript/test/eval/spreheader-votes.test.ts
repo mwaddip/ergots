@@ -2,8 +2,9 @@
  * SPreHeader.votes handler (typeId 105, methodId 7).
  *
  * Pattern A cost 10 (charged before obj check). Returns the 3-byte `votes` as
- * `Coll[Byte]` via `bytesToCollByteSValue` (per-byte sign-extend; same helper
- * the SPreHeader.parentId handler at 105:2 uses). No version gate (v1+).
+ * `Coll[Byte]` via `byteColl(bytes, false)` (per-byte sign-extend; the plain
+ * class, same shape as the SPreHeader.parentId handler at 105:2).
+ * No version gate (v1+).
  * JVM `methods.scala:1847` (SPreHeaderMethods), `FixedCost(JitCost(10))`.
  *
  * Total eval cost (success via Context.preHeader.votes chain):

@@ -30,7 +30,8 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 
-import { evalSantaEntry, svalueToSantaJson, type SantaVector } from './_santa'
+import { type SantaVector } from './_santa'
+import { loadRedTable, RED_REASONS, redReason, rowMismatch } from './_red-table'
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url))
 const vectorDir = path.join(__dirname, '../fixtures/conformance/v5')
@@ -62,6 +63,40 @@ const KNOWN_DIVERGENCES: Record<string, Record<string, string>> = {
   // longer divergent — un-skipped. See docs/specs/2026-06-01-ergoscript-a3-*.
 }
 
+// Self-test for the red table: every path it names exists under
+// test/fixtures/conformance/<v5|v6>/, every entry it names exists in that
+// file, every reason id it uses is in RED_REASONS, and no entry is listed
+// twice (within a file OR across reason ids).
+describe('red-table self-check', () => {
+  const fixturesRoot = path.join(__dirname, '../fixtures/conformance')
+  const table = loadRedTable()
+
+  it('every reason id used is in RED_REASONS', () => {
+    for (const byReason of Object.values(table)) {
+      for (const reason of Object.keys(byReason)) {
+        expect(RED_REASONS[reason], `unknown reason id '${reason}'`).toBeDefined()
+      }
+    }
+  })
+
+  it('every file and entry exists; no duplicate entries per file', () => {
+    for (const [filePath, byReason] of Object.entries(table)) {
+      const diskPath = path.join(fixturesRoot, filePath)
+      expect(fs.existsSync(diskPath), `missing fixture ${filePath}`).toBe(true)
+      const doc = JSON.parse(fs.readFileSync(diskPath, 'utf8')) as SantaVector
+      const entryNames = new Set(doc.entries.map((e) => e.name))
+      const seen = new Set<string>()
+      for (const [reason, entries] of Object.entries(byReason)) {
+        for (const entry of entries) {
+          expect(entryNames.has(entry), `${filePath} has no entry '${entry}'`).toBe(true)
+          expect(seen.has(entry), `${filePath}: entry '${entry}' listed twice (duplicate in '${reason}' or across reasons)`).toBe(false)
+          seen.add(entry)
+        }
+      }
+    }
+  })
+})
+
 for (const file of vectorFiles) {
   const doc = JSON.parse(fs.readFileSync(path.join(vectorDir, file), 'utf8')) as SantaVector
   describe(`SANTA v5 conformance — ${file} — ${doc.op} (${doc.blessed_by})`, () => {
@@ -69,17 +104,18 @@ for (const file of vectorFiles) {
       const known = KNOWN_DIVERGENCES[file]?.[e.name]
       const run = known ? it.skip : it
       run(`${e.name}${known ? ` [known divergence: ${known}]` : ''}`, () => {
-        const actual = evalSantaEntry(e)
-        if (e.expected.error !== null) {
-          expect(actual.error).toBe('errored')
+        // Single row check: null on match, a short failure description otherwise.
+        // A row NOT in the red table must match; a row IN the red table must NOT
+        // match (a listed row that passes fails with the sentinel text below).
+        const listed = redReason(`v5/${file}`, e.name)
+        const mismatch = rowMismatch(e)
+        if (listed === null) {
+          expect(mismatch, `entry ${e.name}: ${mismatch}`).toBeNull()
         } else {
-          // Compare at SANTA canonical JSON level to avoid false mismatches on
-          // ergots' internal fields (e.g. Option.elem, which SANTA omits).
-          // svalueToSantaJson normalises the actual before comparison; the
-          // expected is already in SANTA canonical JSON form in the vector.
-          expect(actual.error, `entry ${e.name} errored: ${actual.error}`).toBeNull()
-          expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
-          expect(actual.cost).toBe(e.expected.cost)
+          expect(
+            mismatch,
+            `entry ${e.name}: row is green; remove it from the red table (listed under '${listed}')`,
+          ).not.toBeNull()
         }
       })
     }

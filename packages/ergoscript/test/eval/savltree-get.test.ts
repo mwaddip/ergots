@@ -19,7 +19,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { makeContext } from '../../src/eval/eval-context'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError , withoutClass } from '../_helpers'
 
 interface GetEntry {
   name: string
@@ -44,7 +44,7 @@ describe('SAvlTree.get — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

@@ -116,6 +116,12 @@
  *    + 1 code added on 2026-09-30 ('deserialize-rebuild-failed': an ancestor the Deserialize
  *        rewrite rebuilds fails the constructor's checks, as Kiama's dup runs them; the same
  *        spec, §5) → 85.
+ *    + 2 codes added for the collection class rulings ('coll-class-cast': a cast of a value
+ *        or an array to another class a collection operation refuses — the JVM's
+ *        ClassCastException and the IllegalArgumentException Scala's array code raises in the
+ *        same places; 'coll-array-store': a store an array refuses — the JVM's
+ *        ArrayStoreException. CollsOverArrays.scala at 6.0.7: `getOrElse` :26 and :309-315,
+ *        the updated / updateMany / patch readers :48-57) → 87.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -1125,6 +1131,21 @@ export type EvalErrorCode =
    *
    * Source: JVM SType.scala:200-205, values.scala:251-254;
    *         eval/_check-type.ts.
+   *
+   * Also the code the evaluator's collection facade (`eval/_coll.ts`) raises
+   * for a `CollTypeRefused` from the module (`coll/class.ts`): the item type
+   * `stypeToRType` has no runtime type for — a top-level `STypeVar`, an
+   * `SFunc` of arity other than one or with type parameters, and any `SType`
+   * tag the module does not know. Mirrors the JVM's `sys.error` arm of
+   * `Evaluation.stypeToRType`
+   * (`core/shared/src/main/scala/sigma/Evaluation.scala:54-55` at 6.0.7:
+   * `case _ => sys.error(s"Don't know how to convert SType $t to RType")`),
+   * reached from every call site that reads a collection's class tag, such
+   * as `ConcreteCollection.eval` (`values.scala:890`:
+   * `Array.ofDim[V#WrappedType](len)(tElement.classTag)` over
+   * `tElement = stypeToRType(elementType)` at `:881`) and
+   * `MapCollection.eval` (`transformers.scala:43`:
+   * `Evaluation.stypeToRType(mapper.tpe.tRange)`).
    */
   | 'unsupported-value-type'
 
@@ -1202,3 +1223,36 @@ export type EvalErrorCode =
    * Source: `eval/svalue-type.ts:66` (default arm).
    */
   | 'coll-map-elem-type-infer-failed'
+
+  // -------------------------------------------------------------------------
+  // Collection class rulings (2 new codes; 85 → 87)
+  // -------------------------------------------------------------------------
+  /**
+   * A collection operation refuses to cast a value or an array to another
+   * class. The evaluator's facade (`eval/_coll.ts`) raises this code for a
+   * `CollClassCast` the collection module (`coll/ops.ts`) throws:
+   *   - A specialised `CollOverArray.getOrElse` reading a default whose
+   *     runtime class is not the receiver's primitive class — the JVM
+   *     unboxes the default through `BoxesRunTime.unboxTo<T>` at the call,
+   *     before the range test (`CollsOverArrays.scala:26` at 6.0.7), so an
+   *     ill-typed default throws IN range and out.
+   *   - A `PairOfCols.getOrElse` meeting a non-pair default at the method
+   *     call: the bridge method of the generic
+   *     `Coll.getOrElse(i: Int, default: A)` casts `default: Object` to
+   *     `Tuple2` before the body of `:309-315` runs, so a default that is
+   *     no pair refuses in range and out.
+   * The JVM throws `ClassCastException`, and `IllegalArgumentException` where
+   * Scala's array code raises it in the same places. ergots turns each into
+   * this one code: the spend is refused.
+   */
+  | 'coll-class-cast'
+  /**
+   * An array store a collection operation refuses: a primitive array handed
+   * an item of another class, or a reference array of one class handed an
+   * item the class does not accept. The evaluator's facade (`eval/_coll.ts`)
+   * raises this code for a `CollArrayStore` the collection module
+   * (`coll/ops.ts`) throws. The JVM throws `ArrayStoreException`
+   * (`CollsOverArrays.scala:48-57` and the updated / updateMany / patch
+   * readers).
+   */
+  | 'coll-array-store'

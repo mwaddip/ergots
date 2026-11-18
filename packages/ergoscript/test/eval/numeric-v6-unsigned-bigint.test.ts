@@ -3,15 +3,19 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall as MC, SValue, SType } from '../../src/mir/types'
+import { specColl } from '../_helpers'
 
 const SUBI: SType = { tag: 'SUnsignedBigInt' }
 const SINT: SType = { tag: 'SInt' }
 const v3 = () => makeContext({ treeVersion: 3 })
 const ubi = (value: bigint): SValue => ({ kind: 'UnsignedBigInt', value })
+// `UnsignedBigInt.toBytes` builds a specialised `Coll[Byte]` —
+// `CUnsignedBigInt.scala:26-28` `Colls.fromArray(asUnsignedByteArray(...))`
+// under the concrete `Byte` type. `UnsignedBigInt.toBits` is specialised too.
 const bytesColl = (...vs: number[]): SValue =>
-  ({ kind: 'Coll', elem: { tag: 'SByte' }, items: vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })) })
+  specColl({ tag: 'SByte' }, vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })))
 const bools = (...bs: boolean[]): SValue =>
-  ({ kind: 'Coll', elem: { tag: 'SBoolean' }, items: bs.map((b) => ({ kind: 'Boolean', value: b })) })
+  specColl({ tag: 'SBoolean' }, bs.map((b) => ({ kind: 'Boolean', value: b })))
 const unary = (methodId: number, v: bigint): MC =>
   ({ tag: 'MethodCall', obj: { tag: 'Const', tpe: SUBI, value: ubi(v) } as any, args: [], typeId: 9, methodId, explicitTypeArgs: {} })
 const binary = (methodId: number, a: bigint, b: bigint): MC =>

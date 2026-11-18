@@ -390,7 +390,12 @@ describe('SelectField: the tuple cast, then the index (transformers.scala:294-29
       const body = sp(EQ(SelectField(ByIndex(Coll(T.Tuple(T.Int, T.Int), [Tuple(int(1), int(2))]), int(5), int(7)), 1), int(1)))
       const b = probed('F2-sf-byindex-default-int-index1', body, 0x00, '00d1938cb2830158860204020404040a01040e010402')
       const tree = expectParsed(parseBox(b))
-      expect(captureEvalError(() => evaluate(tree)).code).toBe('select-field-input-not-tuple')
+      // The receiver is a `PairOfCols` (ConcreteCollection routes a pair item type through
+      // `fromBoxedPairs`, CollsOverArrays.scala:205-215): index 5 is out of range, so
+      // `PairOfCols.getOrElse` reads the Int default as `(d._1, d._2)` and throws
+      // `'coll-class-cast'` before SelectField runs — the JVM's ClassCastException on the
+      // same path (`CollsOverArrays.scala:309-315`).
+      expect(captureEvalError(() => evaluate(tree)).code).toBe('coll-class-cast')
     })
   })
   describe("over an input typed as ergots' own SAny, the parse passes an index of 1 to 127: residual 1", () => {

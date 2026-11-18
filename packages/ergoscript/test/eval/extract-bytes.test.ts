@@ -11,7 +11,7 @@
  *
  * `b.sigma_serialize_bytes()` returns the full canonical box bytes:
  *   value + ergoTree + creation_height + tokens + registers + tx_id + index
- * Reflected in TS by `serializeBoxBytes(box)` → `bytesToCollByteSValue(bytes)`.
+ * Reflected in TS by `boxBytesOf(box)` → `byteColl(bytes, true)`.
  *
  * Coverage (5 fixture entries):
  *   - minimal: no tokens, no registers, height=0
@@ -36,7 +36,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { ExtractBytes } from '../../src/mir/types'
-import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue , withoutClass } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -70,7 +70,7 @@ describe('ExtractBytes arm — fixture-driven', () => {
         expect(err.code).toBe(entry.expected_error_code)
       } else {
         const value = evaluateWith(tree, ctx)
-        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
         expect(ctx.jitCost).toBe(entry.expected_cost)
       }
     })

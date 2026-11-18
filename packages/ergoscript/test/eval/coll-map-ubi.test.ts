@@ -27,6 +27,7 @@ import { evalMap } from '../../src/eval/coll-map'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { Map, SType, SValue, FuncValue, ValUse, Const } from '../../src/mir/types'
+import { plainColl } from '../_helpers'
 
 const SUBI: SType = { tag: 'SUnsignedBigInt' }
 const SANY: SType = { tag: 'SAny' }
@@ -58,11 +59,9 @@ describe('inferSType: UnsignedBigInt arm (coll-map v6 P2b Task 5)', () => {
     // v6 tree (treeVersion 3) — UBI is a v6-only type.
     const ctx = makeContext({ treeVersion: 3 })
     const result = evalMap(node, Env.empty(), ctx)
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: SUBI,
-      items: [ubi(7n)],
-    })
+    // `MapCollection` is always plain (`CollsOverArrays.scala:28-31` calls
+    // `builder.fromArray` at abstract B).
+    expect(result).toEqual(plainColl(SUBI, [ubi(7n)]))
   })
 
   it('without the UBI arm, evalMap throws coll-map-elem-type-infer-failed (pre-fix RED check)', () => {

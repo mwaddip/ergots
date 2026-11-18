@@ -46,7 +46,6 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { activatedScriptVersion } from './_activated-version'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
 import { SCOLL_BYTE, creationInfoTupleSValue } from './_box-synthesis'
 import { boxBytesOf, boxIdOf } from './_box-id'
 import { serializeBoxBytesWithoutRef } from '../wire/ergo-box-bytes'
@@ -72,6 +71,16 @@ import {
 } from './savltree'
 import { evalSCollFlatMap } from './scoll-flat-map'
 import { evalCollReverse, evalCollGet, evalCollStartsWith, evalCollEndsWith } from './scoll-v6'
+import {
+  byteColl,
+  collOverArray,
+  fromArray,
+  indices as collIndices,
+  patch as collPatch,
+  updateMany as collUpdateMany,
+  updated as collUpdated,
+  zip as collZip,
+} from './_coll'
 import { evalGlobalDeserializeTo } from './global-deserialize-to'
 import { evalGlobalFromBigEndianBytes } from './global-from-bigendian-bytes'
 import { evalGlobalEncodeNbits } from './global-encode-nbits'
@@ -105,12 +114,10 @@ import {
 // Module-level SType singletons used in handler helpers.
 // Coll[STuple[SColl[Byte], Long]] — return type for tokensCollOf.
 // SBox — element type for dataInputsCollOf.
-// SInt — element type for indicesCollOf.
 // SHeader — element type for headersCollOf.
 const SLONG: SType = { tag: 'SLong' }
 const STUPLE_COLLBYTE_LONG: SType = { tag: 'STuple', items: [SCOLL_BYTE, SLONG] }
 const SBOX: SType = { tag: 'SBox' }
-const SINT: SType = { tag: 'SInt' }
 const SHEADER: SType = { tag: 'SHeader' }
 
 export type HandlerFn = (
@@ -231,7 +238,9 @@ function registerHandlers(): void {
     if (obj.kind !== 'Box') {
       throw new EvalError(`SBox.propositionBytes expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
-    return bytesToCollByteSValue(obj.value.ergoTreeBytes)
+    // JVM `box.propositionBytes` is specialised — `CBox.scala:27`
+    // `Colls.fromArray(ebox.propositionBytes)` under the concrete `Byte` type.
+    return byteColl(obj.value.ergoTreeBytes, true)
   } })
 
   // SBox.bytes (99:3) — op-form ExtractBytes (extract-bytes.ts), cost 12.
@@ -242,7 +251,8 @@ function registerHandlers(): void {
     }
     // JVM `.bytes` basis: parse-retained slice, canonical re-serialization only
     // for constructed boxes (shared with box-EQ + 99:5 id via boxBytesOf/boxIdOf).
-    return bytesToCollByteSValue(boxBytesOf(obj.value))
+    // Specialised — `CBox.scala:25` `Colls.fromArray(ebox.bytes)` under `Byte`.
+    return byteColl(boxBytesOf(obj.value), true)
   } })
 
   // SBox.bytesWithoutRef (99:4) — op-form ExtractBytesWithNoRef (extract-bytes-with-no-ref.ts), cost 12.
@@ -252,7 +262,8 @@ function registerHandlers(): void {
       throw new EvalError(`SBox.bytesWithoutRef expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
     // ALWAYS canonical re-serialization (no retained candidate slice JVM-side).
-    return bytesToCollByteSValue(serializeBoxBytesWithoutRef(obj.value))
+    // Specialised — `CBox.scala:26` `Colls.fromArray(ebox.bytesWithNoRef)` under `Byte`.
+    return byteColl(serializeBoxBytesWithoutRef(obj.value), true)
   } })
 
   // SBox.id (99:5) — op-form ExtractId (extract-id.ts), cost 12.
@@ -262,8 +273,9 @@ function registerHandlers(): void {
       throw new EvalError(`SBox.id expects a Box obj; got '${obj.kind}'`, 'method-not-implemented')
     }
     // blake2b256 over the `.bytes` basis: Box.id == blake2b256(Box.bytes) by
-    // construction (boxIdOf shares boxBytesOf).
-    return bytesToCollByteSValue(boxIdOf(obj.value))
+    // construction (boxIdOf shares boxBytesOf). Specialised — `CBox.scala:24`
+    // `Colls.fromArray(ebox.id)` under the concrete `Byte` type.
+    return byteColl(boxIdOf(obj.value), true)
   } })
 
   // SBox.creationInfo (99:6) — op-form ExtractCreationInfo (extract-creation-info.ts), cost 16.
@@ -331,7 +343,15 @@ function registerHandlers(): void {
         'context-field-missing'
       )
     }
-    return bytesToCollByteSValue(ctx.preHeader.minerPk)
+    // JVM `ErgoLikeContext.toSigmaContext()` hands the `CContext` constructor
+    // `preHeader.minerPk.getEncoded`
+    // (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:171`),
+    // which is `CGroupElement.getEncoded`
+    // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16`):
+    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+    // `Array[Byte]` — specialised. The handler reads back from
+    // `ctx.preHeader.minerPk`, the already-serialised bytes.
+    return byteColl(ctx.preHeader.minerPk, true)
   } })
 
   // SContext.selfBoxIndex (PropertyCall, typeId=101, methodId=8)
@@ -398,7 +418,19 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value.parentId)
+    // JVM `preHeader.parentId` is PLAIN. `CPreHeader.scala:9-17` carries
+    // `parentId: Coll[Byte]` as a stored field; the chain's deserializer
+    // wraps the 32 wire bytes with `.toColl` (`ArrayOps[T: RType].toColl`,
+    // `core/shared/src/main/scala/sigma/Extensions.scala:16-19`), which calls
+    // `Colls.fromArray` at an ERASED `Byte` parameter — the generic branch,
+    // not the specialised one. Blessed-row pin: SANTA
+    // `Coll.patch_array_class_context_v6` row
+    // `ctx-patch-B.preHeader.parentId-Zconst0-v3-a3#551`
+    // (`CONTEXT.preHeader.parentId.patch(0, <empty Coll[Boolean]>, 0)`)
+    // answers with a value; its header twin
+    // `ctx-patch-B.header.parentId-Zconst0-v3-a3#343` errors — the signature
+    // of a plain receiver and a specialised one.
+    return byteColl(obj.value.parentId, false)
   } })
 
   // SPreHeader.timestamp (PropertyCall, typeId=105, methodId=3)
@@ -487,8 +519,8 @@ function registerHandlers(): void {
   // SPreHeader.votes (PropertyCall, typeId=105, methodId=7)
   // Source (JVM canonical): methods.scala:1847 (SPreHeaderMethods) —
   // FixedCost(JitCost(10)). Returns Coll[Byte] (3 bytes). NO version gate (v1+).
-  // Pattern A cost 10 (charged before obj check). Wraps via bytesToCollByteSValue
-  // (per-byte sign-extend), same as SPreHeader.parentId (105:2).
+  // Pattern A cost 10 (charged before obj check). Same route as
+  // SPreHeader.parentId (105:2) — a PLAIN `Coll[Byte]`.
   HANDLERS.set(handlerKey(105, 7), { handler: (obj, _args, ctx, _explicitTypeArgs) => {
     ctx.addCost(10)
     if (obj.kind !== 'PreHeader') {
@@ -497,7 +529,11 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value.votes)
+    // JVM `preHeader.votes` is PLAIN, same route as `parentId` (105:2):
+    // `CPreHeader.scala:9-17` stores `votes: Coll[Byte]`, built by the
+    // chain's deserializer through `.toColl` at an ERASED `Byte` parameter
+    // (`sigma.Extensions.scala:16-19`).
+    return byteColl(obj.value.votes, false)
   } })
 
   // SColl.indexOf (MethodCall, typeId=12, methodId=26)
@@ -665,7 +701,12 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    return bytesToCollByteSValue(obj.value)
+    // `CGroupElement.getEncoded`
+    // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16-18`) is
+    // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+    // `Array[Byte]` — the specialised `fromArray` branch
+    // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
+    return byteColl(obj.value, true)
   } })
 
   // SGroupElement.negate (MethodCall, typeId=7, methodId=5) — v5 method
@@ -792,7 +833,11 @@ function registerHandlers(): void {
       )
     }
     ctx.addPerItemCost(20, 2, 16, n) // Pattern B; source: scoll.rs:179
-    return indicesCollOf(n)
+    // `CollOverArray.indices` (CollsOverArrays.scala:68) calls
+    // `builder.fromArray(toArray.indices.toArray)` over `Array[Int]`, picking
+    // the Int-specialised subclass; `PairOfCols.indices` (:408) returns the
+    // shorter side's `indices` — again specialised Coll[Int].
+    return collIndices(obj)
   } })
 
   // SColl.zip (MethodCall, typeId=12, methodId=29)
@@ -821,7 +866,11 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    return zipCollsOf(obj, arg)
+    // `CollOverArray.zip` (CollsOverArrays.scala:42) and `PairOfCols.zip`
+    // (:396) both call `builder.pairColl(this, ys)`: equal lengths give a
+    // `PairOfCols` of the two operands as they are; otherwise the longer side
+    // is cut with its own `slice` (:183-203), which keeps each side's class.
+    return collZip(obj, arg)
   } })
 
   // SColl.flatMap (MethodCall, typeId=12, methodId=15) — phase 2h-f
@@ -846,17 +895,17 @@ function registerHandlers(): void {
     },
   })
 
-  // SColl.patch (MethodCall, typeId=12, methodId=19) — campaign iter-28
-  // Source: ergotree-interpreter/src/eval/scoll.rs:195-236 — PATCH_EVAL_FN
-  // Pattern A cost: addPerItemCost(30, 2, 10, n) on INPUT length n, charged
-  // BEFORE pulling args (after the obj-is-Coll check), matching sigma-rust.
-  // `from` and `replaced` are each INDEPENDENTLY clamped to >=0 via Math.max(0),
-  // then: result = input.slice(0, from) ++ patch ++ input.slice(from + replaced).
-  // JS slice saturates out-of-bounds exactly like Rust take/skip. Result elem
-  // type = input's elem type. This is NOT generic Scala IndexedSeq.patch:
-  // sigma-rust clamps `from` to 0 BEFORE the skip(from+replaced) (upstream fix
-  // fc88669e), so e.g. [1,2,3].patch(-1,[4,5],1) → [4,5,2,3], not [4,5,1,2,3].
-  // V0+ (no version gate — scoll.rs PATCH_METHOD min_version: V0).
+  // SColl.patch (MethodCall, typeId=12, methodId=19). V0+.
+  // JVM: data/shared/src/main/scala/sigma/ast/methods.scala:1024-1030 (patch_eval);
+  // the body is `CollOverArray.patch` (CollsOverArrays.scala:94-98) and
+  // `PairOfCols.patch` (:423-428). Pattern A cost: addPerItemCost(30, 2, 10,
+  // nItems), charged BEFORE the body; nItems = xs.length + patch.length
+  // (methods.scala:1027). `from` and `replaced` each clamp to >= 0 as Scala's
+  // `Array.patch` does: `[1,2,3].patch(-1, [9], 1) = [9, 2, 3]`. The module
+  // (coll/ops.ts `patch`) builds the result — a specialised receiver casts the
+  // patch's array, a plain receiver stores each patch item, a pair receiver
+  // unzips the patch and patches each side — and the receiver's class decides
+  // the result's class (`builder.fromArray(res)` from inside the receiver).
   HANDLERS.set(handlerKey(12, 19), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -864,8 +913,12 @@ function registerHandlers(): void {
         'method-not-implemented' // reuse per error taxonomy option 1
       )
     }
-    const n = obj.items.length
-    ctx.addPerItemCost(30, 2, 10, n) // Pattern A; source: scoll.rs:204
+    // Defensive patch-length read: the arg-kind check below rejects before any
+    // body cost is observed on a non-Coll patch.
+    const patchArg0 = args[1]
+    const patchLen = patchArg0 !== undefined && patchArg0.kind === 'Coll' ? patchArg0.items.length : 0
+    const nItems = obj.items.length + patchLen
+    ctx.addPerItemCost(30, 2, 10, nItems) // Pattern A; methods.scala:1024-1030
     if (args.length !== 3) {
       throw new EvalError(
         `SColl.patch expects 3 args; got ${args.length}`,
@@ -891,28 +944,26 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // Independent clamp-to-0 (NOT clamped on the sum) — see doc-comment above.
-    const from = Math.max(0, fromArg.value)
-    const replaced = Math.max(0, replacedArg.value)
-    return {
-      kind: 'Coll',
-      elem: obj.elem,
-      items: [
-        ...obj.items.slice(0, from),
-        ...patchArg.items,
-        ...obj.items.slice(from + replaced),
-      ],
-    }
+    return collPatch(obj, fromArg.value, patchArg, replacedArg.value)
   } })
 
-  // SColl.updated (MethodCall, typeId=12, methodId=20) — v5 method
-  // Source: sigma-rust UPDATED_EVAL_FN (eval/scoll.rs, branch ergo-node-integration).
-  // Cost PerItemCost(20,1,10) on INPUT length n (sigma/ast/methods.scala:1035,
-  // canonical), charged BEFORE arg handling. Returns a copy
-  // with index i replaced by v. sigma-rust does `i as i32 as usize` then
-  // `res.get_mut(idx)` → None ⇒ err, so a NEGATIVE i wraps to a huge usize and is
-  // OOB as well. Result elem type = input's elem type. V0+ (UPDATED_METHOD min
-  // V0). Unused on mainnet — a valid v5 language method (SANTA conformance only).
+  // SColl.updated (MethodCall, typeId=12, methodId=20).
+  // Source: `data/shared/src/main/scala/sigma/ast/methods.scala:1033-1050`
+  // (`UpdatedMethod` + `updated_eval`) at sigma-state 6.0.7:
+  //     val costKind = m.costKind.asInstanceOf[PerItemCost]
+  //     E.addSeqCost(costKind, coll.length, m.opDesc) { () =>
+  //       coll.updated(index, elem)
+  //     }
+  // Cost `PerItemCost(baseCost = 20, perChunkCost = 1, chunkSize = 10)`
+  // (:1035) on `coll.length`. `addSeqCost` charges the cost before invoking
+  // the operation (`CErgoTreeEvaluator.scala:370-392`:
+  // `coster.add(costKind.cost(nItems))` runs before `block()`).
+  //
+  // A negative index on the JVM throws `IndexOutOfBoundsException` from
+  // `Array.updated` (`Array.copy` + `dest(index) = elem`); the handler
+  // mirrors it with `'coll-update-index-out-of-range'`. The item's store
+  // against the receiver's array class is applied by the module's
+  // `updated`, which gives the result its class.
   HANDLERS.set(handlerKey(12, 20), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -921,7 +972,7 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(20, 1, 10, n) // PerItemCost(20,1,10); source: methods.scala:1035
+    ctx.addPerItemCost(20, 1, 10, n)
     if (args.length !== 2) {
       throw new EvalError(
         `SColl.updated expects 2 args; got ${args.length}`,
@@ -935,33 +986,30 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // sigma-rust: `i as usize` + get_mut(idx) → None on OOB; a negative i wraps
-    // to a huge usize and is OOB. So reject index < 0 OR index >= n.
     if (indexArg.value < 0 || indexArg.value >= n) {
       throw new EvalError(
         `SColl.updated: index ${indexArg.value} out of bounds for Coll of length ${n}`,
         'coll-update-index-out-of-range'
       )
     }
-    const items = obj.items.slice()
-    items[indexArg.value] = valueArg
-    return { kind: 'Coll', elem: obj.elem, items }
+    return collUpdated(obj, indexArg.value, valueArg)
   } })
 
-  // SColl.updateMany (MethodCall, typeId=12, methodId=21) — v5 method
-  // Source: sigma-rust UPDATE_MANY_EVAL_FN (eval/scoll.rs, branch
-  // ergo-node-integration — the clean reference; the vendored integration/ergots
-  // checkout is stale on this method's cost). Cost PerItemCost(20,2,10) on INPUT
-  // length n: perChunkCost is 2, NOT 1 (sigma/ast/methods.scala:1055, canonical;
-  // sigma-rust ergo-node-integration agrees). The n=14 vector (cost 160) pins it —
-  // perChunk=1 would give 159. Charged BEFORE arg handling. Replaces each
-  // indexes[k] with values[k] (sequential ⇒ last write wins on a repeated index).
-  // Errors: indexes/values length mismatch, then per-index OOB (a negative index
-  // wraps to a huge usize ⇒ OOB too). The sigma-rust input/values elem-type-
-  // mismatch check is intentionally OMITTED: unreachable for type-checked trees,
-  // untested, and a strict SType compare would false-positive against SAny-typed
-  // colls (the iter-19 skip-don't-fail rule). Result elem type = input's. V0+.
-  // Unused on mainnet — valid v5 language (SANTA conformance only).
+  // SColl.updateMany (MethodCall, typeId=12, methodId=21).
+  // Source: `data/shared/src/main/scala/sigma/ast/methods.scala:1052-1070`
+  // (`UpdateManyMethod` + `updateMany_eval`) at sigma-state 6.0.7:
+  //     val costKind = mc.method.costKind.asInstanceOf[PerItemCost]
+  //     E.addSeqCost(costKind, coll.length, mc.method.opDesc) { () =>
+  //       coll.updateMany(indexes, values)
+  //     }
+  // Cost `PerItemCost(baseCost = 20, perChunkCost = 2, chunkSize = 10)`
+  // (:1055) on `coll.length`. `addSeqCost` charges the cost before the
+  // operation. Sequential writes: last write wins on a repeated index.
+  //
+  // A negative index on the JVM throws `IndexOutOfBoundsException`
+  // (`CollsOverArrays.scala:112`); the handler mirrors it with
+  // `'coll-update-index-out-of-range'`. Each value's store against the
+  // receiver's array class is applied by the module's `updateMany`.
   HANDLERS.set(handlerKey(12, 21), { handler: (obj, args, ctx, _explicitTypeArgs) => {
     if (obj.kind !== 'Coll') {
       throw new EvalError(
@@ -970,7 +1018,7 @@ function registerHandlers(): void {
       )
     }
     const n = obj.items.length
-    ctx.addPerItemCost(20, 2, 10, n) // perChunk=2 (JVM); source: methods.scala:1055
+    ctx.addPerItemCost(20, 2, 10, n)
     if (args.length !== 2) {
       throw new EvalError(
         `SColl.updateMany expects 2 args; got ${args.length}`,
@@ -990,7 +1038,6 @@ function registerHandlers(): void {
         'method-not-implemented'
       )
     }
-    // sigma-rust order: length mismatch (scoll.rs:308) before the per-index OOB loop.
     if (indexesArg.items.length !== valuesArg.items.length) {
       throw new EvalError(
         `SColl.updateMany: indexes/values length mismatch ` +
@@ -998,7 +1045,7 @@ function registerHandlers(): void {
         'coll-update-many-length-mismatch'
       )
     }
-    const items = obj.items.slice()
+    const indexNumbers: number[] = new Array(indexesArg.items.length)
     for (let k = 0; k < indexesArg.items.length; k++) {
       const idx = indexesArg.items[k]!
       if (idx.kind !== 'Int') {
@@ -1007,16 +1054,15 @@ function registerHandlers(): void {
           'method-not-implemented'
         )
       }
-      // negative wraps to a huge usize ⇒ OOB; idx >= n ⇒ OOB (scoll.rs:328).
       if (idx.value < 0 || idx.value >= n) {
         throw new EvalError(
           `SColl.updateMany: index ${idx.value} out of bounds for Coll of length ${n}`,
           'coll-update-index-out-of-range'
         )
       }
-      items[idx.value] = valuesArg.items[k]!
+      indexNumbers[k] = idx.value
     }
-    return { kind: 'Coll', elem: obj.elem, items }
+    return collUpdateMany(obj, indexNumbers, valuesArg)
   } })
 
   // SOption.map (MethodCall, typeId=36, methodId=7) — campaign iter-29
@@ -1353,65 +1399,65 @@ registerHandlers()
 
 // ---------- SBox.tokens helper ----------
 
-/** Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue. */
+/**
+ * Convert ErgoBox.tokens to a Coll[(Coll[Byte], Long)] SValue.
+ *
+ * JVM `CBox.tokens`
+ * (`data/shared/src/main/scala/sigma/data/CBox.scala:56-58`)
+ * reads R2: `this.getReg[Coll[(Coll[Byte], Long)]](ErgoBox.R2.asIndex).get`.
+ * For an ErgoBoxCandidate, R2 is built by
+ * `data/shared/src/main/scala/org/ergoplatform/ErgoBoxCandidate.scala:73-76`
+ * as `Constant(additionalTokens.map(identity).asWrappedType, STokensRegType)`:
+ * the `.map(identity)` on a `Coll[(Coll[Byte], Long)]` of pair item type
+ * returns a plain `CollOverArray` directly via
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:317-324`
+ * (`PairOfCols.map`) or `:63-65` (`CollOverArray.map`), both ending
+ * `new CollOverArray(res, builder)` or `builder.fromArray(res)` at an
+ * ERASED reference V — not routed through `fromBoxedPairs`. Shape
+ * `'array'`, plain, array class `'Tuple2'` (`CollsOverArrays.scala:11`). Each
+ * token id is specialised: the JVM's token id is a `Colls.fromArray` on an
+ * `Array[Byte]` under the concrete `Byte` type.
+ */
 function tokensCollOf(box: ErgoBox): SValue {
-  return {
-    kind: 'Coll',
-    elem: STUPLE_COLLBYTE_LONG,
-    // token amounts: signed-i64 view (JVM as Long; F3.5)
-    items: box.tokens.map((t) => ({
-      kind: 'Tuple',
-      items: [bytesToCollByteSValue(t.id), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
-    })),
-  }
+  const items: SValue[] = box.tokens.map((t) => ({
+    kind: 'Tuple',
+    items: [byteColl(t.id, true), { kind: 'Long', value: BigInt.asIntN(64, t.amount) }],
+  }))
+  return collOverArray(STUPLE_COLLBYTE_LONG, items)
 }
 
 // ---------- SContext.dataInputs helper ----------
 
-/** Convert an ErgoBox[] to a Coll[Box] SValue. */
+/**
+ * Convert an ErgoBox[] to a Coll[Box] SValue. JVM `CContext.dataInputs` is
+ * built by `dataBoxes.toArray.map(_.toTestBox).toColl`
+ * (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:149`).
+ * `.toColl` is `ArrayOps[T: RType].toColl = Colls.fromArray(arr)` at
+ * `core/shared/src/main/scala/sigma/Extensions.scala:16-19`, which calls
+ * `fromArray` under an ERASED reference parameter — the generic `fromArray`
+ * branch in
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`, no
+ * pair routing. Shape `'array'`, plain, over `Box`.
+ */
 function dataInputsCollOf(boxes: ErgoBox[]): SValue {
-  return {
-    kind: 'Coll',
-    elem: SBOX,
-    items: boxes.map((b) => ({ kind: 'Box', value: b })),
-  }
-}
-
-// ---------- SColl.indices helper ----------
-
-/** Build a Coll[Int] = [0, 1, ..., n-1]. */
-function indicesCollOf(n: number): SValue {
-  const items: SValue[] = []
-  for (let i = 0; i < n; i++) items.push({ kind: 'Int', value: i })
-  return { kind: 'Coll', elem: SINT, items }
+  return fromArray(SBOX, boxes.map((b) => ({ kind: 'Box', value: b })), false)
 }
 
 // ---------- SContext.headers helper ----------
 
-/** Convert a Header[] to a Coll[Header] SValue. */
+/**
+ * Convert a Header[] to a Coll[Header] SValue. JVM `CContext.headers`
+ * (`interpreter/shared/src/main/scala/sigmastate/eval/CContext.scala:20`)
+ * is `Coll[Header]`, passed to the constructor at
+ * `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:170`.
+ * It is built by chain code with `.toColl` on an `Array[Header]`
+ * (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`,
+ * `ArrayOps[T: RType].toColl = Colls.fromArray(arr)`) at an ERASED reference
+ * parameter — the generic `fromArray` branch in
+ * `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
+ * Shape `'array'`, plain, over `Header`.
+ */
 function headersCollOf(headers: Header[]): SValue {
-  return {
-    kind: 'Coll',
-    elem: SHEADER,
-    items: headers.map((h) => ({ kind: 'Header', value: h })),
-  }
+  return fromArray(SHEADER, headers.map((h) => ({ kind: 'Header', value: h })), false)
 }
 
-// ---------- SColl.zip helper ----------
-
-/** Zip two Colls into Coll[STuple[T1, T2]], truncating to the shorter input. */
-function zipCollsOf(
-  coll1: SValue & { kind: 'Coll' },
-  coll2: SValue & { kind: 'Coll' }
-): SValue {
-  const len = Math.min(coll1.items.length, coll2.items.length)
-  const items: SValue[] = []
-  for (let i = 0; i < len; i++) {
-    items.push({ kind: 'Tuple', items: [coll1.items[i]!, coll2.items[i]!] })
-  }
-  return {
-    kind: 'Coll',
-    elem: { tag: 'STuple', items: [coll1.elem, coll2.elem] },
-    items,
-  }
-}

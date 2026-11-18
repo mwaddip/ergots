@@ -28,7 +28,9 @@
  *      result-type check MUST be Boolean (throws 'lambda-result-type-mismatch'),
  *      collect item if true
  *   6. No short-circuit — all items visited (cost determinism)
- *   7. Return { kind: 'Coll', elem: inputColl.elem, items: kept }
+ *   7. Return `filtered(inputColl, kept)` — the module decides the result's
+ *      class per the JVM's `builder.fromArray` / `builder.pairCollFromArrays`
+ *      rules (`CollsOverArrays.scala:36` and `:348-363`).
  *
  * Key difference from Map (Task 6):
  *   - Elem-type check: Filter's check is against `self.elem_tpe` (the declared
@@ -66,6 +68,7 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { filtered } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_filter.rs:61
@@ -160,9 +163,10 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
     }
   }
 
-  // 6. Return filtered collection preserving input elem type.
-  // Sigma-rust coll_filter.rs:74-78: CollKind::from_collection(self.elem_tpe, filtered).
-  // Elem type is always `inputColl.elem` (same as sigma-rust's self.elem_tpe which is
-  // derived from the input SColl at construction time).
-  return { kind: 'Coll', elem: inputColl.elem, items: kept }
+  // 6. Return filtered collection preserving input elem type and class.
+  // `CollOverArray.filter` (CollsOverArrays.scala:36) keeps the receiver's
+  // class (specialised stays specialised); `PairOfCols.filter` (:348-363)
+  // rebuilds the pair with plain sides through `pairCollFromArrays`.
+  if (inputVal.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  return filtered(inputVal, kept)
 }

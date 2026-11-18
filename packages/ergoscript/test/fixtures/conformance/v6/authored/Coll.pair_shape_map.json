@@ -1,0 +1,383 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.pair_shape_map",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "paircols_const_bool_default_oob-errored#0",
+      "script" : "[M1] `Coll[(Int,Int)]((1,2),(3,4))` as a CONSTANT — a `PairOfCols` — `.getOrElse(5, true)` throws: `PairOfCols.getOrElse` (`:309`) overrides the interface method with an `(L,R)` parameter, so the bridge casts the default to `Tuple2` before the index matters. **SEPARATING, and the anchor for this family.**",
+      "tree_bytes_hex" : "0b0fdc0c020c58020204060802040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "paircols_const_bool_default_in_range-errored#1",
+      "script" : "[M2] The same at index 0. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0fdc0c020c5802020406080204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "mapped_pair_bool_default_oob-accept#2",
+      "script" : "[M3] **THE FINDING:** the SAME collection put through `.map(x => x)` — the identity — RETURNS the mistyped default `true` at cost 99. `PairOfCols.map` builds a plain `CollOverArray` over a `[Lscala.Tuple2;` array, which has no Tuple2 bridge, so the same declared `Coll[(Int,Int)]` with the same items answers where M1 throws. A transformation that changes NOTHING observable about the collection changes the verdict.",
+      "tree_bytes_hex" : "0b19dc0c02dc0c030c58020204060801d9010158720102040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 99,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mapped_pair_bool_default_in_range-accept#3",
+      "script" : "[M4] The same at index 0: returns the element `(1,2)` at cost 99, where M2 throws.",
+      "tree_bytes_hex" : "0b19dc0c02dc0c030c58020204060801d901015872010204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 99,
+        "error" : null
+      }
+    },
+    {
+      "name" : "byindex_paircols_bool_default-errored#4",
+      "script" : "[M5] `ByIndex(PairOfCols, 5, default = true)` throws for the same reason. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0db20c580202040608040a010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "byindex_mapped_pair_bool_default-accept#5",
+      "script" : "[M6] `ByIndex` on the MAPPED shape returns `true` at cost 95 — the node-level twin of M3/M1.",
+      "tree_bytes_hex" : "0b17b2dc0c030c58020204060801d90101587201040a010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 95,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mapped_from_concrete_bool_default-accept#6",
+      "script" : "[M7] The same through the other producer: a `ConcreteCollection` of tuples is also a `PairOfCols`, and mapping it gives the Tuple2-array shape — `true` at cost 164. So the shape follows the LAST operation, not the original construction.",
+      "tree_bytes_hex" : "0b21dc0c02dc0c0383025886020402040486020406040801d9010158720102040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 164,
+        "error" : null
+      }
+    },
+    {
+      "name" : "paircols_const_pair_default_control-accept#7",
+      "script" : "[M8] **CONTROL:** the PairOfCols with a well-typed pair default returns `(9,9)` at cost 69.",
+      "tree_bytes_hex" : "0b13dc0c020c58020204060802040a860204120412",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 9
+            },
+            {
+              "kind" : "Int",
+              "value" : 9
+            }
+          ]
+        },
+        "cost" : 69,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mapped_pair_pair_default_control-accept#8",
+      "script" : "[M9] **CONTROL:** the mapped shape with a pair default returns `(9,9)` at cost 119.",
+      "tree_bytes_hex" : "0b1ddc0c02dc0c030c58020204060801d9010158720102040a860204120412",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 9
+            },
+            {
+              "kind" : "Int",
+              "value" : 9
+            }
+          ]
+        },
+        "cost" : 119,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_paircols_vs_mapped-accept#9",
+      "script" : "[M10] **CONTROL, and the one that bounds the finding:** a `PairOfCols` `==` its own mapped copy is **`true`** at cost 95. The two representations must compare EQUAL even though they answer `getOrElse` differently, so an implementation cannot satisfy M1/M3 by making the shapes unequal.",
+      "tree_bytes_hex" : "0b19930c580202040608dc0c030c58020204060801d90101587201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 95,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_mapped_vs_mapped-accept#10",
+      "script" : "[M11] **CONTROL:** two mapped collections from different producers, `true` at cost 210.",
+      "tree_bytes_hex" : "0b2b93dc0c030c58020204060801d90101587201dc0c0383025886020402040486020406040801d90101587201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 210,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mapped_startswith_paircols-accept#11",
+      "script" : "[M12] **CONTROL:** `startsWith` is blind to the split — the mapped receiver with a `PairOfCols` argument answers `true` at cost 115. (`PairOfCols.startsWith` delegates to the sides while the Tuple2-array form compares whole tuples; with equal items both say the same thing.)",
+      "tree_bytes_hex" : "0b1edc0c1fdc0c030c58020204060801d9010158720101830158860204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 115,
+        "error" : null
+      }
+    },
+    {
+      "name" : "paircols_startswith_mapped-accept#12",
+      "script" : "[M13] **CONTROL:** the mirror, `true` at cost 105. M12/M13 together say the two shapes are interchangeable for prefix comparison, which is what makes M1-vs-M3 specific to the item-typed parameter.",
+      "tree_bytes_hex" : "0b1edc0c1f0c58020204060801dc0c0383015886020402040401d90101587201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 105,
+        "error" : null
+      }
+    },
+    {
+      "name" : "self_tokens_bool_default_in_range-accept#13",
+      "script" : "[M14] **THE REACHABLE ONE:** `SELF.tokens.getOrElse(0, true)` RETURNS `true` at cost 73. `CBox.tokens` reads R2 (`CBox.scala:56-58`) and `ErgoBox` derives R2 itself, so the collection is the Tuple2-array shape — **measured identical on an API-built box and on a box parsed from its own bytes, empty and non-empty** — and no exotic construction is needed: every box has `tokens`. An implementation that models pair collections as two columns throws here where the JVM answers.",
+      "tree_bytes_hex" : "0b0cdc0c02db6308a70204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 73,
+        "error" : null
+      }
+    },
+    {
+      "name" : "self_tokens_bool_default_oob-accept#14",
+      "script" : "[M15] The same at index 5, also `true` at cost 73 (the canonical SELF has no tokens, so every index is out of range).",
+      "tree_bytes_hex" : "0b0cdc0c02db6308a702040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 73,
+        "error" : null
+      }
+    },
+    {
+      "name" : "self_tokens_size-accept#15",
+      "script" : "[M16] **CONTROL and a §2 premise pin:** `SELF.tokens.size` is **0** at cost 47 — the canonical eval context's SELF box carries no tokens. Read it with H10: both state a fact about the box that M14/M15 depend on.",
+      "tree_bytes_hex" : "0b07db0c01db6308a7",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 0
+        },
+        "cost" : 47,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_self_tokens_empty_pair_coll-accept#16",
+      "script" : "[M17] **CONTROL:** `SELF.tokens == Coll[(Coll[Byte],Long)]()` is `true` at cost 60 — the empty Tuple2-array shape compares equal to an empty `ConcreteCollection` of the same type.",
+      "tree_bytes_hex" : "0b0993db6308a783004d0e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    }
+  ]
+}

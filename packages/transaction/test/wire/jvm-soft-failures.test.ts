@@ -108,8 +108,13 @@ describe('the registers and the context extension, read at 3', () => {
     // to TrueProp; at (3, 0) it fails rule 1018. The extension's rule 1019 (ContextExtension.scala:62) does
     // not flag SFunc.
     const input = parseTransaction(txWith('00d10101', [], [[1, EMPTY_FUNC1_COLL]])).inputs[0]!;
-    expect(input.spendingProof.contextExtension.values.get(1)?.value).toEqual({
-      kind: 'Coll', elem: { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SInt' }, tpeParams: [] }, items: [],
+    const got = input.spendingProof.contextExtension.values.get(1)?.value;
+    const funcT = { tag: 'SFunc' as const, args: [{ tag: 'SInt' as const }], result: { tag: 'SInt' as const }, tpeParams: [] };
+    expect(got).toEqual({
+      kind: 'Coll', elem: funcT, items: [],
+      // The data reader's class is plain over this element's class tag:
+      // `Function1` by `stypeToRType`'s SFunc arm (Evaluation.scala:50-52).
+      cls: { shape: 'array', specialised: false, array: 'Function1' },
     });
   });
 

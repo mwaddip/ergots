@@ -1,0 +1,2736 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.object_arrays_by_class_v6",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-pre-activation",
+  "entries" : [
+    {
+      "name" : "objpairs-SP-ZM-updateMany-good-v0-a3#0",
+      "script" : "[objpairs|SP|ZM|updateMany-good|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((<sigmaprop>,1),(1,2),(2,3)) at cost 123.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100dc0c1d1401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179801100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-bad-v0-a3#1",
+      "script" : "[objpairs|SP|ZM|updateMany-bad|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(1,2),(2,3)) at cost 187.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-good.size-v0-a3#2",
+      "script" : "[objpairs|SP|ZM|updateMany-good.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 3 at cost 137.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100dc0c1d1401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179801100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-updateMany-bad.size-v0-a3#3",
+      "script" : "[objpairs|SP|ZM|updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 3 at cost 201.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-filter-true-v0-a3#4",
+      "script" : "[objpairs|SP|ZM|filter-true|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b5dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406d9010144040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-filter-true.size-v0-a3#5",
+      "script" : "[objpairs|SP|ZM|filter-true.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b5dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406d9010144040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-filter-_2-ne-1-v0-a3#6",
+      "script" : "[objpairs|SP|ZM|filter-_2-ne-1|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b5dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406d901014404948c7201020402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM-append-self.updateMany-bad.size-v0-a3#7",
+      "script" : "[objpairs|SP|ZM|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 6 at cost 290.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204011003020406dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040602100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM2-updateMany-bad-v0-a3#8",
+      "script" : "[objpairs|SP|ZM2|updateMany-bad|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(<sigmaprop>,2)) at cost 172.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798011002020402100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM2-updateMany-bad.size-v0-a3#9",
+      "script" : "[objpairs|SP|ZM2|updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 186.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798011002020402100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZM2-append-self.updateMany-bad.size-v0-a3#10",
+      "script" : "[objpairs|SP|ZM2|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 260.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980110020204dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798011002020402100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-SP-ZT-append-self.updateMany-bad.size-v0-a3#11",
+      "script" : "[objpairs|SP|ZT|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 206.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1d1402cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980110020204dc0c1d1402cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798011002020402100100b4dc0c1db31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-updateMany-good-v0-a3#12",
+      "script" : "[objpairs|BigInt|ZM|updateMany-good|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((2,1),(1,2),(2,3)) at cost 123.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db312010102950100120101021002020401100302040602100100dc0c1d1201010201100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-updateMany-bad-v0-a3#13",
+      "script" : "[objpairs|BigInt|ZM|updateMany-bad|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(1,2),(2,3)) at cost 187.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db312010102950100120101021002020401100302040602100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-updateMany-good.size-v0-a3#14",
+      "script" : "[objpairs|BigInt|ZM|updateMany-good.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 3 at cost 137.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db312010102950100120101021002020401100302040602100100dc0c1d1201010201100102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-updateMany-bad.size-v0-a3#15",
+      "script" : "[objpairs|BigInt|ZM|updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 3 at cost 201.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db312010102950100120101021002020401100302040602100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-filter-true-v0-a3#16",
+      "script" : "[objpairs|BigInt|ZM|filter-true|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b5dc0c1db3120101029501001201010210020204011003020406d9010142040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-filter-true.size-v0-a3#17",
+      "script" : "[objpairs|BigInt|ZM|filter-true.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b5dc0c1db3120101029501001201010210020204011003020406d9010142040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-filter-_2-ne-1-v0-a3#18",
+      "script" : "[objpairs|BigInt|ZM|filter-_2-ne-1|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b5dc0c1db3120101029501001201010210020204011003020406d901014204948c7201020402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM-append-self.updateMany-bad.size-v0-a3#19",
+      "script" : "[objpairs|BigInt|ZM|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 6 at cost 290.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1db3120101029501001201010210020204011003020406dc0c1db312010102950100120101021002020401100302040602100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM2-updateMany-bad-v0-a3#20",
+      "script" : "[objpairs|BigInt|ZM2|updateMany-bad|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll((1,2),(2,2)) at cost 172.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00dc0c15dc0c1db31201010212010102011002020402100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM2-updateMany-bad.size-v0-a3#21",
+      "script" : "[objpairs|BigInt|ZM2|updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 186.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15dc0c1db31201010212010102011002020402100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZM2-append-self.updateMany-bad.size-v0-a3#22",
+      "script" : "[objpairs|BigInt|ZM2|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 260.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1db312010102120101020110020204dc0c1db31201010212010102011002020402100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objpairs-BigInt-ZT-append-self.updateMany-bad.size-v0-a3#23",
+      "script" : "[objpairs|BigInt|ZT|append-self.updateMany-bad.size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 206.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1dc0c15b3dc0c1d1202010201040110020204dc0c1d120201020104011002020402100100b4dc0c1db312010102950100120101021002020401100302040604020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-map-objects-of-own-value-v0-a3#24",
+      "script" : "[append2|Shorts-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 243.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720103950100ad10020204d90101047d720103b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010304020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-map-objects-of-own-size-v0-a3#25",
+      "script" : "[append2|Shorts-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 257.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720103950100ad10020204d90101047d720103b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010304020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-map-objects-of-own-apply-last-v0-a3#26",
+      "script" : "[append2|Shorts-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 278.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720103950100ad10020204d90101047d720103b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010304020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-map-objects-of-own-value-v0-a3#27",
+      "script" : "[append2|Ints-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 203.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047201950100ad10020204d90101047201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104720104020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-map-objects-of-own-size-v0-a3#28",
+      "script" : "[append2|Ints-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 217.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047201950100ad10020204d90101047201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104720104020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-map-objects-of-own-apply-last-v0-a3#29",
+      "script" : "[append2|Ints-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 238.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047201950100ad10020204d90101047201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104720104020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-map-objects-of-own-value-v0-a3#30",
+      "script" : "[append2|Longs-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 243.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047e720105950100ad10020204d90101047e720105b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047e72010504020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-map-objects-of-own-size-v0-a3#31",
+      "script" : "[append2|Longs-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 257.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047e720105950100ad10020204d90101047e720105b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047e72010504020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-map-objects-of-own-apply-last-v0-a3#32",
+      "script" : "[append2|Longs-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 278.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047e720105950100ad10020204d90101047e720105b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047e72010504020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Longs-value-v0-a3#33",
+      "script" : "[append2|Bytes-map|empty-Longs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2) at cost 113.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720102950100ad10020204d90101047d7201021100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Longs-size-v0-a3#34",
+      "script" : "[append2|Bytes-map|empty-Longs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 127.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720102950100ad10020204d90101047d7201021100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Longs-apply-last-v0-a3#35",
+      "script" : "[append2|Bytes-map|empty-Longs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 148.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720102950100ad10020204d90101047d7201021100040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Boxes-value-v0-a3#36",
+      "script" : "[append2|Bytes-map|empty-Boxes|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2) at cost 113.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720102950100ad10020204d90101047d7201020c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Boxes-size-v0-a3#37",
+      "script" : "[append2|Bytes-map|empty-Boxes|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 127.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720102950100ad10020204d90101047d7201020c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-Boxes-apply-last-v0-a3#38",
+      "script" : "[append2|Bytes-map|empty-Boxes|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 148.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720102950100ad10020204d90101047d7201020c6300040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-SPs-value-v0-a3#39",
+      "script" : "[append2|Bytes-map|empty-SPs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2) at cost 113.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720102950100ad10020204d90101047d7201021400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-SPs-size-v0-a3#40",
+      "script" : "[append2|Bytes-map|empty-SPs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 127.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720102950100ad10020204d90101047d7201021400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-empty-SPs-apply-last-v0-a3#41",
+      "script" : "[append2|Bytes-map|empty-SPs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 148.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720102950100ad10020204d90101047d7201021400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-of-own-value-v0-a3#42",
+      "script" : "[append2|Bytes-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 243.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010204020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-of-own-size-v0-a3#43",
+      "script" : "[append2|Bytes-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 257.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010204020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-of-own-apply-last-v0-a3#44",
+      "script" : "[append2|Bytes-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 278.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d90101047d72010204020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-empty-value-v0-a3#45",
+      "script" : "[append2|Bytes-map|objects-empty|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2) at cost 162.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-empty-size-v0-a3#46",
+      "script" : "[append2|Bytes-map|objects-empty|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 176.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bytes-map-objects-empty-apply-last-v0-a3#47",
+      "script" : "[append2|Bytes-map|objects-empty|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 197.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101047d720102950100ad10020204d90101047d720102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Longs-value-v0-a3#48",
+      "script" : "[append2|Bools-map|empty-Longs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false) at cost 109.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101049372010402950100ad10020204d901010493720104021100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Longs-size-v0-a3#49",
+      "script" : "[append2|Bools-map|empty-Longs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 123.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101049372010402950100ad10020204d901010493720104021100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Longs-apply-last-v0-a3#50",
+      "script" : "[append2|Bools-map|empty-Longs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 144.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101049372010402950100ad10020204d901010493720104021100040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Boxes-value-v0-a3#51",
+      "script" : "[append2|Bools-map|empty-Boxes|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false) at cost 109.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101049372010402950100ad10020204d901010493720104020c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Boxes-size-v0-a3#52",
+      "script" : "[append2|Bools-map|empty-Boxes|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 123.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101049372010402950100ad10020204d901010493720104020c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-Boxes-apply-last-v0-a3#53",
+      "script" : "[append2|Bools-map|empty-Boxes|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 144.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101049372010402950100ad10020204d901010493720104020c6300040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-SPs-value-v0-a3#54",
+      "script" : "[append2|Bools-map|empty-SPs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false) at cost 109.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101049372010402950100ad10020204d901010493720104021400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-SPs-size-v0-a3#55",
+      "script" : "[append2|Bools-map|empty-SPs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 123.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101049372010402950100ad10020204d901010493720104021400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-empty-SPs-apply-last-v0-a3#56",
+      "script" : "[append2|Bools-map|empty-SPs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 144.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101049372010402950100ad10020204d901010493720104021400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-of-own-value-v0-a3#57",
+      "script" : "[append2|Bools-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false,true,false) at cost 235.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104937201040204020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-of-own-size-v0-a3#58",
+      "script" : "[append2|Bools-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 249.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104937201040204020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-of-own-apply-last-v0-a3#59",
+      "script" : "[append2|Bools-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 270.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798ad10020204d9010104937201040204020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-empty-value-v0-a3#60",
+      "script" : "[append2|Bools-map|objects-empty|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false) at cost 158.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-empty-size-v0-a3#61",
+      "script" : "[append2|Bools-map|objects-empty|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 172.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Bools-map-objects-empty-apply-last-v0-a3#62",
+      "script" : "[append2|Bools-map|objects-empty|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 193.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3ad10020204d90101049372010402950100ad10020204d90101049372010402b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-self-value-v0-a3#63",
+      "script" : "[append2|Pairs-map|self|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — Coll((1,1),(2,2),(1,1),(2,2)) at cost 164. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201addc0c1d100202040111020204d9010140057201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "STuple",
+            "items" : [
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SLong"
+              }
+            ]
+          },
+          "items" : [
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 164,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-self-size-v0-a3#64",
+      "script" : "[append2|Pairs-map|self|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — 4 at cost 178. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201addc0c1d100202040111020204d9010140057201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 4
+        },
+        "cost" : 178,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-self-apply-last-v0-a3#65",
+      "script" : "[append2|Pairs-map|self|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — (2,2) at cost 199. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201addc0c1d100202040111020204d9010140057201040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Long",
+              "value" : "2"
+            }
+          ]
+        },
+        "cost" : 199,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Longs-value-v0-a3#66",
+      "script" : "[append2|Pairs-map|empty-Longs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Longs-size-v0-a3#67",
+      "script" : "[append2|Pairs-map|empty-Longs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Longs-apply-last-v0-a3#68",
+      "script" : "[append2|Pairs-map|empty-Longs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011100040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Boxes-value-v0-a3#69",
+      "script" : "[append2|Pairs-map|empty-Boxes|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — Coll((1,1),(2,2)) at cost 113. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "STuple",
+            "items" : [
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SLong"
+              }
+            ]
+          },
+          "items" : [
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 113,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Boxes-size-v0-a3#70",
+      "script" : "[append2|Pairs-map|empty-Boxes|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — 2 at cost 127. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 127,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-Boxes-apply-last-v0-a3#71",
+      "script" : "[append2|Pairs-map|empty-Boxes|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — (2,2) at cost 148. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010c6300040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Long",
+              "value" : "2"
+            }
+          ]
+        },
+        "cost" : 148,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-SPs-value-v0-a3#72",
+      "script" : "[append2|Pairs-map|empty-SPs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — Coll((1,1),(2,2)) at cost 113. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "STuple",
+            "items" : [
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SLong"
+              }
+            ]
+          },
+          "items" : [
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 113,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-SPs-size-v0-a3#73",
+      "script" : "[append2|Pairs-map|empty-SPs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — 2 at cost 127. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 127,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-empty-SPs-apply-last-v0-a3#74",
+      "script" : "[append2|Pairs-map|empty-SPs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — (2,2) at cost 148. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Long",
+              "value" : "2"
+            }
+          ]
+        },
+        "cost" : 148,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Longs-value-v0-a3#75",
+      "script" : "[append2|Pairs-map|Longs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720111020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Longs-size-v0-a3#76",
+      "script" : "[append2|Pairs-map|Longs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720111020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Longs-apply-last-v0-a3#77",
+      "script" : "[append2|Pairs-map|Longs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720111020204040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-SPs-value-v0-a3#78",
+      "script" : "[append2|Pairs-map|SPs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-SPs-size-v0-a3#79",
+      "script" : "[append2|Pairs-map|SPs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-SPs-apply-last-v0-a3#80",
+      "script" : "[append2|Pairs-map|SPs|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572011401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Ints-value-v0-a3#81",
+      "script" : "[append2|Pairs-map|Ints|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720110020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Ints-size-v0-a3#82",
+      "script" : "[append2|Pairs-map|Ints|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720110020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Ints-apply-last-v0-a3#83",
+      "script" : "[append2|Pairs-map|Ints|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d901014005720110020204040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-of-own-value-v0-a3#84",
+      "script" : "[append2|Pairs-map|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798addc0c1d100202040111020204d901014005720104020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-of-own-size-v0-a3#85",
+      "script" : "[append2|Pairs-map|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798addc0c1d100202040111020204d901014005720104020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-of-own-apply-last-v0-a3#86",
+      "script" : "[append2|Pairs-map|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798addc0c1d100202040111020204d901014005720104020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-foreign-value-v0-a3#87",
+      "script" : "[append2|Pairs-map|objects-foreign|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-foreign-size-v0-a3#88",
+      "script" : "[append2|Pairs-map|objects-foreign|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-foreign-apply-last-v0-a3#89",
+      "script" : "[append2|Pairs-map|objects-foreign|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-empty-value-v0-a3#90",
+      "script" : "[append2|Pairs-map|objects-empty|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — Coll((1,1),(2,2)) at cost 162. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "STuple",
+            "items" : [
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SLong"
+              }
+            ]
+          },
+          "items" : [
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            },
+            {
+              "kind" : "Tuple",
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Long",
+                  "value" : "2"
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 162,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-empty-size-v0-a3#91",
+      "script" : "[append2|Pairs-map|objects-empty|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — 2 at cost 176. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 176,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-objects-empty-apply-last-v0-a3#92",
+      "script" : "[append2|Pairs-map|objects-empty|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — (2,2) at cost 197. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d9010140057201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Long",
+              "value" : "2"
+            }
+          ]
+        },
+        "cost" : 197,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Bytes-value-v0-a3#93",
+      "script" : "[append2|Pairs-map|Bytes|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010e020102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Bytes-size-v0-a3#94",
+      "script" : "[append2|Pairs-map|Bytes|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010e020102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Pairs-map-Bytes-apply-last-v0-a3#95",
+      "script" : "[append2|Pairs-map|Bytes|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b3addc0c1d100202040111020204d9010140057201950100addc0c1d100202040111020204d90101400572010e020102040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-objects-of-own-value-v0-a3#96",
+      "script" : "[append2|Shorts|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b30f0202049501000f020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980f02020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-objects-of-own-size-v0-a3#97",
+      "script" : "[append2|Shorts|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 125.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b30f0202049501000f020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980f02020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Shorts-objects-of-own-apply-last-v0-a3#98",
+      "script" : "[append2|Shorts|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 146.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b30f0202049501000f020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980f02020404020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-objects-of-own-value-v0-a3#99",
+      "script" : "[append2|Ints|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b31002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-objects-of-own-size-v0-a3#100",
+      "script" : "[append2|Ints|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 125.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b31002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Ints-objects-of-own-apply-last-v0-a3#101",
+      "script" : "[append2|Ints|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 146.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b31002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020404020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-objects-of-own-value-v0-a3#102",
+      "script" : "[append2|Longs|objects-of-own|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b31102020495010011020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981102020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-objects-of-own-size-v0-a3#103",
+      "script" : "[append2|Longs|objects-of-own|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 4 at cost 125.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b31102020495010011020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981102020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append2-Longs-objects-of-own-apply-last-v0-a3#104",
+      "script" : "[append2|Longs|objects-of-own|apply-last|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives 2 at cost 146.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b2b31102020495010011020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981102020404020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "subst-sps-mix-written-v0-a3#105",
+      "script" : "[subst|sps|mix|written|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00740e2d10011401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798d193b173000402100100830114b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "subst-sps-mix-written-size-v0-a3#106",
+      "script" : "[subst|sps|mix|written|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1740e2d10011401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798d193b173000402100100830114b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179810020204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Ints-append-objects-v0-a3#107",
+      "script" : "[argobj|Ints|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b31002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Ints-map-append-objects-v0-a3#108",
+      "script" : "[argobj|Ints-map|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 157.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d9010104720195010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981002020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Shorts-append-objects-v0-a3#109",
+      "script" : "[argobj|Shorts|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b30f0202049501000f020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980f02020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Shorts-map-append-objects-v0-a3#110",
+      "script" : "[argobj|Shorts-map|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 177.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d7201039501000f020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980f02020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Longs-append-objects-v0-a3#111",
+      "script" : "[argobj|Longs|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 111.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b31102020495010011020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981102020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Longs-map-append-objects-v0-a3#112",
+      "script" : "[argobj|Longs-map|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 177.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047e72010595010011020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981102020404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Bytes-map-append-objects-v0-a3#113",
+      "script" : "[argobj|Bytes-map|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(1,2,1,2) at cost 177.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d90101047d7201029501000e020102b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980e02010204020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "argobj-Bools-map-append-objects-v0-a3#114",
+      "script" : "[argobj|Bools-map|append-objects|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives Coll(true,false,true,false) at cost 173.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3ad10020204d901010493720104029501000d0201b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817989501001401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817980d020104020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "atleast-cc-cc++cc-v0-a3#115",
+      "script" : "[atleast-cc|cc++cc|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — <sigmaprop> at cost 100. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00980402b383010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179883010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9702cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "atleast-cc-cc++cc.slice-v0-a3#116",
+      "script" : "[atleast-cc|cc++cc.slice|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — <sigmaprop> at cost 122. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00980402b4b383010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179883010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 122,
+        "error" : null
+      }
+    },
+    {
+      "name" : "atleast-cc-cc++cc.filter-true-v0-a3#117",
+      "script" : "[atleast-cc|cc++cc.filter-true|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — <sigmaprop> at cost 146. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00980402b5b383010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179883010808cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798d90101080101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9702cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 146,
+        "error" : null
+      }
+    },
+    {
+      "name" : "cons-atLeast-sps-v0-a3#118",
+      "script" : "[cons|atLeast-sps|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — <sigmaprop> at cost 60. SEPARATING: the 4.x reading (activated 1) gives REFUSED (ClassCastException).  // tree v0, activated 3",
+      "tree_bytes_hex" : "00980402b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "9702cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798"
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Int1-Long1-eq-v0-a3#119",
+      "script" : "[objeq|BigInt|Int1|Long1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b3120101029501001201010210010204020404b4b3120101029501001201010211010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Int1-Long1-neq-v0-a3#120",
+      "script" : "[objeq|BigInt|Int1|Long1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b3120101029501001201010210010204020404b4b3120101029501001201010211010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Int1-Short1-eq-v0-a3#121",
+      "script" : "[objeq|BigInt|Int1|Short1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b3120101029501001201010210010204020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Int1-Short1-neq-v0-a3#122",
+      "script" : "[objeq|BigInt|Int1|Short1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b3120101029501001201010210010204020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Long1-Short1-eq-v0-a3#123",
+      "script" : "[objeq|BigInt|Long1|Short1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b3120101029501001201010211010204020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Long1-Short1-neq-v0-a3#124",
+      "script" : "[objeq|BigInt|Long1|Short1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b3120101029501001201010211010204020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Int1-eq-v0-a3#125",
+      "script" : "[objeq|BigInt|Byte1|Int1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b312010102950100120101020e010104020404b4b3120101029501001201010210010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Int1-neq-v0-a3#126",
+      "script" : "[objeq|BigInt|Byte1|Int1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b312010102950100120101020e010104020404b4b3120101029501001201010210010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Long1-eq-v0-a3#127",
+      "script" : "[objeq|BigInt|Byte1|Long1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b312010102950100120101020e010104020404b4b3120101029501001201010211010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Long1-neq-v0-a3#128",
+      "script" : "[objeq|BigInt|Byte1|Long1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b312010102950100120101020e010104020404b4b3120101029501001201010211010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Short1-eq-v0-a3#129",
+      "script" : "[objeq|BigInt|Byte1|Short1|eq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives true at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0093b4b312010102950100120101020e010104020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "objeq-BigInt-Byte1-Short1-neq-v0-a3#130",
+      "script" : "[objeq|BigInt|Byte1|Short1|neq|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ArrayStoreException). SEPARATING: the 4.x reading (activated 1) gives false at cost 161.  // tree v0, activated 3",
+      "tree_bytes_hex" : "0094b4b312010102950100120101020e010104020404b4b312010102950100120101020f010204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-empty-Longs-value-v0-a3#131",
+      "script" : "[idxappend|empty-Longs|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3db0c0e10020204950100100202041100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-empty-Longs-size-v0-a3#132",
+      "script" : "[idxappend|empty-Longs|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3db0c0e10020204950100100202041100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-empty-Boxes-value-v0-a3#133",
+      "script" : "[idxappend|empty-Boxes|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3db0c0e10020204950100100202040c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-empty-Boxes-size-v0-a3#134",
+      "script" : "[idxappend|empty-Boxes|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3db0c0e10020204950100100202040c6300",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-objects-empty-value-v0-a3#135",
+      "script" : "[idxappend|objects-empty|value|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b3db0c0e1002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "idxappend-objects-empty-size-v0-a3#136",
+      "script" : "[idxappend|objects-empty|size|v0] `++` and the readers of its result from the JIT activation on (the 5.0 concat) — REFUSED (ClassCastException). CONTROL: the 4.x reading (activated 1) gives the same.  // tree v0, activated 3",
+      "tree_bytes_hex" : "00b1b3db0c0e1002020495010010020204b4b31401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f817981401cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f8179804000400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

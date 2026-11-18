@@ -1,6 +1,6 @@
 import { describe, it, expect } from 'vitest'
 import { serializeTree } from '../../src/wire/ergo-tree'
-import { parseParsedTree as parseTree } from '../_helpers'
+import { asRead, parseParsedTree as parseTree } from '../_helpers'
 import type { ErgoTree } from '../../src/mir/types'
 
 /**
@@ -178,7 +178,7 @@ describe('And variant', () => {
       tag: 'SColl',
       elem: { tag: 'SBoolean' },
     })
-    expect(tree.body.input.value).toEqual({
+    expect(tree.body.input.value).toEqual(asRead({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [
@@ -186,7 +186,7 @@ describe('And variant', () => {
         { kind: 'Boolean', value: false },
         { kind: 'Boolean', value: true },
       ],
-    })
+    }))
 
     const out = serializeTree(tree)
     expect(Array.from(out)).toEqual(Array.from(bytes))
@@ -234,14 +234,14 @@ describe('Or variant', () => {
     expect(tree.body.tag).toBe('Or')
     if (tree.body.tag !== 'Or') throw new Error('unreachable')
     if (tree.body.input.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.input.value).toEqual({
+    expect(tree.body.input.value).toEqual(asRead({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [
         { kind: 'Boolean', value: false },
         { kind: 'Boolean', value: true },
       ],
-    })
+    }))
 
     expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
   })
@@ -261,14 +261,14 @@ describe('XorOf variant', () => {
     expect(tree.body.tag).toBe('XorOf')
     if (tree.body.tag !== 'XorOf') throw new Error('unreachable')
     if (tree.body.input.tag !== 'Const') throw new Error('unreachable')
-    expect(tree.body.input.value).toEqual({
+    expect(tree.body.input.value).toEqual(asRead({
       kind: 'Coll',
       elem: { tag: 'SBoolean' },
       items: [
         { kind: 'Boolean', value: true },
         { kind: 'Boolean', value: true },
       ],
-    })
+    }))
 
     expect(Array.from(serializeTree(tree))).toEqual(Array.from(bytes))
   })

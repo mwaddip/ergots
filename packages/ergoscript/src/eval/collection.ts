@@ -36,6 +36,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { exprTpe } from '../mir/expr-tpe'
 import { assertValueTypeSupported } from './_check-type'
+import { fromArray } from './_coll'
 
 export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(20)
@@ -46,11 +47,15 @@ export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValu
     // directly without per-element eval, so charge 5*n here to match the JVM and
     // the Exprs arm (total = 20 + 5n). sigma-rust collection.rs, commit ee4c3c3f.
     ctx.addCost(5 * e.items.length)
-    return {
-      kind: 'Coll',
-      elem: { tag: 'SBoolean' },
-      items: e.items.map((b) => ({ kind: 'Boolean', value: b }) as SValue),
-    }
+    // ConcreteCollection.eval (values.scala:887-898) calls Colls.fromArray at
+    // an abstract element type, so fromArray's `@specialized` picks the plain
+    // subclass; a pair element type routes through fromBoxedPairs to a
+    // PairOfCols with plain sides.
+    return fromArray(
+      { tag: 'SBoolean' },
+      e.items.map((b) => ({ kind: 'Boolean', value: b }) as SValue),
+      false,
+    )
   }
   // kind === 'Exprs'
   // ConcreteCollection.eval runs Value.checkType on each item (values.scala);
@@ -70,7 +75,12 @@ export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValu
       )
     }
   }
-  return { kind: 'Coll', elem: e.elemTpe, items }
+  // `ConcreteCollection.eval` (values.scala:887-898) reads
+  // `tElement.classTag` through `stypeToRType` (Evaluation.scala:54-55 at
+  // 6.0.7): an item type that arm refuses (`STypeVar`, `SFunc` of arity
+  // other than one) rejects as `EvalError('unsupported-value-type')`, as
+  // the facade's guard turns the module's `CollTypeRefused` into.
+  return fromArray(e.elemTpe, items, false)
 }
 
 /**

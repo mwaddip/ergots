@@ -34,6 +34,7 @@ import fs from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { evalSantaEntry, svalueToSantaJson, type SantaVector, type SantaEntry } from './_santa'
+import { redReason, rowMismatch } from './_red-table'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { blake2b256 } from '../../src/crypto/hashes'
@@ -66,17 +67,15 @@ for (const file of vectorFiles) {
   describe(`SANTA v6 conformance — ${file} — ${doc.op} (${doc.blessed_by})`, () => {
     for (const e of doc.entries) {
       it(e.name, () => {
-        const actual = evalSantaEntry(e)
-        if (e.expected.error !== null) {
-          expect(actual.error).toBe('errored')
+        const listed = redReason(`v6/${file}`, e.name)
+        const mismatch = rowMismatch(e)
+        if (listed === null) {
+          expect(mismatch, `entry ${e.name}: ${mismatch}`).toBeNull()
         } else {
-          // Compare at SANTA canonical JSON level: ergots' runtime SValue carries
-          // extra fields (e.g. `elem` on Option) that the blessed JSON omits.
-          // Converting actual to SANTA form normalizes the representation, so the
-          // comparison exactly mirrors the runner-contract §5 structural equality.
-          expect(actual.error, `entry ${e.name} errored: ${actual.error}`).toBeNull()
-          expect(svalueToSantaJson(actual.value!)).toEqual(e.expected.value)
-          expect(actual.cost).toBe(e.expected.cost)
+          expect(
+            mismatch,
+            `entry ${e.name}: row is green; remove it from the red table (listed under '${listed}')`,
+          ).not.toBeNull()
         }
       })
     }

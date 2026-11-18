@@ -3,6 +3,7 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
+import { specColl } from '../_helpers'
 
 // Dedicated error code for BigInt arithmetic result overflow (signed-256 range).
 const OUT_OF_256_CODE = 'bigint-result-out-of-range'
@@ -11,11 +12,14 @@ const SBIGINT: SType = { tag: 'SBigInt' }
 const SINT: SType = { tag: 'SInt' }
 const v3 = () => makeContext({ treeVersion: 3 })
 function big(value: bigint): SValue { return { kind: 'BigInt', value } }
+// `BigInt.toBytes` builds a specialised `Coll[Byte]` — `CBigInt.scala:65-67`
+// `Colls.fromArray(toByteArray)` under the concrete `Byte` type. `BigInt.toBits`
+// builds a specialised `Coll[Boolean]`.
 function bytesColl(...vs: number[]): SValue {
-  return { kind: 'Coll', elem: { tag: 'SByte' }, items: vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })) }
+  return specColl({ tag: 'SByte' }, vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })))
 }
 function bools(...bs: boolean[]): SValue {
-  return { kind: 'Coll', elem: { tag: 'SBoolean' }, items: bs.map((b) => ({ kind: 'Boolean', value: b })) }
+  return specColl({ tag: 'SBoolean' }, bs.map((b) => ({ kind: 'Boolean', value: b })))
 }
 function unary(methodId: number, v: bigint): MethodCallExpr {
   return { tag: 'MethodCall', obj: { tag: 'Const', tpe: SBIGINT, value: big(v) } as any, args: [], typeId: 6, methodId, explicitTypeArgs: {} }

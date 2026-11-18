@@ -1,0 +1,246 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.item_store_type_check",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "updated_generic_bool_coll_int_item-errored#0",
+      "script" : "[U1] `ConcreteCollection[Boolean](true,false,true).updated(0, 1)` — a GENERIC receiver with an Int item. `CollOverArray.updated` (`:100`) is `toArray.updated(index, elem)` and the backing array is `[Z`, so the store unboxes and throws `ClassCastException`. **SEPARATING against an implementation that stores items untyped:** the generic class is NOT lenient here, which is what distinguishes this family from `getOrElse`.",
+      "tree_bytes_hex" : "0b0bdc0c148503050204000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "patch_generic_bool_coll_int_item-errored#1",
+      "script" : "[U2] The same through `patch` (`:94`, `toArray.patch(...)`). **SEPARATING.**",
+      "tree_bytes_hex" : "0b10dc0c1385030503040083010404020402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updated_generic_byte_coll_bool_item-errored#2",
+      "script" : "[U3] The Byte item type: `ConcreteCollection[Byte](1,2,3).updated(0, true)` throws. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11dc0c148303020201020202030204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "patch_generic_byte_coll_bool_item-errored#3",
+      "script" : "[U4] The same through `patch`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b14dc0c138303020201020202030304008501010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updated_generic_short_coll_bool_item-errored#4",
+      "script" : "[U5] The Short item type — note no producer ever yields a SPECIALISED Short collection, so this row is the generic class throwing on its own account. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0fdc0c14830203030203040204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "patch_generic_short_coll_bool_item-errored#5",
+      "script" : "[U6] The same through `patch`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b12dc0c13830203030203040304008501010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updated_generic_int_coll_bool_item-errored#6",
+      "script" : "[U7] The Int item type. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11dc0c148303040400040204040204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "patch_generic_int_coll_bool_item-errored#7",
+      "script" : "[U8] The same through `patch`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b14dc0c138303040400040204040304008501010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updated_generic_long_coll_bool_item-errored#8",
+      "script" : "[U9] The Long item type. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0fdc0c14830205050205040204000101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "patch_generic_long_coll_bool_item-errored#9",
+      "script" : "[U10] The same through `patch`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b12dc0c13830205050205040304008501010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updated_coll_of_coll_compatible_reference_item-accept#10",
+      "script" : "[U11] `Coll[Coll[Int]](Coll(1)).updated(0, Coll[Long](1L))` — a REFERENCE-backed array (`[Lsigma.Coll;`), so the store only checks the item's CLASS, and a `Coll` is a `Coll`: it **RETURNS** at cost 100, and the result holds an item of the wrong item type. The complement of U1-U10: an ill-typed item is rejected by a primitive array and WAVED THROUGH by an Object array. An implementation that type-checks items uniformly over-rejects here.",
+      "tree_bytes_hex" : "0b13dc0c1483011083010404020204008301050502",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SInt"
+            }
+          },
+          "items" : [
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SLong"
+              },
+              "items" : [
+                {
+                  "kind" : "Long",
+                  "value" : "1"
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "updated_coll_of_box_incompatible_reference_item-errored#11",
+      "script" : "[U12] `Coll[Box](SELF).updated(0, groupGenerator)` — the same reference-backed store with an INCOMPATIBLE class throws `ArrayStoreException` (not a ClassCastException: the array itself refuses the element). **SEPARATING**, and it bounds U11: Object arrays are not lenient about everything, only about compatible classes.",
+      "tree_bytes_hex" : "0b0bdc0c14830163a702040082",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

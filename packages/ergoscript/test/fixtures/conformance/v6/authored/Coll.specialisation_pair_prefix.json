@@ -1,0 +1,326 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.specialisation_pair_prefix",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "pair_spec_side_startswith_lie_ls-errored#0",
+      "script" : "[P1] `Coll[Byte] CONSTANT .zip(Coll(0,1,2))` — a `PairOfCols` whose **ls is specialised** (`zip` keeps both sides as they are, `CollsOverArrays.scala:42`) — `.startsWith(ys)` where `ys` is a pair collection whose own ls is declared `Coll[Byte]` and evaluates to `Coll[Long]`. `PairOfCols.startsWith` (`:398-406`) DELEGATES to `ls.startsWith(yp.ls)`, so the specialised side's array cast fires: `ClassCastException`. **SEPARATING, and the row that distinguishes pair collections from the A-family:** `getOrElse`/`updated` on a pair cast the whole default to `Tuple2` first and are blind to the sides' classes, but startsWith/endsWith are not.",
+      "tree_bytes_hex" : "0b30dc0c1fdc0c1d0e030102030183030404000402040401dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "pair_gen_side_startswith_lie_ls-accept#1",
+      "script" : "[P2] The same with a GENERIC ls (a ConcreteCollection of the same bytes): returns **`true`** at cost 190 — the delegated `startsWith` compares boxed elements and `1L == 1`, exactly as in the flat S2 row. The pair's rs is identical on both sides, so the only difference is the ls's runtime class.",
+      "tree_bytes_hex" : "0b34dc0c1fdc0c1d8303020201020202030183030404000402040401dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 190,
+        "error" : null
+      }
+    },
+    {
+      "name" : "pair_spec_side_startswith_wellformed-accept#2",
+      "script" : "[P3] **CONTROL:** the specialised-ls receiver with a well-typed pair argument returns `true` at cost 155.",
+      "tree_bytes_hex" : "0b2cdc0c1fdc0c1d0e030102030183030404000402040401dc0c1d83030202010202020301830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 155,
+        "error" : null
+      }
+    },
+    {
+      "name" : "pair_gen_side_startswith_wellformed-accept#3",
+      "script" : "[P4] **CONTROL:** the generic-ls receiver, same argument, `true` at cost 185.",
+      "tree_bytes_hex" : "0b30dc0c1fdc0c1d8303020201020202030183030404000402040401dc0c1d83030202010202020301830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 185,
+        "error" : null
+      }
+    },
+    {
+      "name" : "pair_spec_side_endswith_lie_ls-errored#4",
+      "script" : "[P5] `endsWith` on the same pair receiver: the same delegation, the same cast. **SEPARATING.**",
+      "tree_bytes_hex" : "0b30dc0c20dc0c1d0e030102030183030404000402040401dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "pair_gen_side_endswith_lie_ls-accept#5",
+      "script" : "[P6] Its generic twin returns **`false`** at cost 190 — the same argument that made P2 `true`, because `(1,2,3)` does not END with `1L`. The P2/P6 asymmetry pins the comparison as numeric rather than refused, inside a pair.",
+      "tree_bytes_hex" : "0b34dc0c20dc0c1d8303020201020202030183030404000402040401dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 190,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_pair_empty_primitive_arg-errored#6",
+      "script" : "[P7] `Coll[(Int,Int)]` CONSTANT — a `PairOfCols` — `.startsWith(ys)` where `ys` is declared `Coll[(Int,Int)]` and evaluates to an EMPTY `Coll[Int]`. With a NON-pair argument the side-by-side delegation is unavailable and the fallback casts the argument's array, so this throws `ClassCastException` BEFORE any length test. **An empty argument is not a free pass:** the array is cast, not read. **SEPARATING:** an implementation that holds a pair collection as two columns, or that tests the argument's LENGTH before its class, answers `true` here — an over-accept of a comparison the JVM refuses.",
+      "tree_bytes_hex" : "0b14dc0c1f0c58020204060801950100830058830004",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_pair_nonempty_primitive_arg-errored#7",
+      "script" : "[P8] The same with ONE Int in the argument: the same `ClassCastException`. It is what says P7 is about the array's class and not about an empty-prefix shortcut. **SEPARATING**, and the row an implementation that compares element-wise answers `false` on.",
+      "tree_bytes_hex" : "0b16dc0c1f0c580202040608019501008300588301040402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_pair_specialised_byte_arg-errored#8",
+      "script" : "[P9] The same with a `Coll[Byte]` CONSTANT argument — the deserializer's specialised `$mcB$sp` over `[B` (`CoreDataSerializer.scala:174`): also `ClassCastException`. Any primitive backing does it, and the argument's own specialisation adds nothing. **SEPARATING.**",
+      "tree_bytes_hex" : "0b15dc0c1f0c580202040608019501008300580e020102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "startswith_pair_empty_reference_arg-accept#9",
+      "script" : "[P10] The REFERENCE-array half: an argument declared `Coll[(Int,Int)]` that evaluates to an EMPTY `Coll[Coll[Int]]` is ACCEPTED and answers **`true`** at cost 55 — a `[Lsigma/Coll;` casts to `[Ljava/lang/Object;`, and an empty prefix is a prefix. **The P7/P10 pair is the row to read:** same receiver, same call, both arguments EMPTY, and the verdict turns on whether the argument's array is primitive.",
+      "tree_bytes_hex" : "0b14dc0c1f0c58020204060801950100830058830010",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 55,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_pair_nonempty_reference_arg-accept#10",
+      "script" : "[P11] One `Coll[Int]` in that argument and the answer is **`false`** at cost 80: the cast succeeds and the comparison then fails on the element, a `Coll` being no `Tuple2`. The bound on P10 — the reference argument is answered, not waved through.",
+      "tree_bytes_hex" : "0b19dc0c1f0c580202040608019501008300588301108301040402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 80,
+        "error" : null
+      }
+    },
+    {
+      "name" : "endswith_pair_empty_primitive_arg-errored#11",
+      "script" : "[P12] `endsWith` takes the identical path (`:405`) and throws on the empty primitive argument too. **SEPARATING**, and it doubles P7 on the other end of the collection.",
+      "tree_bytes_hex" : "0b14dc0c200c58020204060801950100830058830004",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "endswith_pair_empty_reference_arg-accept#12",
+      "script" : "[P13] **CONTROL:** `endsWith` with the empty REFERENCE argument answers `true` at cost 55, the mirror of P10 — so P12 is the argument's array and not the end chosen.",
+      "tree_bytes_hex" : "0b14dc0c200c58020204060801950100830058830010",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 55,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_pair_prefix_arg_control-accept#13",
+      "script" : "[P14] **CONTROL:** an honest pair-collection prefix `Coll((1,2))` answers `true` at cost 65 through the side-by-side delegation P1-P6 exercise. It is what shows P7-P9 are about the argument's KIND and not about the receiver.",
+      "tree_bytes_hex" : "0b14dc0c1f0c58020204060801830158860204020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 65,
+        "error" : null
+      }
+    },
+    {
+      "name" : "startswith_pair_empty_pair_arg_control-accept#14",
+      "script" : "[P15] **CONTROL:** an EMPTY pair argument answers `true` at cost 40 — the delegated path has its own empty case, so emptiness is fatal only when the argument is a non-pair over a primitive array.",
+      "tree_bytes_hex" : "0b0edc0c1f0c58020204060801830058",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "mapped_receiver_empty_primitive_arg-accept#15",
+      "script" : "[P16] **THE PAIR SHAPE DECIDES IT, NOT THE ITEM TYPE:** `pairConst.map(x => x)` is a plain `CollOverArray` over `[Lscala.Tuple2;` (family I), and the SAME empty primitive argument now answers **`true`** at cost 105 where P7 throws. One identity `map` on the RECEIVER flips the verdict — the fourth operation the pair shape decides, after `getOrElse`, `ByIndex` and the item-typed stores, and the one where the argument is what gets cast.",
+      "tree_bytes_hex" : "0b1edc0c1fdc0c030c58020204060801d9010158720101950100830058830004",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 105,
+        "error" : null
+      }
+    }
+  ]
+}

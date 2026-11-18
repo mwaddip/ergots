@@ -18,7 +18,7 @@ import { fileURLToPath } from 'node:url'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
-import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError } from '../_helpers'
+import { hexToBytes, hydrateSValue, rehydrateEvalOpts, captureEvalError , withoutClass } from '../_helpers'
 import {
   evalSHeaderId,
   evalSHeaderHeight,
@@ -65,7 +65,7 @@ describe('SHeader handlers — oracle fixture-driven (Phase 2h-c.1)', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext(rehydrateEvalOpts(entry.opts_json))
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

@@ -1,0 +1,204 @@
+{
+  "v5/authored/Coll.patch_array_class.json": {
+    "method-not-implemented": [
+      "coll5-patch-B.globalxor-Bconst0-v0-a2#670",
+      "coll5-patch-B.globalxor-Bconst1-v0-a2#671",
+      "coll5-patch-B.globalxor-Bmap0-v0-a2#679",
+      "coll5-patch-B.globalxor-Bmap1-v0-a2#680",
+      "coll5-patch-B.globalxor-Cconst0-v0-a2#678",
+      "coll5-patch-B.globalxor-Iconst0-v0-a2#673",
+      "coll5-patch-B.globalxor-Iidx0-v0-a2#683",
+      "coll5-patch-B.globalxor-Imap0-v0-a2#682",
+      "coll5-patch-B.globalxor-Lconst0-v0-a2#674",
+      "coll5-patch-B.globalxor-Lmap0-v0-a2#684",
+      "coll5-patch-B.globalxor-Nconst0-v0-a2#676",
+      "coll5-patch-B.globalxor-Pconst0-v0-a2#677",
+      "coll5-patch-B.globalxor-Pzip0-v0-a2#685",
+      "coll5-patch-B.globalxor-Sconst0-v0-a2#675",
+      "coll5-patch-B.globalxor-Zconst0-v0-a2#672",
+      "coll5-patch-B.globalxor-Zmap0-v0-a2#681",
+      "coll5-patch-B.globalxor-ctl0-v0-a2#667",
+      "coll5-patch-B.globalxor-ctl1-v0-a2#668",
+      "coll5-patch-B.globalxor-ctl3-v0-a2#669"
+    ],
+    "tuple-as-collection": [
+      "coll2-patch-B.append-tripleB.direct-v0-a2#308",
+      "coll2-patch-B.blake-tripleB.direct-v0-a2#313",
+      "coll2-patch-B.const-tripleB.direct-v0-a2#293",
+      "coll2-patch-B.filter-tripleB.direct-v0-a2#303",
+      "coll2-patch-B.inner-tripleB.direct-v0-a2#387",
+      "coll2-patch-B.l2b-tripleB.direct-v0-a2#318",
+      "coll2-patch-B.patched-tripleB.direct-v0-a2#323",
+      "coll2-patch-B.slice-tripleB.direct-v0-a2#298",
+      "coll2-patch-I.indices-tripleI.direct-v0-a2#348",
+      "coll2-patch-I.indices.append-tripleI.direct-v0-a2#363",
+      "coll2-patch-I.indices.filter-tripleI.direct-v0-a2#358",
+      "coll2-patch-I.indices.slice-tripleI.direct-v0-a2#353",
+      "coll2-patch-Z.append-tripleZ.direct-v0-a2#343",
+      "coll2-patch-Z.const-tripleZ.direct-v0-a2#328",
+      "coll2-patch-Z.filter-tripleZ.direct-v0-a2#338",
+      "coll2-patch-Z.inner-tripleZ.direct-v0-a2#411",
+      "coll2-patch-Z.slice-tripleZ.direct-v0-a2#333"
+    ]
+  },
+  "v6/authored/Box.getReg_adversarial.json": {
+    "method-not-implemented": [
+      "getRegV5-live-reject#0"
+    ]
+  },
+  "v6/authored/Coll.pair_shape_map.json": {
+    "method-not-implemented": [
+      "byindex_mapped_pair_bool_default-accept#5",
+      "eq_mapped_vs_mapped-accept#10",
+      "eq_paircols_vs_mapped-accept#9",
+      "mapped_from_concrete_bool_default-accept#6",
+      "mapped_pair_bool_default_in_range-accept#3",
+      "mapped_pair_bool_default_oob-accept#2",
+      "mapped_pair_pair_default_control-accept#8",
+      "mapped_startswith_paircols-accept#11",
+      "paircols_const_bool_default_in_range-errored#1",
+      "paircols_const_bool_default_oob-errored#0",
+      "paircols_const_pair_default_control-accept#7",
+      "paircols_startswith_mapped-accept#12",
+      "self_tokens_bool_default_in_range-accept#13",
+      "self_tokens_bool_default_oob-accept#14",
+      "self_tokens_size-accept#15"
+    ]
+  },
+  "v6/authored/Coll.pair_shape_restored.json": {
+    "comparer": [
+      "filter_node_loses_specialised_side-accept#5"
+    ],
+    "method-not-implemented": [
+      "flatmap_into_pairs_bool_default-errored#2",
+      "map_into_pairs_bool_default-errored#0",
+      "map_into_pairs_pair_default-accept#1",
+      "reverse_of_mapped_pair_bool_default-errored#3"
+    ]
+  },
+  "v6/authored/Coll.patch_array_class_v6.json": {
+    "method-not-implemented": [
+      "coll5-patch-B.globalxor-Bconst0-v0-a3#1340",
+      "coll5-patch-B.globalxor-Bconst0-v3-a3#1341",
+      "coll5-patch-B.globalxor-Bconst1-v0-a3#1342",
+      "coll5-patch-B.globalxor-Bconst1-v3-a3#1343",
+      "coll5-patch-B.globalxor-Bmap0-v0-a3#1358",
+      "coll5-patch-B.globalxor-Bmap0-v3-a3#1359",
+      "coll5-patch-B.globalxor-Bmap1-v0-a3#1360",
+      "coll5-patch-B.globalxor-Bmap1-v3-a3#1361",
+      "coll5-patch-B.globalxor-Cconst0-v0-a3#1356",
+      "coll5-patch-B.globalxor-Cconst0-v3-a3#1357",
+      "coll5-patch-B.globalxor-Iconst0-v0-a3#1346",
+      "coll5-patch-B.globalxor-Iconst0-v3-a3#1347",
+      "coll5-patch-B.globalxor-Iidx0-v0-a3#1366",
+      "coll5-patch-B.globalxor-Iidx0-v3-a3#1367",
+      "coll5-patch-B.globalxor-Imap0-v0-a3#1364",
+      "coll5-patch-B.globalxor-Imap0-v3-a3#1365",
+      "coll5-patch-B.globalxor-Lconst0-v0-a3#1348",
+      "coll5-patch-B.globalxor-Lconst0-v3-a3#1349",
+      "coll5-patch-B.globalxor-Lmap0-v0-a3#1368",
+      "coll5-patch-B.globalxor-Lmap0-v3-a3#1369",
+      "coll5-patch-B.globalxor-Nconst0-v0-a3#1352",
+      "coll5-patch-B.globalxor-Nconst0-v3-a3#1353",
+      "coll5-patch-B.globalxor-Pconst0-v0-a3#1354",
+      "coll5-patch-B.globalxor-Pconst0-v3-a3#1355",
+      "coll5-patch-B.globalxor-Pzip0-v0-a3#1370",
+      "coll5-patch-B.globalxor-Pzip0-v3-a3#1371",
+      "coll5-patch-B.globalxor-Sconst0-v0-a3#1350",
+      "coll5-patch-B.globalxor-Sconst0-v3-a3#1351",
+      "coll5-patch-B.globalxor-Zconst0-v0-a3#1344",
+      "coll5-patch-B.globalxor-Zconst0-v3-a3#1345",
+      "coll5-patch-B.globalxor-Zmap0-v0-a3#1362",
+      "coll5-patch-B.globalxor-Zmap0-v3-a3#1363",
+      "coll5-patch-B.globalxor-ctl0-v0-a3#1334",
+      "coll5-patch-B.globalxor-ctl0-v3-a3#1335",
+      "coll5-patch-B.globalxor-ctl1-v0-a3#1336",
+      "coll5-patch-B.globalxor-ctl1-v3-a3#1337",
+      "coll5-patch-B.globalxor-ctl3-v0-a3#1338",
+      "coll5-patch-B.globalxor-ctl3-v3-a3#1339"
+    ],
+    "tuple-as-collection": [
+      "coll2-patch-B.append-tripleB.direct-v0-a3#616",
+      "coll2-patch-B.append-tripleB.direct-v3-a3#617",
+      "coll2-patch-B.blake-tripleB.direct-v0-a3#626",
+      "coll2-patch-B.blake-tripleB.direct-v3-a3#627",
+      "coll2-patch-B.const-tripleB.direct-v0-a3#586",
+      "coll2-patch-B.const-tripleB.direct-v3-a3#587",
+      "coll2-patch-B.filter-tripleB.direct-v0-a3#606",
+      "coll2-patch-B.filter-tripleB.direct-v3-a3#607",
+      "coll2-patch-B.inner-tripleB.direct-v0-a3#774",
+      "coll2-patch-B.inner-tripleB.direct-v3-a3#775",
+      "coll2-patch-B.l2b-tripleB.direct-v0-a3#636",
+      "coll2-patch-B.l2b-tripleB.direct-v3-a3#637",
+      "coll2-patch-B.patched-tripleB.direct-v0-a3#646",
+      "coll2-patch-B.patched-tripleB.direct-v3-a3#647",
+      "coll2-patch-B.slice-tripleB.direct-v0-a3#596",
+      "coll2-patch-B.slice-tripleB.direct-v3-a3#597",
+      "coll2-patch-I.indices-tripleI.direct-v0-a3#696",
+      "coll2-patch-I.indices-tripleI.direct-v3-a3#697",
+      "coll2-patch-I.indices.append-tripleI.direct-v0-a3#726",
+      "coll2-patch-I.indices.append-tripleI.direct-v3-a3#727",
+      "coll2-patch-I.indices.filter-tripleI.direct-v0-a3#716",
+      "coll2-patch-I.indices.filter-tripleI.direct-v3-a3#717",
+      "coll2-patch-I.indices.slice-tripleI.direct-v0-a3#706",
+      "coll2-patch-I.indices.slice-tripleI.direct-v3-a3#707",
+      "coll2-patch-Z.append-tripleZ.direct-v0-a3#686",
+      "coll2-patch-Z.append-tripleZ.direct-v3-a3#687",
+      "coll2-patch-Z.const-tripleZ.direct-v0-a3#656",
+      "coll2-patch-Z.const-tripleZ.direct-v3-a3#657",
+      "coll2-patch-Z.filter-tripleZ.direct-v0-a3#676",
+      "coll2-patch-Z.filter-tripleZ.direct-v3-a3#677",
+      "coll2-patch-Z.inner-tripleZ.direct-v0-a3#822",
+      "coll2-patch-Z.inner-tripleZ.direct-v3-a3#823",
+      "coll2-patch-Z.slice-tripleZ.direct-v0-a3#666",
+      "coll2-patch-Z.slice-tripleZ.direct-v3-a3#667"
+    ]
+  },
+  "v6/authored/Coll.reference_store_ops.json": {
+    "comparer": [
+      "flatmap-unit-result-eq-accept#48",
+      "unit-patch-identity-map-eq-accept#56"
+    ],
+    "method-call-type": [
+      "parse-unit-patch-eq-refused-at-parse#73",
+      "unit-patch-eq-refused-at-parse#47"
+    ],
+    "method-not-implemented": [
+      "generic-int-coll-tuple-patch-accept#9",
+      "int-coll-tuple-patch-accept#8",
+      "tuple-receiver-groupelement-accept#2",
+      "unit-coll-append-method-errored#67"
+    ],
+    "zero-width-collection": [
+      "empty-unit-coll-constant-refused-at-parse#58",
+      "parse-empty-unit-coll-constant-refused-at-parse#81",
+      "parse-unit-coll-constant-patch-refused-at-parse#82",
+      "parse-unit-coll-constant-refused-at-parse#80",
+      "unit-coll-constant-patch-refused-at-parse#59",
+      "unit-coll-constant-refused-at-parse#57"
+    ]
+  },
+  "v6/authored/Coll.specialisation_pair_prefix.json": {
+    "comparer": [
+      "pair_gen_side_startswith_lie_ls-accept#1"
+    ],
+    "method-not-implemented": [
+      "mapped_receiver_empty_primitive_arg-accept#15"
+    ]
+  },
+  "v6/authored/Coll.specialisation_prefix_suffix.json": {
+    "comparer": [
+      "startswith_byte_concrete_long_arg-accept#1"
+    ]
+  },
+  "v6/authored/Coll.zip_unequal_sides_v6.json": {
+    "tuple-as-collection": [
+      "arr-Xor-left-Triple-bytes-Int-v0-a3#229",
+      "arr-Xor-left-Triple-bytes-v0-a3#228"
+    ],
+    "method-not-implemented": [
+      "zip-ls-longer-map.method-v0-a3#4",
+      "zip-rs-empty-map.method-v0-a3#21"
+    ]
+  }
+}

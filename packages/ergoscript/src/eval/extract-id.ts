@@ -22,7 +22,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 import { boxIdOf } from './_box-id'
 
 // Cost source: sigma-rust eval/extract_id.rs:16 — ctx.add_jit_cost(12)?
@@ -38,7 +38,12 @@ export function evalExtractId(e: ExtractId, env: Env, ctx: EvalContext): SValue 
       'extract-input-not-box'
     )
   }
-  // No aliasing: bytesToCollByteSValue materializes per-item Byte SValues,
-  // so boxIdOf's memoized array is never exposed to the script.
-  return bytesToCollByteSValue(boxIdOf(input.value))
+  // JVM `Box.id` is a specialised `Coll[Byte]`:
+  // `data/shared/src/main/scala/sigma/data/CBox.scala:24`
+  // `id = Colls.fromArray(ebox.id)` is `Colls.fromArray` on an `Array[Byte]`
+  // — the specialised `fromArray` branch in
+  // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
+  // `byteColl` materialises per-item Byte SValues, so `boxIdOf`'s memoised
+  // array is never exposed to the script.
+  return byteColl(boxIdOf(input.value), true)
 }

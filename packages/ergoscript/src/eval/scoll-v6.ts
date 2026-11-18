@@ -12,6 +12,7 @@ import type { SValue } from '../mir/types'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { sValueStructuralEq } from './bin-op/relation'
+import { endsWith, reversed, startsWith } from './_coll'
 
 // reverse (12:30) — Append.costKind PerItemCost(20,2,100) on receiver length.
 // JVM: methods.scala:1126-1141. tRange Coll[IV] (generic; resolved by P0).
@@ -20,12 +21,20 @@ export function evalCollReverse(obj: SValue, _args: SValue[], ctx: EvalContext):
     throw new EvalError(`SColl.reverse expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
   }
   ctx.addPerItemCost(20, 2, 100, obj.items.length) // Append.costKind; methods.scala:1124
-  return { kind: 'Coll', elem: obj.elem, items: [...obj.items].reverse() }
+  // `CollOverArray.reverse` (CollsOverArrays.scala:59-66) calls
+  // `builder.fromArray(reversed Array[A])` — specialisation preserved, pair
+  // routing restores a pair shape on a plain-Tuple2 receiver.
+  // `PairOfCols.reverse` (:384-394) reverses each side, pre-cutting the longer
+  // side with its own `slice` where the lengths differ.
+  return reversed(obj)
 }
 
 // startsWith (12:31) — Zip_CostKind PerItemCost(10, 1, 10) on RECEIVER length.
-// Element comparison is COST-FREE (sValueStructuralEq). JVM: methods.scala:1145-1161
-// (addSeqCost(Zip_CostKind, xs.length){ xs.startsWith(ys) } — Coll.startsWith uncosted).
+// JVM: methods.scala:1145-1161 (addSeqCost(Zip_CostKind, xs.length){ xs.startsWith(ys) } —
+// the cost is charged BEFORE the method body; `Coll.startsWith`'s elements are uncosted).
+// The method body's rule — specialised receiver casts the argument's array, pairs receiver
+// delegates side by side or falls back to a Tuple2[] cast — is in `coll/ops.ts`
+// (CollsOverArrays.scala:44, :398-401).
 export function evalCollStartsWith(obj: SValue, args: SValue[], ctx: EvalContext): SValue {
   if (obj.kind !== 'Coll') {
     throw new EvalError(`SColl.startsWith expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
@@ -35,15 +44,12 @@ export function evalCollStartsWith(obj: SValue, args: SValue[], ctx: EvalContext
   if (args.length !== 1 || prefix === undefined || prefix.kind !== 'Coll') {
     throw new EvalError(`SColl.startsWith expects 1 Coll arg; got ${args.map((a) => a.kind).join(',')}`, 'method-not-implemented')
   }
-  if (prefix.items.length > obj.items.length) return { kind: 'Boolean', value: false }
-  for (let i = 0; i < prefix.items.length; i++) {
-    if (!sValueStructuralEq(obj.items[i]!, prefix.items[i]!)) return { kind: 'Boolean', value: false }
-  }
-  return { kind: 'Boolean', value: true }
+  return { kind: 'Boolean', value: startsWith(obj, prefix, sValueStructuralEq) }
 }
 
 // endsWith (12:32) — Zip_CostKind PerItemCost(10,1,10) on RECEIVER length.
-// Element comparison COST-FREE. JVM: methods.scala:1165-1181.
+// JVM: methods.scala:1165-1181. Same shape as `startsWith`: cost charged before the body,
+// body is `CollsOverArrays.scala:46, :403-406`, rule in `coll/ops.ts`.
 export function evalCollEndsWith(obj: SValue, args: SValue[], ctx: EvalContext): SValue {
   if (obj.kind !== 'Coll') {
     throw new EvalError(`SColl.endsWith expects a Coll obj; got '${obj.kind}'`, 'method-not-implemented')
@@ -53,12 +59,7 @@ export function evalCollEndsWith(obj: SValue, args: SValue[], ctx: EvalContext):
   if (args.length !== 1 || suffix === undefined || suffix.kind !== 'Coll') {
     throw new EvalError(`SColl.endsWith expects 1 Coll arg; got ${args.map((a) => a.kind).join(',')}`, 'method-not-implemented')
   }
-  if (suffix.items.length > obj.items.length) return { kind: 'Boolean', value: false }
-  const offset = obj.items.length - suffix.items.length
-  for (let i = 0; i < suffix.items.length; i++) {
-    if (!sValueStructuralEq(obj.items[offset + i]!, suffix.items[i]!)) return { kind: 'Boolean', value: false }
-  }
-  return { kind: 'Boolean', value: true }
+  return { kind: 'Boolean', value: endsWith(obj, suffix, sValueStructuralEq) }
 }
 
 // get (12:33) — ByIndex.costKind FixedCost(30). Total: 0<=i<len ? Some : None.

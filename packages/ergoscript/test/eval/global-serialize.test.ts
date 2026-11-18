@@ -21,6 +21,7 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall, SType, SValue } from '../../src/mir/types'
+import { specColl } from '../_helpers'
 
 const SBYTE: SType = { tag: 'SByte' }
 
@@ -36,9 +37,13 @@ function serExpr(tpe: SType, value: SValue): MethodCall {
   }
 }
 
-/** Build a Coll[Byte] SValue from an array of number bytes. */
+/**
+ * Build a Coll[Byte] SValue from an array of number bytes. `Global.serialize`
+ * ends `Colls.fromArray(w.toBytes)` under the concrete `Byte` type
+ * (`sigma/ast/methods.scala:1981`) — specialised.
+ */
 const collByte = (bytes: number[]): SValue =>
-  ({ kind: 'Coll', elem: SBYTE, items: bytes.map((b) => ({ kind: 'Byte', value: b })) })
+  specColl(SBYTE, bytes.map((b) => ({ kind: 'Byte', value: b })))
 
 describe('Global.serialize (106:3) — v6 P5a (data types)', () => {
   // Framework: 4 + 5 + 5 = 14. Handler = 10 (StartWriter) + walk.

@@ -5,7 +5,8 @@
  * Spec: docs/specs/2026-06-02-ergoscript-v6-p1-numeric-methods-design.md
  */
 import type { SValue, SType } from '../mir/types'
-import { bytesToCollByteSValue, I256_MIN, I256_MAX } from './_byte-coll'
+import { I256_MIN, I256_MAX } from './_byte-coll'
+import { byteColl, fromArray } from './_coll'
 import type { HandlerFn } from './method-call'
 import { EvalError } from './eval-context'
 import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
@@ -175,10 +176,25 @@ const ubiDesc: NumV6 = {
 const NUMERIC_V6_TYPES: NumV6[] = [byteDesc, shortDesc, intDesc, longDesc, bigIntDesc, ubiDesc]
 
 function makeToBytes(t: NumV6): HandlerFn {
+  // JVM `Byte/Short/Int/Long.toBytes` go through `ExactIntegral.toBigEndianBytes`
+  // (`data/shared/src/main/scala/sigma/data/ExactIntegral.scala:41` for Byte,
+  // `:67` Short, `:93-94` Int, `:122-123` Long), which each call
+  // `Colls.fromItems(...)` with raw bytes. `fromItems`
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:217-224`)
+  // builds `new CollOverArray(items.toArray(cT.classTag), builder)` directly —
+  // no `@specialized` branch, so the result is PLAIN.
+  // `BigInt.toBytes` is `CBigInt.toBytes` at
+  // `core/shared/src/main/scala/sigma/data/CBigInt.scala:30`:
+  // `Colls.fromArray(wrappedValue.toByteArray)` — `Array[Byte]` under the
+  // concrete `Byte` type, the specialised `fromArray` branch. `UnsignedBigInt.toBytes`
+  // is `CUnsignedBigInt.toBytes` at
+  // `core/shared/src/main/scala/sigma/data/CUnsignedBigInt.scala:32` —
+  // same `Colls.fromArray` at concrete `Byte`, SPECIALISED.
+  const specialised = t.kind === 'BigInt' || t.kind === 'UnsignedBigInt'
   return (obj, _args, ctx) => {
     ctx.addCost(5)
     requireKind(obj, t.kind, `${t.kind}.toBytes`)
-    return bytesToCollByteSValue(t.toBE((obj as { value: number | bigint }).value))
+    return byteColl(t.toBE((obj as { value: number | bigint }).value), specialised)
   }
 }
 function makeToBits(t: NumV6): HandlerFn {
@@ -193,7 +209,11 @@ function makeToBits(t: NumV6): HandlerFn {
         items[i * 8 + (7 - bit)] = { kind: 'Boolean', value: ((byte >> bit) & 1) === 1 }
       }
     }
-    return { kind: 'Coll', elem: SBOOLEAN, items }
+    // `<numeric>.toBits` is `ExactNumeric.toBits`
+    // (`data/shared/src/main/scala/sigma/data/ExactNumeric.scala:44-58`),
+    // which ends `Colls.fromArray(res)` on a `new Array[Boolean](l * 8)` —
+    // the concrete `Boolean` type takes the specialised `fromArray` branch.
+    return fromArray(SBOOLEAN, items, true)
   }
 }
 

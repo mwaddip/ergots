@@ -1,0 +1,134 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.pair_shape_restored",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-coll-specialisation",
+  "entries" : [
+    {
+      "name" : "map_into_pairs_bool_default-errored#0",
+      "script" : "[Y1] `Coll[Int](0,1,2).map(x => (x, x)).getOrElse(5, true)` THROWS. Mapping INTO pairs builds a `PairOfCols` (`CollOverArray.map` -> `builder.fromArray` at a PAIR RType -> `fromBoxedPairs`), so the Tuple2 bridge is back. **SEPARATING, and the exact INVERSE of M3:** `map` over a pair collection removes the bridge and `map` into one installs it.",
+      "tree_bytes_hex" : "0b1fdc0c02dc0c0383030404000402040401d901010486027201720102040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "map_into_pairs_pair_default-accept#1",
+      "script" : "[Y2] **CONTROL for Y1:** a pair default returns `(9,9)` at cost 219.",
+      "tree_bytes_hex" : "0b23dc0c02dc0c0383030404000402040401d901010486027201720102040a860204120412",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 9
+            },
+            {
+              "kind" : "Int",
+              "value" : 9
+            }
+          ]
+        },
+        "cost" : 219,
+        "error" : null
+      }
+    },
+    {
+      "name" : "flatmap_into_pairs_bool_default-errored#2",
+      "script" : "[Y3] `flatMap` into pairs does the same: a `PairOfCols` and a throw. **SEPARATING**, and it shows the rule is about the BUILDER call's static type and not about `map` specifically.",
+      "tree_bytes_hex" : "0b22dc0c02dc0c0f83030404000402040401d901010483015886027201720102040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "reverse_of_mapped_pair_bool_default-errored#3",
+      "script" : "[Y4] `pairCC.map(x => x).reverse.getOrElse(5, true)` THROWS, where the same collection WITHOUT the `reverse` returns (Y5). `CollOverArray.reverse` goes through `builder.fromArray` with the pair RType, so the `PairOfCols` is RESTORED. **SEPARATING, and the sharpest statement of the round:** two ordinary operations in sequence flip the verdict twice — its control is M7 in `Coll.pair_shape_map`, the SAME collection one operation earlier, which returns `true` at cost 164.",
+      "tree_bytes_hex" : "0b24dc0c02db0c1edc0c0383025886020402040486020406040801d9010158720102040a0101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updatemany_loses_specialised_side-accept#4",
+      "script" : "[Y8] `specB.zip(genI).updateMany(…).startsWith(ys)` with a lying ls argument answers **`false`** at cost 256, where the same `startsWith` on the un-updated collection THROWS (P1). `updateMany` rebuilds both sides through `pairCollFromArrays` at an abstract type, so the SPECIALISED ls is lost and the delegated `ls.startsWith` no longer casts. The verdict follows the pipeline, not the construction.",
+      "tree_bytes_hex" : "0b43dc0c1fdc0c15dc0c1d0e030102030183030404000402040402830104040083013e0486020209041201dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 256,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_node_loses_specialised_side-accept#5",
+      "script" : "[Y11] The same through the `Filter` NODE: `true` at cost 216 where P1 throws. (`filter` as a MethodCall has no `_eval` handler at all — the node is its only reachable form, which is why this row is a node and P1 is a method call.)",
+      "tree_bytes_hex" : "0b38dc0c1fb5dc0c1d0e0301020301830304040004020404d901013e04010101dc0c1d9501008301020201830105050201830304040004020404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 216,
+        "error" : null
+      }
+    }
+  ]
+}

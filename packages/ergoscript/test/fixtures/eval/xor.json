@@ -1739,6 +1739,7 @@
     },
     {
       "name": "xor_left_long_right_short",
+      "comment": "left 200 bytes, right 10 bytes. Xor cost is sized by min = 10 (JVM trees.scala:1022: addSeqCost(costKind, math.min(ls.length, rs.length))) at PerItemCost(10, 2, 128); chunks(10) = (10-1)/128 + 1 = 1, so Xor cost = 10 + 2 = 12.",
       "tree_bytes_hex": "009b0ec801000d1a2734414e5b6875828f9ca9b6c3d0ddeaf704111e2b3845525f6c798693a0adbac7d4e1eefb0815222f3c495663707d8a97a4b1becbd8e5f2ff0c192633404d5a6774818e9ba8b5c2cfdce9f603101d2a3744515e6b7885929facb9c6d3e0edfa0714212e3b4855626f7c8996a3b0bdcad7e4f1fe0b1825323f4c596673808d9aa7b4c1cedbe8f5020f1c293643505d6a7784919eabb8c5d2dfecf90613202d3a4754616e7b8895a2afbcc9d6e3f0fd0a1724313e4b5865727f8c99a6b3c0cddae7f4010e1b0e0a00010203040506070809",
       "opts_json": {},
       "expected_value_json": {
@@ -1789,7 +1790,7 @@
         ],
         "kind": "Coll"
       },
-      "expected_cost": 24,
+      "expected_cost": 22,
       "expected_error_code": null
     },
     {

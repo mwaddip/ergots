@@ -24,7 +24,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../mir/types'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 
 // Shared SType singletons for R3 / ExtractCreationInfo return type.
 // STuple[SInt, SColl[SByte]] matches sigma-rust's `ExtractCreationInfo::tpe()`:
@@ -55,11 +55,21 @@ export function creationInfoTupleSValue(box: ErgoBox): SValue {
   // (eval/extract_creation_info.rs:18). Mirror the i32 wrap so JS Numbers
   // outside i32 range produce the same SValue.Int the sigma-rust evaluator
   // would.
+  // JVM `creationInfo._2` is a PLAIN `Coll[Byte]`. `ExtractCreationInfo.eval`
+  // (`sigma/ast/transformers.scala:514-523`) returns `inputV.creationInfo`;
+  // for an `ErgoBox` that value is built at `ErgoBox.scala:77-78`:
+  //   val tupleVal = (creationHeight,
+  //     CollectionUtil.concatArrays(transactionId.toBytes,
+  //                                 Shorts.toByteArray(index)).toColl)
+  // `.toColl` on an `Array[Byte]` is `ArrayOps[T: RType].toColl =
+  // Colls.fromArray(arr)` (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`),
+  // which calls the generic `fromArray` at an ERASED element type — no
+  // `@specialized` branch applies, so the result is the plain class.
   return {
     kind: 'Tuple',
     items: [
       { kind: 'Int', value: box.creationHeight | 0 },
-      bytesToCollByteSValue(combined),
+      byteColl(combined, false),
     ],
   }
 }

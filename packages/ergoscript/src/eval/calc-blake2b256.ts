@@ -26,7 +26,8 @@ import type { CalcBlake2b256, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
+import { collByteToUint8Array } from './_byte-coll'
+import { byteColl } from './_coll'
 
 export function evalCalcBlake2b256(
   e: CalcBlake2b256,
@@ -38,5 +39,11 @@ export function evalCalcBlake2b256(
   // Pattern B: charge AFTER eval-child + AFTER type guard.
   ctx.addPerItemCost(20, 7, 128, bytes.length)
   const digest = blake2b(bytes, { dkLen: 32 })
-  return bytesToCollByteSValue(digest)
+  // JVM `CalcBlake2b256.eval`
+  // (`data/shared/src/main/scala/sigma/ast/trees.scala:545-554`) calls
+  // `SigmaDsl.blake2b256(inputV)` → `CSigmaDslBuilder.blake2b256`
+  // (`data/shared/src/main/scala/sigma/data/CSigmaDslBuilder.scala:153-156`),
+  // which ends `Colls.fromArray(h)` on an `Array[Byte]` under the concrete
+  // `Byte` type — the specialised `fromArray` branch.
+  return byteColl(digest, true)
 }

@@ -1,17 +1,29 @@
 /**
- * Append evaluator arm (phase 2f Coll HOFs Task 3).
+ * `Append` evaluator arm — concatenation of two collections, routed through
+ * the collection module's `append`.
  *
- * Concatenates two Coll[T] values, returning a new Coll[T].
- * Pattern B-chunked: cost charged AFTER both child evals.
+ * Source: `data/shared/src/main/scala/sigma/ast/transformers.scala:59-70` at
+ * sigma-state 6.0.7.
+ *     val inputV = input.evalTo[Coll[IV#WrappedType]](env)
+ *     val col2V = col2.evalTo[Coll[IV#WrappedType]](env)
+ *     addSeqCost(Append.costKind, inputV.length + col2V.length) { () =>
+ *       inputV.append(col2V)
+ *     }
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/coll_append.rs:39-63
- *   let input_v = self.input.eval(env, ctx)?;        // line 44 — eval input first
- *   let col2_v = self.col_2.eval(env, ctx)?;         // line 45 — eval col_2 second
- *   if input_elem_tpe != col2_elem_tpe { return Err(...) }   // line 52-58
- *   let input_vecval = extract_vecval(input_v)?;
- *   let col_2_vecval = extract_vecval(col2_v)?;
- *   ctx.add_per_item_jit_cost(20, 2, 100, n1+n2)?;  // line 57 — Pattern B-chunked
- *   Ok(concat result)
+ * Cost: `Append.costKind = PerItemCost(baseCost = 20, perChunkCost = 2,
+ * chunkSize = 100)` (:76), nItems = inputV.length + col2V.length.
+ * `addSeqCost` charges the cost before invoking the operation
+ * (`interpreter/shared/src/main/scala/sigmastate/interpreter/
+ *  CErgoTreeEvaluator.scala:370-392`): `coster.add(costKind.cost(nItems))`
+ * runs before `block()`.
+ *
+ * The result's class, `elem` and item store rules come from the module's
+ * `append`: on an EMPTY receiver the operand is returned UNREAD (its own
+ * class and `elem`); on a non-empty specialised receiver an operand over
+ * another array fails (`'coll-class-cast'`); on a non-empty plain primitive
+ * receiver an operand over another array fails (`'coll-array-store'`); on
+ * a plain reference receiver a per-item check applies; on a pairs receiver
+ * the operand is unzipped and each side's `append` applies.
  */
 
 import type { Append, SValue } from '../mir/types'
@@ -19,69 +31,41 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { extractCollItems } from './_coll-helpers'
-import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
+import { append as collAppend } from './_coll'
 
-// Cost source: sigma-rust eval/coll_append.rs:57
-//   ctx.add_per_item_jit_cost(20, 2, 100, n1+n2)?;
-// Pattern B-chunked (cost AFTER eval-children).
 const COLL_APPEND_BASE = 20
 const COLL_APPEND_PER_CHUNK = 2
 const COLL_APPEND_CHUNK_SIZE = 100
 
 /**
- * Evaluate an `Append` node. Pattern B-chunked: cost charged after both children.
+ * Evaluate an `Append` node.
  *
  * @throws EvalError `'coll-input-not-coll'` if either operand is not a Coll.
- * @throws EvalError `'coll-elem-tpe-mismatch'` if the two Colls have different elem types.
- * @throws EvalError `'cost-limit-exceeded'` if addPerItemCost exceeds the limit.
+ * @throws EvalError `'coll-class-cast'` / `'coll-array-store'` from the
+ *   module's `append` facade.
+ * @throws EvalError `'cost-limit-exceeded'` if `addPerItemCost` exceeds the
+ *   limit.
  */
 export function evalAppend(e: Append, env: Env, ctx: EvalContext): SValue {
   const inputVal = evalExpr(e.input, env, ctx)
   const col2Val = evalExpr(e.col2, env, ctx)
-
-  const inputColl = extractCollItems(inputVal)
-  const col2Coll = extractCollItems(col2Val)
-
-  // Elem-type equality check, mirroring sigma-rust coll_append.rs
-  // (`if input_elem_tpe != col2_elem_tpe { return Err }`). SAny tolerance:
-  // skip the check when either runtime elem is SAny — our phase-2a `exprTpe`
-  // emits SAny for values whose type isn't statically resolvable (notably
-  // un-resolved MethodCall returns, e.g. an empty collection from a getMany /
-  // Map chain). sigma-rust tracks concrete types here, so its check passes;
-  // rejecting on our lossy SAny is a false positive. Same principle as the
-  // Map input/output SAny tolerance (iter-19) and the SAny-tolerant
-  // ByIndex/OptionGet/SelectField arms.
-  //
-  // Iter-21 (mainnet h=974,407 tx 8 input 1): Append(Coll[Coll[SByte]],
-  // <SAny coll>) — one operand concrete, the other SAny — halted here pre-fix.
-  // SAny-tolerant (wildcard at any depth) — generalizes the original
-  // top-level-only skip to nested SAny, consistent with Map (iter-22).
-  if (!sTypeEqualsModuloSAny(inputColl.elem, col2Coll.elem)) {
+  if (inputVal.kind !== 'Coll') {
     throw new EvalError(
-      `Append: expected the same elem type, got ${JSON.stringify(inputColl.elem)} and ${JSON.stringify(col2Coll.elem)}`,
-      'coll-elem-tpe-mismatch'
+      `Append: expected a Coll input, got '${inputVal.kind}'`,
+      'coll-input-not-coll',
     )
   }
-
+  if (col2Val.kind !== 'Coll') {
+    throw new EvalError(
+      `Append: expected a Coll col2, got '${col2Val.kind}'`,
+      'coll-input-not-coll',
+    )
+  }
   ctx.addPerItemCost(
     COLL_APPEND_BASE,
     COLL_APPEND_PER_CHUNK,
     COLL_APPEND_CHUNK_SIZE,
-    inputColl.items.length + col2Coll.items.length
+    inputVal.items.length + col2Val.items.length,
   )
-
-  // Output elem: prefer the concrete side when the other is SAny, so the
-  // result doesn't propagate SAny forward. When input is concrete (the common
-  // case, and sigma-rust's `from_collection(input_elem_tpe, …)`), use it.
-  // Prefer the fully-concrete side for the output elem so SAny (top-level or
-  // nested) isn't propagated forward; default to input's elem (sigma-rust uses
-  // input_elem_tpe).
-  const outElem = hasSAny(inputColl.elem) ? col2Coll.elem : inputColl.elem
-
-  return {
-    kind: 'Coll',
-    elem: outElem,
-    items: [...inputColl.items, ...col2Coll.items],
-  }
+  return collAppend(inputVal, col2Val)
 }

@@ -18,7 +18,7 @@ import { describe, expect, it } from 'vitest'
 import { evalPropertyCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
-import { captureEvalError } from '../_helpers'
+import { captureEvalError, specColl } from '../_helpers'
 import type { PropertyCall as PropertyCallExpr, PreHeader, SValue } from '../../src/mir/types'
 
 /**
@@ -61,17 +61,14 @@ describe('SContext.minerPubKey handler', () => {
     const ctx = makeContext({ preHeader: syntheticPreHeader(minerPk) })
     const result = evalPropertyCall(minerPubKeyExpr, Env.empty(), ctx)
 
-    // Coll[Byte] with 33 items; each byte sign-extended to i32 (matches the
-    // parser convention used by bytesToCollByteSValue).
+    // Coll[Byte] with 33 items, each byte sign-extended to i32. The handler
+    // sets the specialised `Coll[Byte]` class (`byteColl(..., true)`), the
+    // JVM's class of `preHeader.minerPk.getEncoded` (`CGroupElement.scala:16`).
     const expectedItems: SValue[] = []
     for (let i = 0; i < 33; i++) {
       expectedItems.push({ kind: 'Byte', value: (minerPk[i]! << 24) >> 24 })
     }
-    expect(result).toEqual({
-      kind: 'Coll',
-      elem: { tag: 'SByte' },
-      items: expectedItems,
-    })
+    expect(result).toEqual(specColl({ tag: 'SByte' }, expectedItems))
     expect(ctx.jitCost).toBe(25)
   })
 

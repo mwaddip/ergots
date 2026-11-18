@@ -72,7 +72,7 @@ export { sTypeOfSValue } from '../_helpers'
 export interface SantaActual {
   value: SValue | null
   cost: number | null
-  error: 'errored' | null
+  error: 'errored' | 'not-implemented' | null
 }
 
 /**
@@ -317,7 +317,15 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
     const value = evaluateWith(tree, ctx)
     return { value, cost: ctx.jitCost, error: null }
   } catch (err) {
-    if (err instanceof EvalError) return { value: null, cost: null, error: 'errored' }
+    if (err instanceof EvalError) {
+      // Mirror SANTA's own runner (dasher): a 'method-not-implemented' throw grades
+      // as a third outcome `not-implemented`, which never matches a blessed
+      // expectation — a blessed `errored` included. The row-check in _red-table.ts
+      // treats any 'not-implemented' as a failure whatever the row expects.
+      const code = (err as EvalError).code
+      if (code === 'method-not-implemented') return { value: null, cost: null, error: 'not-implemented' }
+      return { value: null, cost: null, error: 'errored' }
+    }
     throw err
   }
 }

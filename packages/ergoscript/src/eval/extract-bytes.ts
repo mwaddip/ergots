@@ -27,7 +27,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl } from './_coll'
 import { boxBytesOf } from './_box-id'
 
 // Cost source: sigma-rust eval/extract_bytes.rs:16 — ctx.add_jit_cost(12)?
@@ -47,7 +47,12 @@ export function evalExtractBytes(
       'extract-input-not-box'
     )
   }
-  // No aliasing: bytesToCollByteSValue materializes per-item Byte SValues,
-  // so the box's retainedBytes array is never exposed to the script.
-  return bytesToCollByteSValue(boxBytesOf(input.value))
+  // JVM `.bytes` is a specialised `Coll[Byte]`:
+  // `data/shared/src/main/scala/sigma/data/CBox.scala:25`
+  // `bytes = Colls.fromArray(ebox.bytes)` is `Colls.fromArray` on an
+  // `Array[Byte]` — the specialised `fromArray` branch in
+  // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`.
+  // `byteColl` materialises per-item Byte SValues, so the box's retained
+  // bytes array is never exposed to the script.
+  return byteColl(boxBytesOf(input.value), true)
 }

@@ -3,6 +3,7 @@ import { evalMethodCall } from '../../src/eval/method-call'
 import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
+import { plainColl, specColl } from '../_helpers'
 
 const NUM_TPE: Record<string, SType> = {
   Byte: { tag: 'SByte' }, Short: { tag: 'SShort' }, Int: { tag: 'SInt' },
@@ -24,11 +25,16 @@ function call(kind: string, methodId: number, value: number | bigint): MethodCal
   }
 }
 const v3 = () => makeContext({ treeVersion: 3 })
+// `<numeric>.toBits` builds a specialised `Coll[Boolean]`
+// (`ExactNumeric.toBits` → `Colls.fromArray` under the concrete `Boolean`).
 function bools(...bs: boolean[]): SValue {
-  return { kind: 'Coll', elem: { tag: 'SBoolean' }, items: bs.map((b) => ({ kind: 'Boolean', value: b })) }
+  return specColl({ tag: 'SBoolean' }, bs.map((b) => ({ kind: 'Boolean', value: b })))
 }
+// `Byte/Short/Int/Long.toBytes` builds a PLAIN `Coll[Byte]` —
+// `IntegralType.toBytes` routes through `arr.toColl` at an erased `Byte`
+// parameter (the generic `fromArray` branch).
 function bytesColl(...vs: number[]): SValue {
-  return { kind: 'Coll', elem: { tag: 'SByte' }, items: vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })) }
+  return plainColl({ tag: 'SByte' }, vs.map((v) => ({ kind: 'Byte', value: (v << 24) >> 24 })))
 }
 
 describe('numeric v6 toBytes/toBits (fixed-width)', () => {

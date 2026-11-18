@@ -33,7 +33,8 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { readCheckedType } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
-import { sTypeEquals } from '../mir/stype-helpers'
+import { sTypeEquals, hasSAny } from '../mir/stype-helpers'
+import { flatMapped, empty } from './_coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
 // Source: scoll.rs:126
@@ -113,10 +114,13 @@ export function evalSCollFlatMap(
     }
   }
 
-  // 7. Determine initial output elem type. 3-branch init (R3(b)):
-  //    - SColl body type → use bodyTpe.elem (concrete path)
-  //    - SAny body type  → set outElem = SAny pre-loop; refine post-iter-1
-  //    - other body type → defensive throw
+  // 7. Determine initial output elem type. Three branches:
+  //    - SColl body type → use bodyTpe.elem (concrete path; JVM
+  //      `methods.scala:1005` reads `mc.tpe.asInstanceOf[SCollection[_]].elemType`)
+  //    - SAny body type  → set outElem = SAny pre-loop; refine from the first part
+  //    - other body type → defensive throw: the JVM parse rejects such a tree
+  //      because `flatMap`'s declared range is `Coll[B]`; a well-typed body is
+  //      always `SColl[_]` or `SAny` (ergots' residual for unresolved methods).
   const bodyTpe = exprTpe(closure.body, ctx.treeVersion ?? 0)
   let outElem: SType
   if (bodyTpe.tag === 'SColl') {
@@ -130,20 +134,25 @@ export function evalSCollFlatMap(
     )
   }
 
-  // 8. Loop: per-item env-extend + body eval + Coll-check + concat.
+  // 8. Loop: per-item env-extend + body eval + per-part collect.
   //    sigma-rust scoll.rs:127-135 — collect::<Result<Vec<Value>, _>>() then from_vec_vec.
-  //    When pre-loop outElem === SAny, refine from the first itemRes.elem.
-  //    Subsequent iters check itemRes.elem matches the (now-refined) outElem.
+  //    Each per-element body result is one PART (handed to `flatMapped`): the
+  //    collection module reads each part's length and class to decide what
+  //    the JVM's `ArrayBuilder.++=` would store (`CollsOverArrays.scala:70-73`
+  //    and `:410-411`; `ArrayBuilder.ofUnit` drops; `ofRef.+=` aastore; an
+  //    empty part stores nothing whatever its class — SANTA rows #37, #38).
+  //    The body's shape (`kind === 'Coll'`) is checked here, matching the
+  //    JVM's `FuncValue.eval` `checkType(body, res)` = `isValueOfType` which
+  //    for an SColl declared range checks `x.isInstanceOf[Coll[_]]`
+  //    (`core/shared/src/main/scala/sigma/ast/values.scala:1080`,
+  //    `core/shared/src/main/scala/sigma/ast/SType.scala:187-213`).
   const argId = closure.argIds[0]!
-  const outItems: SValue[] = []
+  const parts: SValue[] = []
   for (const item of inputColl.items) {
     // Per-element lambda-arg binding cost: 5 (ADD_TO_ENV_COST). JVM applies the
     // FuncValue once per element, each application charging AddToEnvironmentDesc
     // = 5 to bind the arg before the body eval (`values.scala:1047`). Binding
-    // inline here without it under-charged 5/element vs JVM; sigma-rust shares
-    // the gap (`scoll.rs` flatmap_eval binds via env.insert, uncharged). Routed
-    // to the sigma-rust session in `~/projects/santa/prompts/ergots-v5-divergences.md`.
-    // JVM is canonical.
+    // inline here without it under-charged 5/element vs JVM.
     ctx.addCost(5)
     // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
     // JVM-faithful for v6. For inline flatMap lambdas capturedEnv == the caller
@@ -164,24 +173,35 @@ export function evalSCollFlatMap(
     if (outElem.tag === 'SAny') {
       // First-iter refinement: adopt the runtime Coll's elem type.
       outElem = itemRes.elem
-    } else if (!sTypeEquals(itemRes.elem, outElem)) {
-      // Sub-coll elem-type check (mirror from_vec_vec validation).
-      throw new EvalError(
-        `SColl.flatMap: lambda body Coll elem type ${JSON.stringify(itemRes.elem)} does not match expected ${JSON.stringify(outElem)}`,
-        'lambda-result-type-mismatch'
-      )
     }
-    for (const sub of itemRes.items) outItems.push(sub)
+    parts.push(itemRes)
   }
+
+  const totalOutLen = parts.reduce((n, p) => n + (p as { items: SValue[] }).items.length, 0)
 
   // 9. Outer cost: addPerItemCost(60, 10, 8, OUTPUT length). JVM `flatMap_eval`
   //    (methods.scala:1004-1008) charges PerItemCost(60,10,8) over `res.length`
   //    — the flattened OUTPUT length — AFTER running the body evals; sigma-rust
   //    (scoll.rs:126) and our prior code charged on the INPUT length, a large
-  //    structural under-charge. JVM is canonical (SANTA v5 B2; routed in
-  //    `~/projects/santa/prompts/ergots-v5-divergences.md`).
-  ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, outItems.length)
+  //    structural under-charge. JVM is canonical (SANTA v5 B2).
+  ctx.addPerItemCost(FLATMAP_OUTER_BASE, FLATMAP_OUTER_PER_CHUNK, FLATMAP_OUTER_CHUNK_SIZE, totalOutLen)
 
-  // Empty-input case: outElem stays SAny; returns Coll[SAny].
-  return { kind: 'Coll', elem: outElem, items: outItems }
+  // `SColl.flatMap` (methods.scala:1000-1008) calls `inputV.flatMap(mapperV)` at
+  // `mc.tpe` (the call's declared range). On both receiver shapes
+  // (`CollOverArray.flatMap` CollsOverArrays.scala:70-73, `PairOfCols.flatMap`
+  // :410-411) the body goes through `builder.fromArray(toArray.flatMap(...))`
+  // at abstract B — the module stores each part's items through the range
+  // array's `ArrayBuilder` and returns the plain collection (pair routing
+  // through `fromArray` on a pair range).
+  //
+  // An empty-input case where `outElem` stays `SAny` (the body's exprTpe
+  // types as ergots' own `SAny`): the JVM has the real range at this call
+  // and gives the result its array; ergots cannot name it, and the result
+  // carries the unknown class. Every reader by class takes it by the
+  // empty-of-the-receiver's-class rule.
+  if (obj.kind !== 'Coll') throw new Error('unreachable: extractCollItems would have thrown')
+  if (parts.length === 0 && hasSAny(outElem)) {
+    return empty(outElem)
+  }
+  return flatMapped(obj, outElem, parts as (SValue & { kind: 'Coll' })[])
 }

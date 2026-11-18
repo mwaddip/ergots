@@ -1,0 +1,44 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Coll.updateMany_runtime_item_type",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-coll-runtime-item-types",
+  "entries" : [
+    {
+      "name" : "updatemany-receiver-lies-errored#0",
+      "script" : "{ X.updateMany(Coll(0), Coll(5)) }  // JVM: REJECTS. updateMany clones the receiver's array and assigns each value into it (CollsOverArrays.scala:106-117), so an Int assigned into a long[] clone throws. The exception surfaces wrapped as an InvocationTargetException, the method being reflective",
+      "tree_bytes_hex" : "0b1fdc0c159501008302040402040483020505020504028301040400830104040a",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "updatemany-values-lie-errored#1",
+      "script" : "{ Coll(1, 2).updateMany(Coll(0), If(false, Coll(5), Coll(5L))) }  // JVM: REJECTS too, with the lie moved to the VALUES argument instead of the receiver: an honest int[] receiver and a Long value. Both directions throw, unlike append, which has an empty-left escape",
+      "tree_bytes_hex" : "0b1ddc0c1583020404020404028301040400950100830104040a830105050a",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

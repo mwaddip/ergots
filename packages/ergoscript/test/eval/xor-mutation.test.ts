@@ -14,9 +14,10 @@
  * of LEFT affect the output — mutations in offsets >= 10 of LEFT are silent
  * (output unchanged). Those mutations would survive against the
  * `isKillStandard` rule, so we exclude the silent tail via `excludedOffsets`
- * for that one fixture. (The cost is still charged by LEFT's full length, but
- * the cost is a fixed scalar tied only to ceil(n/128) chunks, not to byte
- * content — so mutating tail bytes never changes the cost either.)
+ * for that one fixture. (The cost is charged by the shorter operand's length
+ * (`data/shared/src/main/scala/sigma/ast/trees.scala:1021-1025`: `math.min(ls.
+ * length, rs.length)`), a fixed scalar tied only to ceil(n/128) chunks — not
+ * to byte content — so mutating tail bytes never changes the cost either.)
  *
  * Skipped fixtures:
  *   - `xor_empty`: no bytes to mutate.

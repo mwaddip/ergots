@@ -4,6 +4,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import { methodSignature, resolveReturnTpe } from '../../src/mir/method-signatures'
 import type { MethodCall as MethodCallExpr, SValue, SType } from '../../src/mir/types'
+import { plainColl } from '../_helpers'
 
 const SLONG: SType = { tag: 'SLong' }
 const SINT: SType = { tag: 'SInt' }
@@ -19,12 +20,18 @@ function call(obj: SValue, methodId: number, args: any[] = []): MethodCallExpr {
 describe('SColl.reverse (12:30)', () => {
   it('reverses, preserves elem type, cost = dispatcher 4 + Const 5 + handler 22', () => {
     const ctx = v3()
-    expect(evalMethodCall(call(longColl(1, 2), 30), Env.empty(), ctx)).toEqual(longColl(2, 1))
+    // The `obj` input is a plain Long constant built by `longColl` without a
+    // class: the facade's `classOf` gives the data reader's class, plain
+    // over `long`. `reversed` keeps the receiver's class
+    // (`CollsOverArrays.scala:59-66`), so the result is plain Long.
+    expect(evalMethodCall(call(longColl(1, 2), 30), Env.empty(), ctx)).toEqual(
+      plainColl(SLONG, [{ kind: 'Long', value: 2n }, { kind: 'Long', value: 1n }]),
+    )
     expect(ctx.jitCost).toBe(31) // 4 + 5 + (20 + 2×1 chunk)
   })
   it('empty → empty (n=0 still 1 chunk → handler 22)', () => {
     const ctx = v3()
-    expect(evalMethodCall(call(longColl(), 30), Env.empty(), ctx)).toEqual(longColl())
+    expect(evalMethodCall(call(longColl(), 30), Env.empty(), ctx)).toEqual(plainColl(SLONG, []))
     expect(ctx.jitCost).toBe(31)
   })
   it('rejects pre-V3 trees with tree-version-too-low', () => {

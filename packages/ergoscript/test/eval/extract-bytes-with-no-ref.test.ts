@@ -11,7 +11,7 @@
  *
  * `b.bytes_without_ref()` returns box bytes WITHOUT tx_id and index:
  *   value + ergoTree + creation_height + tokens + registers
- * Reflected in TS by `serializeBoxBytesWithoutRef(box)` → `bytesToCollByteSValue(bytes)`.
+ * Reflected in TS by `serializeBoxBytesWithoutRef(box)` → `byteColl(bytes, true)`.
  *
  * Coverage (4 fixture entries):
  *   - minimal: no tokens, no registers — expected bytes are 10 shorter than full form
@@ -35,7 +35,7 @@ import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { ExtractBytesWithNoRef } from '../../src/mir/types'
-import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+import { captureEvalError, hexToBytes, hydrateSValue , withoutClass } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -69,7 +69,7 @@ describe('ExtractBytesWithNoRef arm — fixture-driven', () => {
         expect(err.code).toBe(entry.expected_error_code)
       } else {
         const value = evaluateWith(tree, ctx)
-        expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+        expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
         expect(ctx.jitCost).toBe(entry.expected_cost)
       }
     })

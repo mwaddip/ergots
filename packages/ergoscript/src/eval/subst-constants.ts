@@ -59,7 +59,8 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { bytesToCollByteSValue, collByteToUint8Array } from './_byte-coll'
+import { collByteToUint8Array } from './_byte-coll'
+import { byteColl } from './_coll'
 import { extractCollInt } from './_coll-helpers'
 import { substituteConstantsBytes } from '../wire/ergo-tree'
 
@@ -116,6 +117,10 @@ export function evalSubstConstants(
   //    wire fn), NOT positions.length (sigma-rust subst_const.rs:65; bug-3).
   ctx.addPerItemCost(100, 100, 1, result.numConstants)
 
-  // 6. Wrap the substituted bytes as Coll[Byte].
-  return bytesToCollByteSValue(result.bytes)
+  // 6. Wrap the substituted bytes as Coll[Byte]. JVM `SubstConstants.eval`
+  // (`data/shared/src/main/scala/sigma/ast/trees.scala:633-647`) ends
+  // `res = Colls.fromArray(newBytes)` (`:646`) on an `Array[Byte]` — the
+  // specialised `fromArray` branch
+  // (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`).
+  return byteColl(result.bytes, true)
 }

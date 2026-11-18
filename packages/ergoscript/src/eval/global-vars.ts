@@ -36,7 +36,7 @@ import type { GlobalVars, SType, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl, fromArray } from './_coll'
 import { GROUP_GENERATOR_BYTES } from './_group-generator'
 
 // Cost constants — source: sigma-rust eval/global_vars.rs inline comments.
@@ -89,11 +89,16 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      return {
-        kind: 'Coll',
-        elem: SBOX_TYPE,
-        items: ctx.outputs.map((b) => ({ kind: 'Box' as const, value: b })),
-      }
+      // JVM `CContext.outputs` is built at
+      // `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:157`
+      // (`val outputs = spendingTransaction.outputs.toArray.map(_.toTestBox).toColl`),
+      // where `.toColl` on an `Array[Box]` is
+      // `ArrayOps[T: RType].toColl = Colls.fromArray(arr)`
+      // (`core/shared/src/main/scala/sigma/Extensions.scala:16-19`) under an
+      // ERASED reference parameter — the generic `fromArray` branch in
+      // `core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`,
+      // no pair routing. Shape `'array'`, plain, over `Box`.
+      return fromArray(SBOX_TYPE, ctx.outputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'Inputs': {
       ctx.addCost(INPUTS_COST)
@@ -103,11 +108,11 @@ export function evalGlobalVars(
           'context-field-missing'
         )
       }
-      return {
-        kind: 'Coll',
-        elem: SBOX_TYPE,
-        items: ctx.inputs.map((b) => ({ kind: 'Box' as const, value: b })),
-      }
+      // JVM `CContext.inputs` is built at
+      // `interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:150`
+      // (`val inputs = boxesToSpend.toArray.map(_.toTestBox).toColl`), the same
+      // `.toColl` route as `outputs` above — plain `CollOverArray` over `Box[]`.
+      return fromArray(SBOX_TYPE, ctx.inputs.map((b) => ({ kind: 'Box' as const, value: b })), false)
     }
     case 'MinerPubKey': {
       ctx.addCost(MINER_PUB_KEY_COST)
@@ -118,10 +123,15 @@ export function evalGlobalVars(
         )
       }
       // MinerPubkey returns Coll[Byte] (33 compressed bytes), not GroupElement.
-      // Sigma-rust: `ctx.pre_header.miner_pk.sigma_serialize_bytes()?.into()`
-      // The miner_pk field in our TS PreHeader is already the 33-byte
-      // compressed SEC1 bytes (set by the EvalOpts.preHeader.minerPk field).
-      return bytesToCollByteSValue(ctx.preHeader.minerPk)
+      // JVM `ErgoLikeContext.toSigmaContext()` hands the context
+      // `preHeader.minerPk.getEncoded`
+      // (`interpreter/shared/src/main/scala/org/ergoplatform/ErgoLikeContext.scala:171`),
+      // which is `CGroupElement.getEncoded`
+      // (`core/shared/src/main/scala/sigma/data/CGroupElement.scala:16-18`):
+      // `Colls.fromArray(GroupElementSerializer.toBytes(wrappedValue))` on an
+      // `Array[Byte]` — specialised. The miner_pk field in our TS PreHeader
+      // is already the 33-byte compressed SEC1 bytes.
+      return byteColl(ctx.preHeader.minerPk, true)
     }
     case 'GroupGenerator': {
       ctx.addCost(GROUP_GENERATOR_COST)

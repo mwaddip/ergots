@@ -23,7 +23,7 @@ import { fileURLToPath } from 'node:url'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext } from '../../src/eval/eval-context'
-import { hexToBytes, hydrateSValue } from '../_helpers'
+import { hexToBytes, hydrateSValue, withoutClass } from '../_helpers'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -48,7 +48,7 @@ describe('Collection arm — fixture-driven', () => {
       const tree = parseTree(hexToBytes(entry.tree_bytes_hex))
       const ctx = makeContext()
       const value = evaluateWith(tree, ctx)
-      expect(value).toEqual(hydrateSValue(entry.expected_value_json))
+      expect(withoutClass(value)).toEqual(hydrateSValue(entry.expected_value_json))
       expect(ctx.jitCost).toBe(entry.expected_cost)
     })
   }

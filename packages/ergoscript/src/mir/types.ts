@@ -14,6 +14,7 @@
  */
 
 import type { Header } from '@ergots/scorex'
+import type { CollClass } from '../coll/class'
 import type { Env } from '../eval/env'
 // global Map aliased — the local MIR `interface Map` (the map-HOF node) shadows
 // the global within this module; see ./_global-map.
@@ -1034,7 +1035,7 @@ export type SValue =
   | { kind: 'Unit' }
   | { kind: 'Context' }
   | { kind: 'Global' }
-  | { kind: 'Coll'; elem: SType; items: SValue[] }
+  | { kind: 'Coll'; elem: SType; items: SValue[]; cls?: CollClass }
   | { kind: 'Tuple'; items: SValue[] }
   | { kind: 'Option'; elem: SType; value: SValue | null }
   | { kind: 'Lambda'; closure: Closure }

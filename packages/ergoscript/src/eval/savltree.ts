@@ -77,7 +77,7 @@
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import type { AvlTreeData, SType, SValue } from '../mir/types'
-import { bytesToCollByteSValue } from './_byte-coll'
+import { byteColl, fromArray } from './_coll'
 import { verifyAvlBatchPartial } from '@ergots/avltree'
 import type { AvlTreeConfig, Operation } from '@ergots/avltree'
 import {
@@ -125,8 +125,18 @@ function expectAvlTree(
  * `SAvlTree.digest` (100:1) — root hash + tree-height byte (33 bytes total).
  * Source: savltree.rs:28-34.
  *
- * Rust returns `Coll[Byte]` via `digest.0.iter().map(|&b| b as i8).collect()`;
- * `bytesToCollByteSValue` sign-extends each u8 to signed i8 to match.
+ * JVM `CAvlTree.digest`
+ * (`core/shared/src/main/scala/sigma/data/CAvlTree.scala:29`) is
+ * `override def digest: Coll[Byte] = treeData.digest` — a pass-through to
+ * the `AvlTreeData.digest: Coll[Byte]` field
+ * (`core/shared/src/main/scala/sigma/data/AvlTreeData.scala:51`). The
+ * underlying `Coll` is built by the chain when the tree is read, through
+ * `Colls.fromArray` on an `Array[Byte]`, the specialised `fromArray` branch
+ * (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`,
+ * and e.g. `AvlTreeData.dummy` at `:60-63` which calls
+ * `Colls.fromArray(Array.fill(DigestSize)(0: Byte))`). A local 6.0.7 probe
+ * (`patch(0, <empty Coll[Boolean]>, 0)` on `AvlTree.digest`) refuses with a
+ * `ClassCastException`, the signature of a specialised receiver.
  */
 export function evalSAvlTreeDigest(
   obj: SValue,
@@ -135,7 +145,7 @@ export function evalSAvlTreeDigest(
 ): SValue {
   ctx.addCost(ACCESSOR_COST)
   expectAvlTree('SAvlTree.digest', obj)
-  return bytesToCollByteSValue(obj.value.digest)
+  return byteColl(obj.value.digest, true)
 }
 
 /**
@@ -457,12 +467,23 @@ const SOPTION_COLL_BYTE: SType = { tag: 'SOption', elem: SCOLL_BYTE }
 /** `SAvlTree` SType — `insert` / `update` / `remove` Option element shape. */
 const SAVL_TREE: SType = { tag: 'SAvlTree' }
 
-/** Wrap a `Uint8Array` returned-value into `Some(Coll[Byte])`. */
+/**
+ * Wrap a `Uint8Array` returned-value into `Some(Coll[Byte])`. The inner
+ * collection is specialised: `AvlTree.get`'s `Some` is built by
+ * `CErgoTreeEvaluator`'s lookup arm
+ * (`interpreter/shared/src/main/scala/sigmastate/interpreter/CErgoTreeEvaluator.scala:123`
+ * `case Some(v) => Some(Colls.fromArray(v))`), where `v: Array[Byte]` — the
+ * specialised `fromArray` branch
+ * (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:226-233`). A
+ * local 6.0.7 probe (`patch` discriminator on the `get(k, p).get` result)
+ * refuses with a `ClassCastException`, the signature of a specialised
+ * receiver.
+ */
 function someCollByte(bytes: Uint8Array): SValue {
   return {
     kind: 'Option',
     elem: SCOLL_BYTE,
-    value: bytesToCollByteSValue(bytes),
+    value: byteColl(bytes, true),
   }
 }
 
@@ -668,7 +689,11 @@ export function evalSAvlTreeGetMany(
   const items: SValue[] = (partial === null ? [] : partial.results).map((found) =>
     found === null ? noneCollByte() : someCollByte(found)
   )
-  return { kind: 'Coll', elem: SOPTION_COLL_BYTE, items }
+  // JVM `getMany` builds the outer collection via `keys.map`
+  // (`CErgoTreeEvaluator.scala:124`), whose result in `CollOverArray`
+  // (`CollsOverArrays.scala:317-324`) is a plain `CollOverArray` over the
+  // reference item type `Option[Coll[Byte]]`.
+  return fromArray(SOPTION_COLL_BYTE, items, false)
 }
 
 /**
