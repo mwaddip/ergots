@@ -325,9 +325,38 @@ it('every pinned construction entry names an entry of its kind in the constructi
 // ergots lets the parse succeed and dies on the serialize). Each row's STAGE is pinned below, with the
 // class and code; KNOWN_RESIDUAL lists an entry where ergots' stage differs from the JVM's.
 // ---------------------------------------------------------------------------------------------------------
-const TUPLE_FILES: [string, number][] = [
-  ['Transaction.small_tuples.json', 22],
-  ['Transaction.non_pair_tuple_operand.json', 5],
+const TUPLE_FILES: [string, string[]][] = [
+  ['Transaction.small_tuples.json', [
+    'small-tuple-const_one_item_type-v0-tx#0',
+    'small-tuple-const_one_item_type-v3-tx#1',
+    'small-tuple-const_zero_item_type-v0-tx#2',
+    'small-tuple-const_zero_item_type-v3-tx#3',
+    'small-tuple-tuple_expr_one_item-v0-tx#4',
+    'small-tuple-tuple_expr_one_item-v3-tx#5',
+    'small-tuple-tuple_expr_zero_item-v0-tx#6',
+    'small-tuple-tuple_expr_zero_item-v3-tx#7',
+    'small-tuple-tuple_expr_127_items-v0-tx#8',
+    'small-tuple-tuple_expr_127_items-v3-tx#9',
+    'small-tuple-tuple_expr_128_items-v0-tx#10',
+    'small-tuple-tuple_expr_128_items-v3-tx#11',
+    'small-tuple-const_pair_type_control-v0-tx#12',
+    'small-tuple-const_pair_type_control-v3-tx#13',
+    'small-tuple-const_pair_eq_control-v0-tx#14',
+    'small-tuple-const_pair_eq_control-v3-tx#15',
+    'small-tuple-tuple_expr_two_items_control-v0-tx#16',
+    'small-tuple-tuple_expr_two_items_control-v3-tx#17',
+    'small-tuple-const_triple_type-v0-tx#18',
+    'small-tuple-const_triple_type-v3-tx#19',
+    'small-tuple-register_one_item_type-tx#20',
+    'small-tuple-register_nested_tuple_expr-tx#21',
+  ]],
+  ['Transaction.non_pair_tuple_operand.json', [
+    'non-pair-tuple-operand-eq-any-concrete-v3-tx#0',
+    'non-pair-tuple-operand-gt-any-concrete-v3-tx#1',
+    'non-pair-tuple-operand-gt-any-any-v3-tx#2',
+    'non-pair-tuple-operand-eq-any-any-v3-tx#3',
+    'non-pair-tuple-operand-eq-concrete-control-v3-tx#4',
+  ]],
 ];
 
 /** A tuple-family reject: the stage the JVM-mirrored refusal fires at. */
@@ -349,10 +378,10 @@ const TUPLE_PARSE_ERRORS: Record<string, TupleReject> = {
   // TypeWrite rows: ErgoTransaction.scala:68 eager id computes bytesToSign; ergots'
   // parseTransaction re-encodes each output's ergoTree and wraps the write failure
   // (wire/transaction.ts:124-129).
-  'small-tuple-const_one_item_type-v0-tx#0': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
-  'small-tuple-const_one_item_type-v3-tx#1': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
-  'small-tuple-const_zero_item_type-v0-tx#2': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
-  'small-tuple-const_zero_item_type-v3-tx#3': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
+  'small-tuple-const_one_item_type-v0-tx#0': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable', cause: 'tuple-too-short' },
+  'small-tuple-const_one_item_type-v3-tx#1': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable', cause: 'tuple-too-short' },
+  'small-tuple-const_zero_item_type-v0-tx#2': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable', cause: 'tuple-too-short' },
+  'small-tuple-const_zero_item_type-v3-tx#3': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable', cause: 'tuple-too-short' },
   // CountBound rows: 128 items as a signed byte is -128; NegativeArraySizeException on the JVM, not a
   // ValidationException, no degrade. ergots mirrors on the lead byte.
   'small-tuple-tuple_expr_128_items-v0-tx#10': { stage: 'parse', cls: ExprParseError, code: 'tuple-arity-out-of-range' },
@@ -367,11 +396,10 @@ const TUPLE_PARSE_ERRORS: Record<string, TupleReject> = {
 // register_one_item_type#20: R4 holds a Constant whose declared type is `(Int)`. The JVM REJECTS at
 // parse — ErgoTransaction.scala:68 eagerly runs bytesToSign, which writes each register through
 // `w.putValue` (ErgoBoxCandidate.scala:175), and TypeSerializer.scala:93-95 refuses the one-item type.
-// ergots' parseTransaction re-encodes each output's ergoTree only (wire/transaction.ts:117-119, a
-// recorded follow-up), not its registers, so the parse succeeds and serializeTransaction throws
-// STypeSerializeError('tuple-too-short'). A pre-check that runs the full box serializer on each output
-// at parse-time would match the JVM's stage; that is a transaction-package follow-up, not a rule of
-// this plan's tuple contract (the type serializer itself refuses the type with the right code).
+// ergots' parseTransaction re-encodes each output's ergoTree only (wire/transaction.ts:117-119), not
+// its registers, so the parse succeeds and serializeTransaction throws STypeSerializeError
+// ('tuple-too-short'). The type serializer itself refuses the type with that code; here it reaches
+// the test through serializeTransaction rather than parseTransaction.
 const TUPLE_KNOWN_RESIDUAL: Record<string, { residual: string; ergots: TupleReject }> = {
   'small-tuple-register_one_item_type-tx#20': {
     residual: 'the JVM rejects at parse through ErgoTransaction.scala:68 eager id; ergots re-encodes ' +
@@ -396,11 +424,13 @@ function expectTupleWriteReject(bytesHex: string, want: TupleReject): void {
   expect((err as { code?: string }).code).toBe(want.code);
 }
 
-for (const [file, count] of TUPLE_FILES) {
+for (const [file, names] of TUPLE_FILES) {
   const data = JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { blessed_by: string; entries: WireEntry[] };
   describe(`SANTA ${file} (${data.blessed_by})`, () => {
     const entries = data.entries;
-    it(`holds ${count} entries`, () => expect(entries.length).toBe(count));
+    it('holds exactly the expected entries', () => {
+      expect(entries.map((e) => e.name)).toEqual(names);
+    });
     for (const e of entries) {
       const known = TUPLE_KNOWN_RESIDUAL[e.name];
       if (known !== undefined) {
