@@ -36,12 +36,17 @@ export type {
   PreHeader,
   ContextExtension,
 } from './mir/types'
-export { isUnparsedTree } from './mir/types'
+export { isUnparsedTree, SANY_JVM } from './mir/types'
 // A collection value carries the JVM's facts of its `Coll[A]` object beyond
 // its items (facts/ergoscript-eval.md, "A collection's class"). The two
 // types that describe it, `ArrayClass` and `CollClass`, are part of the
 // `SValue` surface.
 export type { ArrayClass, CollClass } from './coll/class'
+// The value of a tuple of another arity than two is a `Coll[Any]`
+// (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple`
+// `Evaluation.scala:99-102`): the module's builder is reachable by
+// consumers that bind such a value at an extension or register position.
+export { tupleColl } from './coll/build'
 
 // Wire-layer SValue parser/serializer surface — exposed for downstream
 // packages that need to parse canonical box / register bytes outside the

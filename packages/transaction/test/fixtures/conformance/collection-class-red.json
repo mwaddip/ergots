@@ -219,30 +219,6 @@
       "generic-producers-spend-row-rv-regs-startsWith-B.SELF.getReg1-Iconst0-v3-a3#106"
     ]
   },
-  "group-node-static-type.json": {
-    "tuple-as-collection": [
-      "group-node-static-type-spend-dctx-ge.exp.anyge-v0#16",
-      "group-node-static-type-spend-dctx-ge.exp.anyge-v3-sized#17",
-      "group-node-static-type-spend-dctx-ge.mul.anyge-v0#20",
-      "group-node-static-type-spend-dctx-ge.mul.anyge-v3-sized#21",
-      "group-node-static-type-spend-dreg-ge.exp.anyge-v0#32",
-      "group-node-static-type-spend-dreg-ge.exp.anyge-v3-sized#33",
-      "group-node-static-type-spend-dreg-ge.mul.anyge-v0#36",
-      "group-node-static-type-spend-dreg-ge.mul.anyge-v3-sized#37",
-      "group-node-static-type-spend-eq-exp.anyge-v0#8",
-      "group-node-static-type-spend-eq-exp.anyge-v3-sized#9",
-      "group-node-static-type-spend-eq-mul.anyge-v0#12",
-      "group-node-static-type-spend-eq-mul.anyge-v3-sized#13"
-    ]
-  },
-  "non-pair-tuple-spend.json": {
-    "tuple-as-collection": [
-      "non-pair-tuple-spend-and_bool#2",
-      "non-pair-tuple-spend-deserialize_from_var#5",
-      "non-pair-tuple-spend-exists#1",
-      "non-pair-tuple-spend-size_eq#0"
-    ]
-  },
   "patch-array-class.json": {
     "method-not-implemented": [
       "patch-array-class-spend-coll5-patch-B.globalxor-ctl0-v0-a3#100",

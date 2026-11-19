@@ -35,7 +35,7 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
-import { hydrateSValue, hexToBytes, synthesizeStubBox, sTypeOfSValue } from '../_helpers'
+import { hydrateSValue, hexToBytes, synthesizeStubBox, sTypeFromJson } from '../_helpers'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
 import { ByteReader, ByteWriter, ReaderError } from '@ergots/scorex'
@@ -281,7 +281,12 @@ function hydrateExtensionBinding(
     return bindExtensionValue(hexToBytes(j['bytes_hex'] as string), treeVersion)
   }
   const value = hydrateSValue(j)
-  return { tpe: sTypeOfSValue(value), value }
+  // A Tuple JSON input's declared type is the `STuple` of its items' JSON
+  // types (`CoreDataSerializer.scala:139-144`): the data reader hands a
+  // tuple of another arity than two back as a `Coll[Any]`, so the hydrated
+  // value's own `kind: 'Coll'` reads as `Coll[Any]` — the declared tuple
+  // type lives only in the JSON structure.
+  return { tpe: sTypeFromJson(j), value }
 }
 
 /**
@@ -299,7 +304,9 @@ function hydrateRegisterBinding(
     return bindRegisterValue(hexToBytes(j['bytes_hex'] as string), treeVersion)
   }
   const value = hydrateSValue(j)
-  return { tpe: sTypeOfSValue(value), value }
+  // A Tuple JSON input's declared type lives in the JSON structure (see
+  // `hydrateExtensionBinding` above for the same rule).
+  return { tpe: sTypeFromJson(j), value }
 }
 
 /**

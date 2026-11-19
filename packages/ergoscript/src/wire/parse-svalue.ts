@@ -75,10 +75,11 @@ import { exprParserFor } from './parse'
 import { LAST_CONSTANT_CODE, OP_TUPLE } from '../mir/opcodes'
 import { canonicalGePayload } from './_ge-canonical'
 import { decodeUtf8Lossy } from './_utf8'
-// The wire layer imports `fromData` from `../coll/build` directly. Its own
-// module only reads `../mir/types`, `./class` and `./build`, as the module
-// boundary says ("A collection's class" in `facts/ergoscript-eval.md`).
-import { fromData } from '../coll/build'
+// The wire layer imports `fromData` and `tupleColl` from `../coll/build`
+// directly. Its own module only reads `../mir/types`, `./class` and
+// `./build`, as the module boundary says ("A collection's class" in
+// `facts/ergoscript-eval.md`).
+import { fromData, tupleColl } from '../coll/build'
 
 // JVM `ErgoBox.MaxBoxSize` = `SigmaConstants.MaxBoxSize` = 4 * 1024
 // (SigmaConstants.scala:24, surfaced at ErgoBox.scala:127). The SBox data
@@ -552,12 +553,19 @@ function parseSValueBody(t: SType, treeVersion: number, r: ByteReader): SValue {
     }
 
     case 'STuple': {
-      // No length prefix; arity comes from the SType.
+      // No length prefix; arity comes from the SType. The JVM data reader's
+      // tuple arm (`CoreDataSerializer.scala:139-144`) builds a `Tuple2` for
+      // a pair and `Colls.fromArray(arr)(sigma.AnyType)` through
+      // `Evaluation.toDslTuple` (`Evaluation.scala:99-102`) for a tuple of
+      // any other arity. A pair is `kind: 'Tuple'`; the `Coll[Any]` is
+      // `tupleColl(items)`, which the `coll/` module builds with
+      // `elem: SANY_JVM` and the plain class over `Object[]`.
       const items: SValue[] = new Array(t.items.length)
       for (let i = 0; i < t.items.length; i++) {
         items[i] = parseSValue(t.items[i]!, treeVersion, r)
       }
-      return { kind: 'Tuple', items }
+      if (t.items.length === 2) return { kind: 'Tuple', items }
+      return tupleColl(items)
     }
 
     case 'SSigmaProp':

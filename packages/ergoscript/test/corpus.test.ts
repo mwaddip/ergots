@@ -150,7 +150,10 @@ describe('Corpus round-trip — synthetic SValue', () => {
       const reader = new ByteReader(bytes)
       const parsed = parseSValue(entry.tpe, tv, reader)
       expect(reader.remaining, `${entry.name}: parser left ${reader.remaining} byte(s) unread`).toBe(0)
-      expect(withoutClass(parsed)).toEqual(expected)
+      // `hydrateSValue` builds a `Coll[Any]` (with `cls` set) for a Tuple
+      // JSON of another arity than two; strip `cls` from both sides so the
+      // comparison is on the shape alone (`CoreDataSerializer.scala:139-144`).
+      expect(withoutClass(parsed)).toEqual(withoutClass(expected))
 
       // Serialize: SValue → bytes (round-trip)
       const writer = new ByteWriter()

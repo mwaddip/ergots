@@ -46,6 +46,7 @@
  */
 
 import type { SelectField, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
@@ -59,16 +60,31 @@ const SELECT_FIELD_COST = 10
 export function evalSelectField(e: SelectField, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(SELECT_FIELD_COST)
   const input = evalExpr(e.input, env, ctx)
+  // JVM SelectField.eval (transformers.scala:300-307) matches ONLY a runtime
+  // Tuple2 (a pair). A `kind: 'Coll'` whose `elem === SANY_JVM`, which a
+  // tuple of another arity than two takes
+  // (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple`
+  // `Evaluation.scala:99-102`), falls through to `Value.typeError` (line
+  // 306) with the same `'select-field-non-pair'` code the `kind: 'Tuple'`
+  // defensive arity check below raises. Cost is already charged above
+  // (transformers.scala:299, before the match) ⇒ cost-then-throw. A Coll of
+  // any other elem (a Coll[Box] from `CONTEXT.dataInputs`, for one) is a
+  // separate non-tuple input (`'select-field-input-not-tuple'`).
+  if (input.kind === 'Coll' && input.elem === SANY_JVM) {
+    throw new EvalError(
+      `SelectField: input is a Coll[Any] (a tuple of another arity than two), which is not a pair`,
+      'select-field-non-pair'
+    )
+  }
   if (input.kind !== 'Tuple') {
     throw new EvalError(
       `SelectField: input must be Tuple, got '${input.kind}'`,
       'select-field-input-not-tuple'
     )
   }
-  // JVM SelectField.eval (transformers.scala:300-307) matches ONLY a runtime
-  // Tuple2 (a pair). A non-pair tuple (1-tuple, 3-tuple, …) is a Coll[Any] at
-  // runtime and falls through to Value.typeError (line 306). Cost is already
-  // charged above (transformers.scala:299, before the match) ⇒ cost-then-throw.
+  // A `kind: 'Tuple'` value holds exactly two items by the contract; a
+  // defensive refusal of a `kind: 'Tuple'` of another arity than two keeps
+  // the error fire-safe against a hand-built MIR a caller passes in.
   if (input.items.length !== 2) {
     throw new EvalError(
       `SelectField: input Tuple must be a pair (arity 2), got arity ${input.items.length}`,

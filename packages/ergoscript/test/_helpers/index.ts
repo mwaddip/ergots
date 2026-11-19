@@ -9,7 +9,7 @@
 
 import type { ErgoBox, SType, SValue } from '../../src/mir/types'
 import type { ArrayClass, CollClass, CollValue } from '../../src/coll'
-import { dataClass } from '../../src/coll'
+import { dataClass, tupleColl } from '../../src/coll'
 import { EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { parseSigmaBoolean } from '../../src/wire/sigma-boolean'
@@ -97,6 +97,47 @@ function hydrateCanonicalBytes(tag: 'SBox' | 'SHeader' | 'SAvlTree', hex: string
     throw new Error(`hydrateCanonicalBytes(${tag}): ${r.remaining} trailing bytes after parse`)
   }
   return v
+}
+
+/**
+ * Derive the declared SType of a SANTA JSON input from the JSON structure,
+ * not from the hydrated value. A Tuple JSON of any arity has an STuple type
+ * built from its items' JSON types — `sTypeOfSValue` on the hydrated value
+ * would say `Coll[SAny]` for a tuple of another arity than two, since the
+ * hydrated value is a `tupleColl`.
+ */
+export function sTypeFromJson(json: any): SType {
+  switch (json.kind) {
+    case 'Boolean': return { tag: 'SBoolean' }
+    case 'Byte': return { tag: 'SByte' }
+    case 'Short': return { tag: 'SShort' }
+    case 'Int': return { tag: 'SInt' }
+    case 'Long': return { tag: 'SLong' }
+    case 'BigInt': return { tag: 'SBigInt' }
+    case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }
+    case 'GroupElement': return { tag: 'SGroupElement' }
+    case 'SigmaProp': return { tag: 'SSigmaProp' }
+    case 'Box': return { tag: 'SBox' }
+    case 'AvlTree': return { tag: 'SAvlTree' }
+    case 'Header': return { tag: 'SHeader' }
+    case 'PreHeader': return { tag: 'SPreHeader' }
+    case 'Unit': return { tag: 'SUnit' }
+    case 'Coll': return { tag: 'SColl', elem: json.elem as SType }
+    case 'Coll[Byte]': return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'Tuple':
+      return { tag: 'STuple', items: (json.items as any[]).map(sTypeFromJson) }
+    case 'Option': {
+      const elem =
+        (json.elem as SType | undefined) ??
+        (json.value !== null ? sTypeFromJson(json.value) : undefined)
+      if (elem === undefined) {
+        throw new Error('sTypeFromJson: Option None without elem is untypeable')
+      }
+      return { tag: 'SOption', elem }
+    }
+    default:
+      throw new Error(`sTypeFromJson: unknown kind '${json.kind}'`)
+  }
 }
 
 /**
@@ -196,11 +237,21 @@ export function hydrateSValue(json: any): SValue {
       }
       return { kind: 'Coll', elem: { tag: 'SByte' }, items }
     }
-    case 'Tuple':
-      return {
-        kind: 'Tuple',
-        items: (json.items as any[]).map(hydrateSValue),
-      }
+    case 'Tuple': {
+      // The data reader builds `Tuple2` for a pair and `Colls.fromArray(arr)
+      // (sigma.AnyType)` for a tuple of any other arity
+      // (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple`
+      // `Evaluation.scala:99-102`). A Tuple JSON input hydrates to the value
+      // the reader builds: a pair stays `kind: 'Tuple'`, every other arity
+      // becomes `tupleColl(items)`. The declared TUPLE TYPE of such a
+      // binding is recoverable from the JSON's structure (`sTypeFromJson`,
+      // for callers that bind the value at a tuple-typed position);
+      // `sTypeOfSValue` on the hydrated value says `Coll[SAny]` for the
+      // non-pair case.
+      const items = (json.items as any[]).map(hydrateSValue)
+      if (items.length === 2) return { kind: 'Tuple', items }
+      return tupleColl(items)
+    }
     case 'Option': {
       // SANTA canonical Option JSON omits `elem` (runner-contract §4) —
       // derive it from the hydrated Some value. A None without elem is

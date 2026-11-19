@@ -17,6 +17,7 @@ import {
   CollArrayStore,
   CollClassCast,
   dataClass,
+  dataItemType,
   runtimeClassOf,
   type ArrayClass,
   type CollClass,
@@ -243,10 +244,15 @@ export function byteColl(bytes: Uint8Array, specialised: boolean): CollValue {
  * its class is `dataClass(elem)`. The data reader specialises for `SBoolean`
  * (:172) and `SByte` (:174), routes a pair element type to `pairCollFromArrays`
  * (:205-215), and goes through `new CollOverArray` (:176-190) for every other
- * item type.
+ * item type. The value's runtime `elem` is the item descriptor
+ * `deserializeColl` passes to `new CollOverArray`
+ * (`CoreDataSerializer.scala:176-182`): the declared element type unchanged
+ * for every type the `stypeToRType` arm reads, and `SColl(SAny)` for a tuple
+ * element of another arity than two, which takes `collRType(sigma.AnyType)`
+ * (`:179-180`). `dataItemType` applies that rule.
  */
 export function fromData(elem: SType, items: SValue[]): CollValue {
-  return { kind: 'Coll', elem, items, cls: dataClass(elem) }
+  return { kind: 'Coll', elem: dataItemType(elem), items, cls: dataClass(elem) }
 }
 
 /**
