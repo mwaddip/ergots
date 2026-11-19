@@ -20,6 +20,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 
 /**
  * A typed refusal from the module when `stypeToRType` has no runtime type for
@@ -319,4 +320,30 @@ function dataClassSide(elem: SType): CollClass {
  *  rule; every value built inside `packages/*\/src` has `cls` set. */
 export function classOf(v: CollValue): CollClass {
   return v.cls ?? dataClass(v.elem)
+}
+
+/**
+ * The item type the data reader gives a collection whose declared element
+ * type is `elem` (`CoreDataSerializer.deserializeColl`,
+ * `core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:176-182`).
+ *
+ * - For a tuple type of another arity than two (`STuple.items.length !== 2`):
+ *   `SColl(SAny)`. The reader passes `collRType(sigma.AnyType)` as the item
+ *   descriptor (`:179-180`), so a collection of non-pair tuples has `SAny` as
+ *   its item element type, not the tuple type itself. The item descriptor
+ *   drives `deserializeColl`'s per-item parse and the resulting value's
+ *   `elem`.
+ * - For every other type — a pair type (`STuple` of two items) included, a
+ *   primitive, a reference, a `SColl`, an `SOption` — the element type
+ *   unchanged, as the reader routes it through `Evaluation.stypeToRType`
+ *   (`:176-178`, `:181-182`).
+ *
+ * Returned as a type object; `SAny` is `SANY_JVM`, told from ergots' own
+ * `SAny` by object identity.
+ */
+export function dataItemType(elem: SType): SType {
+  if (elem.tag === 'STuple' && elem.items.length !== 2) {
+    return { tag: 'SColl', elem: SANY_JVM }
+  }
+  return elem
 }

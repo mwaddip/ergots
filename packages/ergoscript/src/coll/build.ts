@@ -11,6 +11,7 @@
  */
 
 import type { SType, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import {
   arrayClassOf,
   CollArrayStore,
@@ -246,6 +247,35 @@ export function byteColl(bytes: Uint8Array, specialised: boolean): CollValue {
  */
 export function fromData(elem: SType, items: SValue[]): CollValue {
   return { kind: 'Coll', elem, items, cls: dataClass(elem) }
+}
+
+/**
+ * The value of a tuple of another arity than two:
+ * `Colls.fromArray(arr)(sigma.AnyType)`
+ * (`core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:139-143`,
+ * `core/shared/src/main/scala/sigma/ast/values.scala:818-822` for
+ * `Tuple.value`, both routing through `Evaluation.toDslTuple` at
+ * `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`).
+ *
+ * The JVM gives such a value the plain `CollOverArray` of `Any` over `Object[]`:
+ * `elem` is `SANY_JVM` (the JVM's `SAny`, told apart from ergots' own `SAny`
+ * by object identity, `mir/types.ts:79`), and the class is
+ * `{ shape: 'array', specialised: false, array: 'Object' }`. Two routes give
+ * a script such a value: a data constant at a `STuple` type of another arity
+ * (through the data reader's tuple arm), and a `Tuple` expression held in a
+ * register or a context variable, whose `value` is read on access. Evaluating
+ * a `Tuple` expression of that arity in a script refuses (`:826-827`).
+ *
+ * `items` is used as-is (one boxed value per tuple item); the caller owns the
+ * array it hands in.
+ */
+export function tupleColl(items: SValue[]): CollValue {
+  return {
+    kind: 'Coll',
+    elem: SANY_JVM,
+    items,
+    cls: { shape: 'array', specialised: false, array: 'Object' },
+  }
 }
 
 /**

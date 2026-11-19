@@ -958,6 +958,62 @@ function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
   return splitSides(rebuilt, cls)
 }
 
+/**
+ * The cast a consumer makes when it needs the array of a class
+ * (`toArray.asInstanceOf[Array[T]]`, the pattern the JVM uses in every
+ * byte-reading consumer: `CalcBlake2b256` and `CalcSha256`,
+ * `ByteArrayToBigInt`, `AvlTree.get`/`getMany`/`contains`/`insert`/`update`/
+ * `remove`/`insertOrUpdate` key and proof arguments, `AvlTree.updateDigest`,
+ * `AtLeast` (`trees.scala:314-320`), `Append` against a primitive-backed
+ * operand (`CollsOverArrays.scala:48-57`), and `Global.powHit`'s byte
+ * arguments; `docs/findings/eval-non-pair-tuple-values.md` in SANTA's
+ * repository).
+ *
+ * On a `'array'`-shape receiver the cast reads the array the
+ * `CollOverArray` stores (`:11`, `toArray` is the backing field): a
+ * specialised or plain object over the same `array` passes equally — the
+ * class's `array` field decides, not `specialised`. An array of another
+ * class is `CollClassCast`, as a JVM `ClassCastException` on
+ * `toArray.asInstanceOf[Array[T]]`.
+ *
+ * On a `'pairs'`-shape receiver there is no single stored array:
+ * `PairOfCols` keeps TWO arrays, one per side (`:274`). Its `toArray`
+ * materialises a new one by zipping (`:299`, `toArray = ls.toArray.zip(rs.
+ * toArray)`), which is not the stored array a reader is after. A consumer
+ * that needs the single stored array therefore refuses on a `'pairs'`
+ * receiver with `CollClassCast`. The byte-reading consumers above all need
+ * a primitive array, and a pair-shape collection has no one.
+ *
+ * On an `'unknown'`-shape receiver the array is unnamed (only the one
+ * builder `empty` in `coll/build.ts` produces this class, and every other
+ * reader branches on it first): the cast refuses with `CollClassCast` too.
+ *
+ * `what` names the consumer, for the error message.
+ *
+ * @throws CollClassCast when the receiver's array is of another class, when
+ *   the receiver is `'pairs'`-shape, and when the receiver is
+ *   `'unknown'`-shape.
+ */
+export function castArray(c: CollValue, array: ArrayClass, what: string): SValue[] {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    throw new CollClassCast(
+      `${what}: a PairOfCols has no single stored array; Array[${array}] cast refused`,
+    )
+  }
+  if (cls.shape === 'unknown') {
+    throw new CollClassCast(
+      `${what}: an unknown-class collection has no named array; Array[${array}] cast refused`,
+    )
+  }
+  if (cls.array !== array) {
+    throw new CollClassCast(
+      `${what}: Array of ${cls.array} is not of class ${array}`,
+    )
+  }
+  return c.items
+}
+
 /** Split an array of pair values into two arrays of components. */
 function splitPairItems(items: SValue[]): [SValue[], SValue[]] {
   const n = items.length
