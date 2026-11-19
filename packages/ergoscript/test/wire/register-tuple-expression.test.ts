@@ -215,7 +215,7 @@ describe('a box whose R4 is the Tuple(1, 2) EXPRESSION keeps its bytes and its i
     //   `serialize-cost.ts:515-516`):
     //     putType(STuple[SInt, SInt])                  = 1  (`:515`, one byte, pair-symmetric,
     //                                                        `putTypeCost` STuple arm `:369-396`)
-    //     DataSerializer(STuple pair, `tupleItems`'s pair branch, `:187-213`):
+    //     DataSerializer(STuple pair, the STuple case of the cost walker at `serialize-cost.ts:187-213`):
     //       item 0 SInt (DataSerializer)               = 3  (PUT_NUM3)
     //       item 1 SInt (DataSerializer)               = 3  (PUT_NUM3)
     //     register walk                                = 7
