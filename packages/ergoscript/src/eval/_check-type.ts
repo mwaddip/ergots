@@ -63,7 +63,10 @@ import { exprTpe } from '../mir/expr-tpe'
  *   - a non-pair `STuple` (`items.length !== 2`, `:200-202`),
  *   - a non-unary `SFunc` (`args.length !== 1`, `:203-205`),
  *   - the JVM's `SAny` (`SANY_JVM`) or `NoType` (`NOTYPE_JVM`), told by
- *     identity, which the `case _` arm catches (`:212`).
+ *     identity, which the `case _` arm catches (`:212`),
+ *   - `SString`, which has no arm and falls to the `case _` throw
+ *     (`:212`; a 6.0.7 probe of `sigmaProp("a" == "a")`, batch2 of the
+ *     final review, rejects at reduce with `RuntimeException: Unknown type SString`).
  *
  * Otherwise a no-op. Non-recursive (top-level check only).
  */
@@ -83,6 +86,12 @@ export function assertCheckedType(tpe: SType): void {
   if (tpe.tag === 'SFunc' && tpe.args.length !== 1) {
     throw new EvalError(
       `Unsupported function type: arity ${tpe.args.length} (the JVM represents only Function1; SType.scala:203-205)`,
+      'unsupported-value-type'
+    )
+  }
+  if (tpe.tag === 'SString') {
+    throw new EvalError(
+      `isValueOfType has no arm for SString; its case _ throws "Unknown type SString" (SType.scala:212)`,
       'unsupported-value-type'
     )
   }
