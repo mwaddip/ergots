@@ -1,0 +1,323 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_value_gates",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-non-pair-tuple-gates",
+  "entries" : [
+    {
+      "name" : "eq_any_operands_bare-errored#0",
+      "script" : "[G1] `ByIndex(t,0) == ByIndex(t,1)` — BOTH operands `SAny`, so the deserialization builder's SameType check is SATISFIED and the tree PARSES (it even re-writes byte-identically); the throw is at eval, `RuntimeException: Unknown type SAny`, because `isValueOfType` has no `SAny` case. **SEPARATING:** an implementation that compares the two items here over-accepts — and one that refuses the tree at PARSE is also wrong, just invisibly so on this tier (the wire family grades that).",
+      "tree_bytes_hex" : "0b1793b248040404020406040000b248040404020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "eq_any_operands_sigmaprop-errored#1",
+      "script" : "[G2] The same comparison under `sigmaProp` — the REACHABLE form, since this is a tree a box can actually carry (G1's bare Boolean root cannot be a script). Same parse, same throw at eval — `Unknown type SAny` — and the spend it guards therefore fails. **SEPARATING,** and the row that gives the gate consensus teeth.",
+      "tree_bytes_hex" : "0b18d193b248040404020406040000b248040404020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "eq_control_coll_items-accept#2",
+      "script" : "[C1] **CONTROL for G1** — the same double-`ByIndex` equality over `Coll[Int](1,2,3)`: **false at cost 83**. Two items, same shapes, and it answers; so G1's throw is the `SAny` item type and not the comparison of two indexed items.",
+      "tree_bytes_hex" : "0b1393b21003020406040000b21003020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 83,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_control_coll_sigmaprop-accept#3",
+      "script" : "[C2] **CONTROL for G2** — the same under `sigmaProp`: a `SigmaProp` (false) at cost 98.",
+      "tree_bytes_hex" : "0b14d193b21003020406040000b21003020406040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 98,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_node_left_any-errored#4",
+      "script" : "[G3] `ByIndex(t,0) + 1` — **`KeyNotFoundException: key 97`**. Nothing checks the operand at parse; `ArithOp.eval` looks its implementation up by the LEFT operand's type code, and 97 is `SAny`. The message names no type, which is worth knowing before matching on text. **SEPARATING:** sigma-rust evaluated this to 2 at `eda571a6`.",
+      "tree_bytes_hex" : "0b0e9ab2480404040204060400000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_method_left_any-errored#5",
+      "script" : "[G4] The same arithmetic with the item fetched by the `apply` METHOD instead of the `ByIndex` node — `(1,2,3).apply(0) + 1`. Same `key 97`. The pair G3/G4 matters because the two routes to the item differ elsewhere (`map` works as a node and not as a method), and here they do NOT: the gate is the arithmetic, not the fetch. This is the sigma-rust addendum's K1, reachable on its fork master today. **SEPARATING.**",
+      "tree_bytes_hex" : "0b109adc0c0a480404040204060104000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "min_method_left_any-errored#6",
+      "script" : "[G5] `min((1,2,3).apply(0), 1)` — the addendum's K5. `min` is a different `ArithOpCompanion` with its own opcode and it fails identically, `KeyNotFoundException: key 97`, which is what shows the fault is the shared table lookup rather than `Plus`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b10a1dc0c0a480404040204060104000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_node_right_any-accept#7",
+      "script" : "[G6] `1 + ByIndex(t,0)` — **2 at cost 60. THE ASYMMETRY:** the same two values, the operands swapped, and it ANSWERS, because the implementation is chosen by the LEFT operand's type (`SInt`) and the right one is never consulted for it. **SEPARATING the other way:** an implementation that refuses an `Any`-typed operand wherever it appears OVER-REJECTS a tree the JVM evaluates.",
+      "tree_bytes_hex" : "0b0e9a0402b248040404020406040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_method_right_any-accept#8",
+      "script" : "[G7] `1 + (1,2,3).apply(0)` — the addendum's K2, **2 at cost 64**, which is the number it asked for. Identical to C4, its plain-collection control: the `Any`-typed right operand is FREE. **SEPARATING the other way.**",
+      "tree_bytes_hex" : "0b109a0402dc0c0a48040404020406010400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 64,
+        "error" : null
+      }
+    },
+    {
+      "name" : "min_method_right_any-accept#9",
+      "script" : "[G8] `min(1, (1,2,3).apply(0))` — **1 at cost 54**, identical to C5. The asymmetry holds for `min` too, so an implementation cannot fix G5 by refusing the type in both positions. **SEPARATING the other way.**",
+      "tree_bytes_hex" : "0b10a10402dc0c0a48040404020406010400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 54,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_node_control-accept#10",
+      "script" : "[C3] **CONTROL for G3/G6** — `ByIndex(Coll[Int](1,2,3),0) + 1` is 2 at cost **60**, the same as G6. The arithmetic costs what it costs; the representation adds nothing.",
+      "tree_bytes_hex" : "0b0c9ab210030204060400000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_method_control-accept#11",
+      "script" : "[C4] **CONTROL for G4/G7** — the `apply`-method form over an ordinary collection: 2 at cost **64**, equal to G7 and 4 dearer than the node form, which is the method call's own cost.",
+      "tree_bytes_hex" : "0b0e9adc0c0a10030204060104000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 64,
+        "error" : null
+      }
+    },
+    {
+      "name" : "min_method_control-accept#12",
+      "script" : "[C5] **CONTROL for G5/G8** — 1 at cost **54**, equal to G8.",
+      "tree_bytes_hex" : "0b0ea1dc0c0a10030204060104000402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 54,
+        "error" : null
+      }
+    },
+    {
+      "name" : "fold_tuple_accumulator-errored#13",
+      "script" : "[G9] `Fold(Coll[Int](1,2,3), (1,2,3), p => p._1).size` — the tuple as the ACCUMULATOR. The zero is a `Value.checkType` site, and `isValueOfType` throws **\"Unsupported tuple type\"** for any arity but 2 (`SType.scala:202`) — a different refusal from the `SAny` ones above: it is the tuple VALUE being rejected, not an operand's type. `Tuple.non_pair_value_ops` T11/C11 hold the accepting twin, where the accumulator is an `Int` and the same tuple is the INPUT. **SEPARATING.**",
+      "tree_bytes_hex" : "0b1ab1b0100302040648040404020406d901014c480404048c720101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "concrete_collection_of_tuples-errored#14",
+      "script" : "[G10] `SizeOf(Coll((1,2,3), (1,2,3)))` — a `ConcreteCollection` whose ITEMS are non-pair tuples. Every item goes through the same `checkType` site — the same **\"Unsupported tuple type\"** as G9 — so the collection cannot be built AT ALL and the throw precedes any operation on it. **The other half of this is not authorable yet:** the identical collection arriving in a REGISTER evaluates (`3` at cost 124, measured), so the JVM's answer depends on where the collection came from — the same provenance shape as `Coll.runtime_shapes_methodcall` B1/B3 — but the eval tier's input decoder cannot express a non-pair tuple today, so the register half waits on that. **SEPARATING.**",
+      "tree_bytes_hex" : "0b15b18302480404044804040402040648040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "concrete_collection_of_pairs_control-accept#15",
+      "script" : "[C6] **CONTROL for G10** — the same shape built from PAIRS: `SizeOf(Coll((1,2), (3,4)))` is **2 at cost 84**. `ConcreteCollection` takes pairs happily, so G10 is about the ARITY and not about building a collection of tuples.",
+      "tree_bytes_hex" : "0b10b1830258860204020404860204060408",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 84,
+        "error" : null
+      }
+    }
+  ]
+}

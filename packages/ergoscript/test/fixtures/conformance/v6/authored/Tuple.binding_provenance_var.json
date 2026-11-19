@@ -1,0 +1,542 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.binding_provenance_var",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-tuple-binding-provenance",
+  "entries" : [
+    {
+      "name" : "getvar-tuple-constant-accept#0",
+      "script" : "[C1] `getVar[(Int, Int, Int)](1).get.size`, var 1 = the tuple CONSTANT (1, 2, 3) — `3` at cost 39. CONTROL for X1: a constant reads the same in every reader. (TupleValuesProbe G1.)",
+      "tree_bytes_hex" : "0b08b1e4e30148040404",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "48040404020406"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-tuple-expression-accept#1",
+      "script" : "[X1] the same tree, var 1 = the Tuple EXPRESSION (opcode 0x86) — `3` at 39, identical to its constant twin: `Tuple.value` is the same Coll[Any] the data decoder builds (values.scala:818-822). SEPARATING: a node's extension reader is `getValue` (ContextExtension.scala:61), which takes an evaluated expression; a reader that reads only a constant there refuses it.",
+      "tree_bytes_hex" : "0b08b1e4e30148040404",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "8603040204040406"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-isdefined-accept#2",
+      "script" : "[P1c] `getVar[(Int, Int)](1).isDefined`, var 1 = the pair CONSTANT — `true`. CONTROL for P1x: `OptionIsDefined` never reads the value.",
+      "tree_bytes_hex" : "0b04e6e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-isdefined-accept#3",
+      "script" : "[P1x] `getVar[(Int, Int)](1).isDefined`, var 1 = the pair Tuple EXPRESSION — `true`, as its constant twin: `CContext.getVar` (CContext.scala:60) checks only the type the value was stored with, so the read hands back the expression's Coll[Any], and `OptionIsDefined` never looks at it. SEPARATING: an implementation that refuses a pair-typed Tuple expression AT THE READ refuses this.",
+      "tree_bytes_hex" : "0b04e6e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-get-accept#4",
+      "script" : "[P2c] `getVar[(Int, Int)](1).get`, var 1 = the pair CONSTANT — the pair `(1, 2)` (a Scala Tuple2). CONTROL for P2x.",
+      "tree_bytes_hex" : "0b04e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 25,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-get-accept#5",
+      "script" : "[P2x] `getVar[(Int, Int)](1).get`, var 1 = the pair Tuple EXPRESSION — `Coll[Any](1, 2)`, encoded `{\"kind\":\"Coll\",\"elem\":{\"tag\":\"SAny\"},…}`, at its twin's cost: `OptionGet` is `opt.get` (transformers.scala:598) and checks nothing, so the root's value is the expression's `Tuple.value` (values.scala:818-822) under a pair type. SEPARATING: refusing at the read, or answering a pair, is red.",
+      "tree_bytes_hex" : "0b04e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SAny"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 25,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-eq-constant-accept#6",
+      "script" : "[P3c] `getVar[(Int, Int)](1).get == (1, 2)`, var 1 = the pair CONSTANT — `true`. CONTROL for P3x.",
+      "tree_bytes_hex" : "0b0893e4e30158580204",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-eq-constant-errored#7",
+      "script" : "[P3x] `getVar[(Int, Int)](1).get == (1, 2)`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `EQ` type-checks its LEFT operand before it compares (trees.scala:1206, `Value.checkType` → `SType.isValueOfType`, which wants a Tuple2 for a pair type, SType.scala:200). SEPARATING: an implementation that compares the Coll[Any] with the pair (answering `false`) is red.",
+      "tree_bytes_hex" : "0b0893e4e30158580204",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-constant-eq-accept#8",
+      "script" : "[P4c] `(1, 2) == getVar[(Int, Int)](1).get`, var 1 = the pair CONSTANT — `true`. CONTROL for P4x.",
+      "tree_bytes_hex" : "0b0893580204e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-constant-eq-errored#9",
+      "script" : "[P4x] `(1, 2) == getVar[(Int, Int)](1).get`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): the same check on the RIGHT operand (trees.scala:1208), after the constant on the left passed its own. SEPARATING: an implementation that checks only the left operand is red.",
+      "tree_bytes_hex" : "0b0893580204e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-neq-constant-accept#10",
+      "script" : "[P5c] `getVar[(Int, Int)](1).get != (1, 2)`, var 1 = the pair CONSTANT — `false`. CONTROL for P5x.",
+      "tree_bytes_hex" : "0b0894e4e30158580204",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-neq-constant-errored#11",
+      "script" : "[P5x] `getVar[(Int, Int)](1).get != (1, 2)`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `NEQ` checks its operands as `EQ` does (trees.scala:1226). SEPARATING: answering `true` (a collection is not the pair) is red.",
+      "tree_bytes_hex" : "0b0894e4e30158580204",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-eq-self-accept#12",
+      "script" : "[P6c] `getVar[(Int, Int)](1).get == getVar[(Int, Int)](1).get`, var 1 = the pair CONSTANT — `true`. CONTROL for P6x.",
+      "tree_bytes_hex" : "0b0993e4e30158e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-eq-self-errored#13",
+      "script" : "[P6x] `getVar[(Int, Int)](1).get == getVar[(Int, Int)](1).get`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): both sides are the same Coll[Any], but the left operand's check refuses it before anything is compared (trees.scala:1206). SEPARATING: comparing the two equal collections (answering `true`) is red.",
+      "tree_bytes_hex" : "0b0993e4e30158e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-size-errored#14",
+      "script" : "[P7c] `getVar[(Int, Int)](1).get.size`, var 1 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll): `SizeOf` (transformers.scala:357) takes its input as a collection. CONTROL for P7x.",
+      "tree_bytes_hex" : "0b05b1e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-size-accept#15",
+      "script" : "[P7x] `getVar[(Int, Int)](1).get.size`, var 1 = the pair Tuple EXPRESSION — `2`: the static type is a pair, but `STuple` extends `SCollection[SAny]`, so the tree parses, and `SizeOf` takes the value as the collection it is. SEPARATING: refusing at the read, or refusing a pair-typed `SizeOf`, is red.",
+      "tree_bytes_hex" : "0b05b1e4e30158",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-byindex0-errored#16",
+      "script" : "[P8c] `getVar[(Int, Int)](1).get(0)`, var 1 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll): `ByIndex` (transformers.scala:249) takes its input as a collection. CONTROL for P8x.",
+      "tree_bytes_hex" : "0b08b2e4e30158040000",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-byindex0-accept#17",
+      "script" : "[P8x] `getVar[(Int, Int)](1).get(0)`, var 1 = the pair Tuple EXPRESSION — `1`, the first item of the Coll[Any]; the node's type is the pair's item type, `Any`. SEPARATING: refusing at the read or at the node is red.",
+      "tree_bytes_hex" : "0b08b2e4e30158040000",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-byindex1-errored#18",
+      "script" : "[P9c] `getVar[(Int, Int)](1).get(1)`, var 1 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll), as P8c. CONTROL for P9x.",
+      "tree_bytes_hex" : "0b08b2e4e30158040200",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-byindex1-accept#19",
+      "script" : "[P9x] `getVar[(Int, Int)](1).get(1)`, var 1 = the pair Tuple EXPRESSION — `2`, the second item. SEPARATING: refusing at the read or at the node is red.",
+      "tree_bytes_hex" : "0b08b2e4e30158040200",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-byindex2-errored#20",
+      "script" : "[P10c] `getVar[(Int, Int)](1).get(2)`, var 1 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll), as P8c. CONTROL for P10x.",
+      "tree_bytes_hex" : "0b08b2e4e30158040400",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-byindex2-errored#21",
+      "script" : "[P10x] `getVar[(Int, Int)](1).get(2)`, var 1 = the pair Tuple EXPRESSION — ERRORED (ArrayIndexOutOfBoundsException): the Coll[Any] holds exactly the pair's two items. SEPARATING: an implementation that reads past them or answers a default is red.",
+      "tree_bytes_hex" : "0b08b2e4e30158040400",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-field1-accept#22",
+      "script" : "[P11c] `getVar[(Int, Int)](1).get._1`, var 1 = the pair CONSTANT — `1`. CONTROL for P11x.",
+      "tree_bytes_hex" : "0b068ce4e3015801",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-field1-errored#23",
+      "script" : "[P11x] `getVar[(Int, Int)](1).get._1`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `SelectField` (transformers.scala:291) matches a Tuple2 and anything else is `Value.typeError(input, …)`, which names its INPUT. The read itself did not refuse (P1x, P2x). SEPARATING: selecting the item from the Coll[Any] is red.",
+      "tree_bytes_hex" : "0b068ce4e3015801",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "getvar-pair-constant-field2-accept#24",
+      "script" : "[P12c] `getVar[(Int, Int)](1).get._2`, var 1 = the pair CONSTANT — `2`. CONTROL for P12x.",
+      "tree_bytes_hex" : "0b068ce4e3015802",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "580204"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-pair-expression-field2-errored#25",
+      "script" : "[P12x] `getVar[(Int, Int)](1).get._2`, var 1 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet), as P11x, for the second item. SEPARATING: selecting the item from the Coll[Any] is red.",
+      "tree_bytes_hex" : "0b068ce4e3015802",
+      "input" : {
+        "kind" : "Value",
+        "bytes_hex" : "860204020404"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

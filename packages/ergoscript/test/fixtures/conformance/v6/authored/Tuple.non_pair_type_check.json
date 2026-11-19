@@ -1,0 +1,125 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_type_check",
+  "blessed_by" : "jvm:sigma-state-6.0.6",
+  "source" : "santa:authored-eval-non-pair-tuple",
+  "entries" : [
+    {
+      "name" : "eq-triple-errored#0",
+      "script" : "{ (x: Int) => (1, 2, 3) == (1, 2, 3) }  // JVM: EQ checks both operands (trees.scala:1206-1208): the constant triple's value is a Coll, and isValueOfType throws 'Unsupported tuple type' for an STuple of arity 3",
+      "tree_bytes_hex" : "0b0f934804040402040648040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "eq-pair-accept#1",
+      "script" : "{ (x: Int) => (1, 2) == (1, 2) }  // JVM: a pair's value is a Tuple2, which passes: true",
+      "tree_bytes_hex" : "0b0793580204580204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "valdef-triple-errored#2",
+      "script" : "{ (x: Int) => { val t = (1, 2, 3); t._1 == 1 } }  // JVM: BlockValue checks each ValDef's value (values.scala:1027): the constant triple's value is a Coll, and isValueOfType throws 'Unsupported tuple type' for an STuple of arity 3",
+      "tree_bytes_hex" : "0b12d801d60148040404020406938c7201010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "valdef-pair-accept#3",
+      "script" : "{ (x: Int) => { val t = (1, 2); t._1 == 1 } }  // JVM: a pair's value is a Tuple2, which passes: true",
+      "tree_bytes_hex" : "0b0ed801d601580204938c7201010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "lambda-triple-errored#4",
+      "script" : "{ (x: Int) => { (t: (Int, Int, Int)) => t._1 }((1, 2, 3)) == 1 }  // JVM: a lambda checks its argument (values.scala:1074): the constant triple's value is a Coll, and isValueOfType throws 'Unsupported tuple type' for an STuple of arity 3",
+      "tree_bytes_hex" : "0b1793dad90101480404048c72010101480404040204060402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "lambda-pair-accept#5",
+      "script" : "{ (x: Int) => { (t: (Int, Int)) => t._1 }((1, 2)) == 1 }  // JVM: a pair's value is a Tuple2, which passes: true",
+      "tree_bytes_hex" : "0b1093dad90101588c720101015802040402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 68,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -54,6 +54,19 @@ const REJECTED_BY_ERGOTS: Record<string, string[]> = {
   // patch-array-class.json: 4 entries whose script calls a method ergots has no handler for
   // (SGlobal.xor and SContext.selfBoxIndex).
   'patch-array-class.json': Object.values(COLLECTION_CLASS_RED['patch-array-class.json'] ?? {}).flat().sort(),
+  // generic-producers-census.json: 127 entries whose SELF, another box or an extension holds an
+  // expression as a register or variable value, which ergots' readers refuse before anything else
+  // is read.
+  'generic-producers-census.json': Object.values(COLLECTION_CLASS_RED['generic-producers-census.json'] ?? {}).flat().sort(),
+  // group-node-static-type.json: 12 accepts whose script hands a non-pair tuple value where a
+  // collection is wanted; ergots refuses, the JVM holds the tuple as Coll[Any].
+  'group-node-static-type.json': Object.values(COLLECTION_CLASS_RED['group-node-static-type.json'] ?? {}).flat().sort(),
+  // non-pair-tuple-spend.json: 4 accepts over non-pair tuple scripts; ergots refuses at the
+  // collection op, the JVM holds the tuple as Coll[Any].
+  'non-pair-tuple-spend.json': Object.values(COLLECTION_CLASS_RED['non-pair-tuple-spend.json'] ?? {}).flat().sort(),
+  // small-tuples.json: 1 accept whose OUTPUT R4 holds a Tuple expression whose nested arity
+  // ergots' register reader refuses before anything else is read.
+  'small-tuples.json': Object.values(COLLECTION_CLASS_RED['small-tuples.json'] ?? {}).flat().sort(),
 };
 
 const graded = TX_FILES.flatMap(({ file, entries }) =>
@@ -67,9 +80,13 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'cost-limit-boundary.json',
       'deserialize-context-111927.json',
       'deserialize-substitution-spend.json',
+      'generic-producers-census.json',
       'generic-producers.json',
+      'group-node-static-type.json',
       'kept-tree-bytes-input.json',
+      'non-pair-tuple-spend.json',
       'patch-array-class.json',
+      'small-tuples.json',
       'storage-rent-dust.json',
       'storage-rent-fallback.json',
       'storage-rent-fee-wrap.json',
@@ -78,8 +95,10 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'storage-rent-recreation.json',
     ]);
     // 30 pre-existing + 16 generic-producers accepts ergots grades + 124 patch-array-class accepts
-    // ergots grades = 170.
-    expect(graded.length).toBe(170);
+    // ergots grades + 0 generic-producers-census accepts (every one holds an expression ergots
+    // refuses) + 24 group-node-static-type accepts + 1 non-pair-tuple-spend accept + 20
+    // small-tuples accepts = 215.
+    expect(graded.length).toBe(215);
     for (const [file, names] of Object.entries(REJECTED_BY_ERGOTS)) {
       const valid = TX_FILES.find((f) => f.file === file)!.entries.filter((e) => e.expected.valid).map((e) => e.name);
       expect(names.filter((n) => !valid.includes(n))).toEqual([]);

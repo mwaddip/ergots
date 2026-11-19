@@ -1,0 +1,266 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_value_producers",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-non-pair-tuple-consumers",
+  "entries" : [
+    {
+      "name" : "select_field_of_nested_tuple-accept#0",
+      "script" : "[P1] `SizeOf(SelectField(((1,2,3), 4), 1))` — **3 at cost 29.** The first route: a non-pair tuple nested inside a PAIR, pulled out by `SelectField`. `checkType` is shallow, so the outer pair's field access never inspects the inner tuple's arity. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0cb18c4c480404040204060801",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 29,
+        "error" : null
+      }
+    },
+    {
+      "name" : "select_field_of_nested_coll_control-accept#1",
+      "script" : "[C1] **CONTROL for P1** — the same shape with a `Coll[Int]` in the field instead of a tuple: 3 at cost 49. Dearer than P1 by 20 because the field is built by a `Tuple` NODE here rather than read out of a constant, which is what shows P1's cost belongs to the constant.",
+      "tree_bytes_hex" : "0b0cb18c86021003020406040801",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 49,
+        "error" : null
+      }
+    },
+    {
+      "name" : "item_of_data_collection-accept#2",
+      "script" : "[P2] `SizeOf(ByIndex(Coll((1,2,3)), 0))` — **3 at cost 54.** The second route: an ITEM of a data collection of tuples. The item's runtime type is `Coll[Any]`, so `SizeOf` reads it. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0eb1b20c4804040401020406040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 54,
+        "error" : null
+      }
+    },
+    {
+      "name" : "content_of_an_option-accept#3",
+      "script" : "[P3] `SizeOf(OptionGet(Some((1,2,3))))` — **3 at cost 34.** The third route. Note the v0 twin of this row does not exist: `SOption` data requires ErgoTree v3, and an unsized tree has no size bit to degrade behind, so the v0 form is REJECTED outright. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0bb1e4244804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 34,
+        "error" : null
+      }
+    },
+    {
+      "name" : "deserialize_to_tuple-accept#4",
+      "script" : "[P4] `SizeOf(Global.deserializeTo[(Int,Int,Int)](020406))` — **3 at cost 160**, the dearest route and the fourth: the value is built by the DATA deserializer at eval time from three bytes, which is the path `CoreDataSerializer` takes on a register or an extension. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0fb1dc6a04dd010e0302040648040404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 160,
+        "error" : null
+      }
+    },
+    {
+      "name" : "data_collection_root-accept#5",
+      "script" : "[P5] `Coll((1,2,3))` as the ROOT — **cost 5**, and the row to read for its VALUE rather than its cost: `{\"kind\":\"Coll\",\"elem\":{\"tag\":\"SColl\",\"elem\":{\"tag\":\"SAny\"}},…}` with each item a `Coll[SAny]`. A data collection of non-pair tuples carries `tItem = collRType(AnyType)` and NOT the tuple type, so this is the second place the corpus writes `{\"tag\":\"SAny\"}` (the first being `Tuple.non_pair_value_ops` T5). **SEPARATING:** an implementation that keeps the tuple type as the item type writes a different `elem` here and is red for the encoding. All three conformers with an eval arm do exactly that. **And the item type IS observable to a script, through a second producer** — a collection EXPRESSION in a register carries the TUPLE type, so it compares `false` against this data form where another data collection compares `true`; see the family header, which corrects an earlier claim of mine that it could not be seen.",
+      "tree_bytes_hex" : "0b090c4804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SAny"
+            }
+          },
+          "items" : [
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SAny"
+              },
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 3
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 5,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_two_data_collections-accept#6",
+      "script" : "[E1] `Coll((1,2,3)) == Coll((1,2,3))` — **true at cost 49.** `DataValueComparer` compares item types before any item, and two data collections of non-pair tuples share `Coll[Any]`, so they compare equal. **SEPARATING, and the round's one COST divergence:** sigma-rust answers `true` at 36 — correct value, 13 low — and the same 13 on E2 and E3, so it is one number.",
+      "tree_bytes_hex" : "0b13930c48040404010204060c4804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 49,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_two_coll_of_coll_control-accept#7",
+      "script" : "[C2] **CONTROL for E1** — `Coll(Coll[Int](1,2,3)) == Coll(Coll[Int](1,2,3))`, the same nesting with a declared item type: true at cost 41. The 8 between them is the tuple collection's own encoding, not a different comparison. (This cross pair — a tuple collection against THIS one — cannot be written: the operands' static types disagree and the builder's SameType check refuses it at PARSE. That does NOT make the item type unobservable: two collections of the same declared type and different item types are writable, and they separate — see the family header.)",
+      "tree_bytes_hex" : "0b0d931c01030204061c0103020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 41,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_two_options-accept#8",
+      "script" : "[E2] `Some((1,2,3)) == Some((1,2,3))` — **true at cost 40.** Scala's `==` reaches inside the `Option` and then compares two `Coll[Any]`s. **SEPARATING** (sigma-rust: 27, the same 13).",
+      "tree_bytes_hex" : "0b1393244804040401020406244804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_two_pairs_holding_tuples-accept#9",
+      "script" : "[E3] `((1,2,3), 4) == ((1,2,3), 4)` — **true at cost 43**, the third container. **SEPARATING** (sigma-rust: 30, the same 13). The three E rows together say the undercharge is in the tuple's own comparison and not in any one container.",
+      "tree_bytes_hex" : "0b13934c48040404020406084c4804040402040608",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 43,
+        "error" : null
+      }
+    },
+    {
+      "name" : "eq_coll_of_pair_holding_tuple_vs_concrete-accept#10",
+      "script" : "[V1] `sigmaProp(Coll[((Int,Int,Int),Int)](((1,2,3),4)) == ConcreteCollection(((1,2,3),4)))` — **`SigmaProp` true at cost 91.** A DATA collection of pairs-holding-a-tuple compared with a collection EXPRESSION of the same shape. Both carry the same DECLARED type, so the builder's `SameType` check passes and the comparison is actually reached. It belongs beside E1-E3 because it is the fourth container in which that comparison is exercised, and the nesting is what makes it the deepest. **SEPARATING, and graded so rather than assumed:** ergots answers **78, exactly 13 LOW**, which is the SAME 13 it is low by on E1/E2/E3 (49/40/43 against 36/27/30) — so the undercharge is a CONSTANT offset in its model of this comparison and not a function of the shape, and this deepest container is the fourth place that shows it. arkadianet ERRORS, having no such nested comparison at all. The sigma-rust fork is GREEN: it read 13 low here before its tuple-values round, fixed it, and has pinned this very tree and cost as a unit test on its own branch. **I authored this row expecting it to be a regression guard on all four and the grading refuted that** — which row separates is a fact about two implementations and never derivable from the oracle, so it is recorded here from the conform run and not from the measurement.",
+      "tree_bytes_hex" : "0b1dd1930c4c48040404010204060883014c480404044c4804040402040608",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 91,
+        "error" : null
+      }
+    }
+  ]
+}

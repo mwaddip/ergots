@@ -32,7 +32,14 @@ import { RED_REASONS } from '../conformance-eval/_full-context';
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/collection-class-red.json');
 
-const FILES = ['patch-array-class.json', 'generic-producers.json'] as const;
+const FILES = [
+  'patch-array-class.json',
+  'generic-producers.json',
+  'generic-producers-census.json',
+  'group-node-static-type.json',
+  'non-pair-tuple-spend.json',
+  'small-tuples.json',
+] as const;
 
 type RedTable = Record<string, Record<string, string[]>>;
 

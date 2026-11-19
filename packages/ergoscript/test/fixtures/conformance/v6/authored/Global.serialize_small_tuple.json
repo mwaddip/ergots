@@ -1,0 +1,50 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Global.serialize_small_tuple",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-small-tuples",
+  "entries" : [
+    {
+      "name" : "serialize-one-item-tuple-accept#0",
+      "script" : "sigmaProp(Global.serialize(c) == Coll(0)) where c is a CONSTANT of type `(Int)`  // the one place a one-item tuple WORKS: DataSerializer writes a tuple's items and no type, so the write-side refusal that kills every box and transaction never fires",
+      "tree_bytes_hex" : "0b0ed193dc6a03dd01600104020e0100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 65,
+        "error" : null
+      }
+    },
+    {
+      "name" : "serialize-pair-control-accept#1",
+      "script" : "sigmaProp(Global.serialize(c) == Coll(0)) where c is a `(Int,Int)` CONSTANT  // the writable twin, and the cost the one-item row is read against",
+      "tree_bytes_hex" : "0b0dd193dc6a03dd015802040e0100",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 51,
+        "error" : null
+      }
+    }
+  ]
+}

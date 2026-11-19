@@ -1,4 +1,32 @@
 {
+  "v5/authored/ByIndex.tuple_item.json": {
+    "tuple-as-collection": [
+      "tuple-by-index-d1-t0-a2#29",
+      "tuple-by-index-d2-t0-a2#30",
+      "tuple-by-index-d3-t0-a2#31",
+      "tuple-by-index-f0-t0-a2#23",
+      "tuple-by-index-f1-t0-a2#24",
+      "tuple-by-index-f2-t0-a2#25",
+      "tuple-by-index-f3-t0-a2#26",
+      "tuple-by-index-f4-t0-a2#27",
+      "tuple-by-index-g0-t0-a2#7",
+      "tuple-by-index-g1-t0-a2#8",
+      "tuple-by-index-g2-t0-a2#9",
+      "tuple-by-index-n0-t0-a2#15",
+      "tuple-by-index-q0-t0-a2#17",
+      "tuple-by-index-q1-t0-a2#18",
+      "tuple-by-index-q2-t0-a2#19",
+      "tuple-by-index-q3-t0-a2#20",
+      "tuple-by-index-s3-t0-a2#40",
+      "tuple-by-index-s5-t0-a2#41",
+      "tuple-by-index-t0-t0-a2#11",
+      "tuple-by-index-t1-t0-a2#12",
+      "tuple-by-index-t2-t0-a2#13",
+      "tuple-by-index-v0-t0-a2#33",
+      "tuple-by-index-v1-t0-a2#34",
+      "tuple-by-index-v2-t0-a2#35"
+    ]
+  },
   "v5/authored/Coll.flatMap_length_limit.json": {
     "collection-length-limit": [
       "both-flatMap-bytes-over+wrongitem-v0-a2#66",
@@ -80,9 +108,155 @@
       "coll2-patch-Z.slice-tripleZ.direct-v0-a2#333"
     ]
   },
+  "v5/authored/Exponentiate.static_type.json": {
+    "own-type-check": [
+      "slot-Fold.op1-exp.ctl-v0-a2#147"
+    ],
+    "tuple-as-collection": [
+      "hand-Apply.const-lambda-exp.anyge-v0-a2#269",
+      "hand-Apply.const-lambda==g-exp.anyge-v0-a2#270",
+      "hand-Block.g==v-exp.anyge-v0-a2#266",
+      "hand-Block.v-exp.anyge-v0-a2#263",
+      "hand-Block.v.getEncoded-exp.anyge-v0-a2#268",
+      "hand-Block.v==g-exp.anyge-v0-a2#264",
+      "hand-ByIndex.default.in-exp.anyge-v0-a2#274",
+      "hand-ByIndex.default.out-exp.anyge-v0-a2#275",
+      "hand-Coll.x-g-exp.anyge-v0-a2#255",
+      "hand-Coll.x-g.size-exp.anyge-v0-a2#257",
+      "hand-Coll.x-g_0_==g-exp.anyge-v0-a2#259",
+      "hand-EQ.x-x-exp.anyge-v0-a2#239",
+      "hand-Fold.zero-exp.anyge-v0-a2#273",
+      "hand-If.false.g-x-exp.anyge-v0-a2#247",
+      "hand-If.false.int-x-exp.anyge-v0-a2#249",
+      "hand-If.true.x-g-exp.anyge-v0-a2#246",
+      "hand-If.true.x-int-exp.anyge-v0-a2#248",
+      "hand-Map.const.size-exp.anyge-v0-a2#276",
+      "hand-Map.const_0_==g-exp.anyge-v0-a2#277",
+      "hand-OptionGetOrElse.none-x-exp.anyge-v0-a2#272",
+      "hand-Tuple.x-g-exp.anyge-v0-a2#250",
+      "hand-Tuple.x-g._1-exp.anyge-v0-a2#251",
+      "hand-Tuple.x-g._1==g-exp.anyge-v0-a2#252",
+      "hand-Tuple.x-int._2-exp.anyge-v0-a2#254",
+      "slot-BlockValue.op0-exp.anyge-v0-a2#221",
+      "slot-BlockValue.unused.op0-exp.anyge-v0-a2#222",
+      "slot-ByIndex.default.op2-exp.anyge-v0-a2#233",
+      "slot-ByIndex.default.out-of-range.op2-exp.anyge-v0-a2#234",
+      "slot-EQ.GE.op0-exp.anyge-v0-a2#223",
+      "slot-EQ.GE.op1-exp.anyge-v0-a2#225",
+      "slot-Fold.op1-exp.anyge-v0-a2#237",
+      "slot-FunDef.block.op0-exp.anyge-v0-a2#238",
+      "slot-If.false.op2-exp.anyge-v0-a2#236",
+      "slot-If.true.op1-exp.anyge-v0-a2#235",
+      "slot-NEQ.GE.op0-exp.anyge-v0-a2#227",
+      "slot-NEQ.GE.op1-exp.anyge-v0-a2#229",
+      "slot-OptionGetOrElse.none.op1-exp.anyge-v0-a2#232",
+      "slot-OptionGetOrElse.some.op1-exp.anyge-v0-a2#231",
+      "slot-Tuple.op0-exp.anyge-v0-a2#219",
+      "slot-Tuple.op1-exp.anyge-v0-a2#220"
+    ]
+  },
+  "v5/authored/MultiplyGroup.static_type.json": {
+    "own-type-check": [
+      "slot-Fold.op1-mul.ctl-v0-a2#147"
+    ],
+    "tuple-as-collection": [
+      "hand-Apply.const-lambda-mul.anyge-v0-a2#269",
+      "hand-Apply.const-lambda==g-mul.anyge-v0-a2#270",
+      "hand-Block.g==v-mul.anyge-v0-a2#266",
+      "hand-Block.v-mul.anyge-v0-a2#263",
+      "hand-Block.v.getEncoded-mul.anyge-v0-a2#268",
+      "hand-Block.v==g-mul.anyge-v0-a2#264",
+      "hand-ByIndex.default.in-mul.anyge-v0-a2#274",
+      "hand-ByIndex.default.out-mul.anyge-v0-a2#275",
+      "hand-Coll.x-g-mul.anyge-v0-a2#255",
+      "hand-Coll.x-g.size-mul.anyge-v0-a2#257",
+      "hand-Coll.x-g_0_==g-mul.anyge-v0-a2#259",
+      "hand-EQ.x-x-mul.anyge-v0-a2#239",
+      "hand-Fold.zero-mul.anyge-v0-a2#273",
+      "hand-If.false.g-x-mul.anyge-v0-a2#247",
+      "hand-If.false.int-x-mul.anyge-v0-a2#249",
+      "hand-If.true.x-g-mul.anyge-v0-a2#246",
+      "hand-If.true.x-int-mul.anyge-v0-a2#248",
+      "hand-Map.const.size-mul.anyge-v0-a2#276",
+      "hand-Map.const_0_==g-mul.anyge-v0-a2#277",
+      "hand-OptionGetOrElse.none-x-mul.anyge-v0-a2#272",
+      "hand-Tuple.x-g-mul.anyge-v0-a2#250",
+      "hand-Tuple.x-g._1-mul.anyge-v0-a2#251",
+      "hand-Tuple.x-g._1==g-mul.anyge-v0-a2#252",
+      "hand-Tuple.x-int._2-mul.anyge-v0-a2#254",
+      "slot-BlockValue.op0-mul.anyge-v0-a2#221",
+      "slot-BlockValue.unused.op0-mul.anyge-v0-a2#222",
+      "slot-ByIndex.default.op2-mul.anyge-v0-a2#233",
+      "slot-ByIndex.default.out-of-range.op2-mul.anyge-v0-a2#234",
+      "slot-EQ.GE.op0-mul.anyge-v0-a2#223",
+      "slot-EQ.GE.op1-mul.anyge-v0-a2#225",
+      "slot-Fold.op1-mul.anyge-v0-a2#237",
+      "slot-FunDef.block.op0-mul.anyge-v0-a2#238",
+      "slot-If.false.op2-mul.anyge-v0-a2#236",
+      "slot-If.true.op1-mul.anyge-v0-a2#235",
+      "slot-NEQ.GE.op0-mul.anyge-v0-a2#227",
+      "slot-NEQ.GE.op1-mul.anyge-v0-a2#229",
+      "slot-OptionGetOrElse.none.op1-mul.anyge-v0-a2#232",
+      "slot-OptionGetOrElse.some.op1-mul.anyge-v0-a2#231",
+      "slot-Tuple.op0-mul.anyge-v0-a2#219",
+      "slot-Tuple.op1-mul.anyge-v0-a2#220"
+    ]
+  },
   "v6/authored/Box.getReg_adversarial.json": {
     "method-not-implemented": [
       "getRegV5-live-reject#0"
+    ]
+  },
+  "v6/authored/ByIndex.tuple_item_v6.json": {
+    "tuple-as-collection": [
+      "tuple-by-index-d1-t0-a3#58",
+      "tuple-by-index-d1-t3-a3#59",
+      "tuple-by-index-d2-t0-a3#60",
+      "tuple-by-index-d2-t3-a3#61",
+      "tuple-by-index-d3-t0-a3#62",
+      "tuple-by-index-d3-t3-a3#63",
+      "tuple-by-index-f0-t0-a3#46",
+      "tuple-by-index-f0-t3-a3#47",
+      "tuple-by-index-f1-t0-a3#48",
+      "tuple-by-index-f1-t3-a3#49",
+      "tuple-by-index-f2-t0-a3#50",
+      "tuple-by-index-f2-t3-a3#51",
+      "tuple-by-index-f3-t0-a3#52",
+      "tuple-by-index-f3-t3-a3#53",
+      "tuple-by-index-f4-t0-a3#54",
+      "tuple-by-index-f4-t3-a3#55",
+      "tuple-by-index-g0-t0-a3#14",
+      "tuple-by-index-g0-t3-a3#15",
+      "tuple-by-index-g1-t0-a3#16",
+      "tuple-by-index-g1-t3-a3#17",
+      "tuple-by-index-g2-t0-a3#18",
+      "tuple-by-index-g2-t3-a3#19",
+      "tuple-by-index-n0-t0-a3#30",
+      "tuple-by-index-n0-t3-a3#31",
+      "tuple-by-index-q0-t0-a3#34",
+      "tuple-by-index-q0-t3-a3#35",
+      "tuple-by-index-q1-t0-a3#36",
+      "tuple-by-index-q1-t3-a3#37",
+      "tuple-by-index-q2-t0-a3#38",
+      "tuple-by-index-q2-t3-a3#39",
+      "tuple-by-index-q3-t0-a3#40",
+      "tuple-by-index-q3-t3-a3#41",
+      "tuple-by-index-s3-t0-a3#80",
+      "tuple-by-index-s3-t3-a3#81",
+      "tuple-by-index-s5-t0-a3#82",
+      "tuple-by-index-s5-t3-a3#83",
+      "tuple-by-index-t0-t0-a3#22",
+      "tuple-by-index-t0-t3-a3#23",
+      "tuple-by-index-t1-t0-a3#24",
+      "tuple-by-index-t1-t3-a3#25",
+      "tuple-by-index-t2-t0-a3#26",
+      "tuple-by-index-t2-t3-a3#27",
+      "tuple-by-index-v0-t0-a3#66",
+      "tuple-by-index-v0-t3-a3#67",
+      "tuple-by-index-v1-t0-a3#68",
+      "tuple-by-index-v1-t3-a3#69",
+      "tuple-by-index-v2-t0-a3#70",
+      "tuple-by-index-v2-t3-a3#71"
     ]
   },
   "v6/authored/Coll.flatMap_length_limit_v6.json": {
@@ -314,6 +488,291 @@
     "method-not-implemented": [
       "zip-ls-longer-map.method-v0-a3#4",
       "zip-rs-empty-map.method-v0-a3#21"
+    ]
+  },
+  "v6/authored/Exponentiate.static_type_v6.json": {
+    "own-type-check": [
+      "slot-Fold.op1-exp.ctl-v0-a3#207",
+      "slot-Fold.op1-exp.ctl-v3-a3#208"
+    ],
+    "tuple-as-collection": [
+      "hand-Apply.const-lambda-exp.anyge-v0-a3#449",
+      "hand-Apply.const-lambda-exp.anyge-v3-a3#450",
+      "hand-Apply.const-lambda==g-exp.anyge-v0-a3#451",
+      "hand-Apply.const-lambda==g-exp.anyge-v3-a3#453",
+      "hand-Block.g==v-exp.anyge-v0-a3#443",
+      "hand-Block.g==v-exp.anyge-v3-a3#445",
+      "hand-Block.v-exp.anyge-v0-a3#437",
+      "hand-Block.v-exp.anyge-v3-a3#438",
+      "hand-Block.v.getEncoded-exp.anyge-v0-a3#447",
+      "hand-Block.v.getEncoded-exp.anyge-v3-a3#448",
+      "hand-Block.v==g-exp.anyge-v0-a3#439",
+      "hand-Block.v==g-exp.anyge-v3-a3#441",
+      "hand-ByIndex.default.in-exp.anyge-v0-a3#459",
+      "hand-ByIndex.default.out-exp.anyge-v0-a3#460",
+      "hand-ByIndex.default.out-exp.anyge-v3-a3#461",
+      "hand-Coll.x-g-exp.anyge-v0-a3#421",
+      "hand-Coll.x-g-exp.anyge-v3-a3#423",
+      "hand-Coll.x-g.size-exp.anyge-v0-a3#425",
+      "hand-Coll.x-g.size-exp.anyge-v3-a3#427",
+      "hand-Coll.x-g_0_==g-exp.anyge-v0-a3#429",
+      "hand-Coll.x-g_0_==g-exp.anyge-v3-a3#431",
+      "hand-EQ.x-x-exp.anyge-v0-a3#389",
+      "hand-EQ.x-x-exp.anyge-v3-a3#390",
+      "hand-Fold.zero-exp.anyge-v0-a3#457",
+      "hand-Fold.zero-exp.anyge-v3-a3#458",
+      "hand-Global.serialize-exp.anyge-v3-a3#468",
+      "hand-If.false.g-x-exp.anyge-v0-a3#405",
+      "hand-If.false.g-x-exp.anyge-v3-a3#406",
+      "hand-If.false.int-x-exp.anyge-v0-a3#409",
+      "hand-If.false.int-x-exp.anyge-v3-a3#410",
+      "hand-If.true.x-g-exp.anyge-v0-a3#403",
+      "hand-If.true.x-g-exp.anyge-v3-a3#404",
+      "hand-If.true.x-int-exp.anyge-v0-a3#407",
+      "hand-If.true.x-int-exp.anyge-v3-a3#408",
+      "hand-Map.const.size-exp.anyge-v0-a3#462",
+      "hand-Map.const.size-exp.anyge-v3-a3#463",
+      "hand-Map.const_0_==g-exp.anyge-v0-a3#464",
+      "hand-Map.const_0_==g-exp.anyge-v3-a3#466",
+      "hand-OptionGetOrElse.none-x-exp.anyge-v0-a3#455",
+      "hand-OptionGetOrElse.none-x-exp.anyge-v3-a3#456",
+      "hand-Tuple.x-g-exp.anyge-v0-a3#411",
+      "hand-Tuple.x-g-exp.anyge-v3-a3#412",
+      "hand-Tuple.x-g._1-exp.anyge-v0-a3#413",
+      "hand-Tuple.x-g._1-exp.anyge-v3-a3#414",
+      "hand-Tuple.x-g._1==g-exp.anyge-v0-a3#415",
+      "hand-Tuple.x-g._1==g-exp.anyge-v3-a3#417",
+      "hand-Tuple.x-int._2-exp.anyge-v0-a3#419",
+      "hand-Tuple.x-int._2-exp.anyge-v3-a3#420",
+      "slot-BlockValue.op0-exp.anyge-v0-a3#355",
+      "slot-BlockValue.op0-exp.anyge-v3-a3#356",
+      "slot-BlockValue.unused.op0-exp.anyge-v0-a3#357",
+      "slot-BlockValue.unused.op0-exp.anyge-v3-a3#358",
+      "slot-ByIndex.default.op2-exp.anyge-v0-a3#378",
+      "slot-ByIndex.default.out-of-range.op2-exp.anyge-v0-a3#379",
+      "slot-ByIndex.default.out-of-range.op2-exp.anyge-v3-a3#380",
+      "slot-EQ.GE.op0-exp.anyge-v0-a3#359",
+      "slot-EQ.GE.op0-exp.anyge-v3-a3#361",
+      "slot-EQ.GE.op1-exp.anyge-v0-a3#363",
+      "slot-EQ.GE.op1-exp.anyge-v3-a3#365",
+      "slot-Fold.op1-exp.anyge-v0-a3#385",
+      "slot-Fold.op1-exp.anyge-v3-a3#386",
+      "slot-FunDef.block.op0-exp.anyge-v0-a3#387",
+      "slot-FunDef.block.op0-exp.anyge-v3-a3#388",
+      "slot-If.false.op2-exp.anyge-v0-a3#383",
+      "slot-If.false.op2-exp.anyge-v3-a3#384",
+      "slot-If.true.op1-exp.anyge-v0-a3#381",
+      "slot-If.true.op1-exp.anyge-v3-a3#382",
+      "slot-NEQ.GE.op0-exp.anyge-v0-a3#367",
+      "slot-NEQ.GE.op0-exp.anyge-v3-a3#369",
+      "slot-NEQ.GE.op1-exp.anyge-v0-a3#371",
+      "slot-NEQ.GE.op1-exp.anyge-v3-a3#373",
+      "slot-OptionGetOrElse.none.op1-exp.anyge-v0-a3#376",
+      "slot-OptionGetOrElse.none.op1-exp.anyge-v3-a3#377",
+      "slot-OptionGetOrElse.some.op1-exp.anyge-v0-a3#375",
+      "slot-Tuple.op0-exp.anyge-v0-a3#351",
+      "slot-Tuple.op0-exp.anyge-v3-a3#352",
+      "slot-Tuple.op1-exp.anyge-v0-a3#353",
+      "slot-Tuple.op1-exp.anyge-v3-a3#354"
+    ]
+  },
+  "v6/authored/MultiplyGroup.static_type_v6.json": {
+    "own-type-check": [
+      "slot-Fold.op1-mul.ctl-v0-a3#207",
+      "slot-Fold.op1-mul.ctl-v3-a3#208"
+    ],
+    "tuple-as-collection": [
+      "hand-Apply.const-lambda-mul.anyge-v0-a3#449",
+      "hand-Apply.const-lambda-mul.anyge-v3-a3#450",
+      "hand-Apply.const-lambda==g-mul.anyge-v0-a3#451",
+      "hand-Apply.const-lambda==g-mul.anyge-v3-a3#453",
+      "hand-Block.g==v-mul.anyge-v0-a3#443",
+      "hand-Block.g==v-mul.anyge-v3-a3#445",
+      "hand-Block.v-mul.anyge-v0-a3#437",
+      "hand-Block.v-mul.anyge-v3-a3#438",
+      "hand-Block.v.getEncoded-mul.anyge-v0-a3#447",
+      "hand-Block.v.getEncoded-mul.anyge-v3-a3#448",
+      "hand-Block.v==g-mul.anyge-v0-a3#439",
+      "hand-Block.v==g-mul.anyge-v3-a3#441",
+      "hand-ByIndex.default.in-mul.anyge-v0-a3#459",
+      "hand-ByIndex.default.out-mul.anyge-v0-a3#460",
+      "hand-ByIndex.default.out-mul.anyge-v3-a3#461",
+      "hand-Coll.x-g-mul.anyge-v0-a3#421",
+      "hand-Coll.x-g-mul.anyge-v3-a3#423",
+      "hand-Coll.x-g.size-mul.anyge-v0-a3#425",
+      "hand-Coll.x-g.size-mul.anyge-v3-a3#427",
+      "hand-Coll.x-g_0_==g-mul.anyge-v0-a3#429",
+      "hand-Coll.x-g_0_==g-mul.anyge-v3-a3#431",
+      "hand-EQ.x-x-mul.anyge-v0-a3#389",
+      "hand-EQ.x-x-mul.anyge-v3-a3#390",
+      "hand-Fold.zero-mul.anyge-v0-a3#457",
+      "hand-Fold.zero-mul.anyge-v3-a3#458",
+      "hand-Global.serialize-mul.anyge-v3-a3#468",
+      "hand-If.false.g-x-mul.anyge-v0-a3#405",
+      "hand-If.false.g-x-mul.anyge-v3-a3#406",
+      "hand-If.false.int-x-mul.anyge-v0-a3#409",
+      "hand-If.false.int-x-mul.anyge-v3-a3#410",
+      "hand-If.true.x-g-mul.anyge-v0-a3#403",
+      "hand-If.true.x-g-mul.anyge-v3-a3#404",
+      "hand-If.true.x-int-mul.anyge-v0-a3#407",
+      "hand-If.true.x-int-mul.anyge-v3-a3#408",
+      "hand-Map.const.size-mul.anyge-v0-a3#462",
+      "hand-Map.const.size-mul.anyge-v3-a3#463",
+      "hand-Map.const_0_==g-mul.anyge-v0-a3#464",
+      "hand-Map.const_0_==g-mul.anyge-v3-a3#466",
+      "hand-OptionGetOrElse.none-x-mul.anyge-v0-a3#455",
+      "hand-OptionGetOrElse.none-x-mul.anyge-v3-a3#456",
+      "hand-Tuple.x-g-mul.anyge-v0-a3#411",
+      "hand-Tuple.x-g-mul.anyge-v3-a3#412",
+      "hand-Tuple.x-g._1-mul.anyge-v0-a3#413",
+      "hand-Tuple.x-g._1-mul.anyge-v3-a3#414",
+      "hand-Tuple.x-g._1==g-mul.anyge-v0-a3#415",
+      "hand-Tuple.x-g._1==g-mul.anyge-v3-a3#417",
+      "hand-Tuple.x-int._2-mul.anyge-v0-a3#419",
+      "hand-Tuple.x-int._2-mul.anyge-v3-a3#420",
+      "slot-BlockValue.op0-mul.anyge-v0-a3#355",
+      "slot-BlockValue.op0-mul.anyge-v3-a3#356",
+      "slot-BlockValue.unused.op0-mul.anyge-v0-a3#357",
+      "slot-BlockValue.unused.op0-mul.anyge-v3-a3#358",
+      "slot-ByIndex.default.op2-mul.anyge-v0-a3#378",
+      "slot-ByIndex.default.out-of-range.op2-mul.anyge-v0-a3#379",
+      "slot-ByIndex.default.out-of-range.op2-mul.anyge-v3-a3#380",
+      "slot-EQ.GE.op0-mul.anyge-v0-a3#359",
+      "slot-EQ.GE.op0-mul.anyge-v3-a3#361",
+      "slot-EQ.GE.op1-mul.anyge-v0-a3#363",
+      "slot-EQ.GE.op1-mul.anyge-v3-a3#365",
+      "slot-Fold.op1-mul.anyge-v0-a3#385",
+      "slot-Fold.op1-mul.anyge-v3-a3#386",
+      "slot-FunDef.block.op0-mul.anyge-v0-a3#387",
+      "slot-FunDef.block.op0-mul.anyge-v3-a3#388",
+      "slot-If.false.op2-mul.anyge-v0-a3#383",
+      "slot-If.false.op2-mul.anyge-v3-a3#384",
+      "slot-If.true.op1-mul.anyge-v0-a3#381",
+      "slot-If.true.op1-mul.anyge-v3-a3#382",
+      "slot-NEQ.GE.op0-mul.anyge-v0-a3#367",
+      "slot-NEQ.GE.op0-mul.anyge-v3-a3#369",
+      "slot-NEQ.GE.op1-mul.anyge-v0-a3#371",
+      "slot-NEQ.GE.op1-mul.anyge-v3-a3#373",
+      "slot-OptionGetOrElse.none.op1-mul.anyge-v0-a3#376",
+      "slot-OptionGetOrElse.none.op1-mul.anyge-v3-a3#377",
+      "slot-OptionGetOrElse.some.op1-mul.anyge-v0-a3#375",
+      "slot-Tuple.op0-mul.anyge-v0-a3#351",
+      "slot-Tuple.op0-mul.anyge-v3-a3#352",
+      "slot-Tuple.op1-mul.anyge-v0-a3#353",
+      "slot-Tuple.op1-mul.anyge-v3-a3#354"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_input_var.json": {
+    "tuple-as-collection": [
+      "getvarfrominput-tuple-constant-accept#0"
+    ],
+    "expression-register": [
+      "getvarfrominput-tuple-expression-accept#1"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_register.json": {
+    "tuple-as-collection": [
+      "register-coll-data-accept#2",
+      "register-coll-data-eq-accept#4",
+      "register-coll-data-zip-eq-accept#6",
+      "register-pair-expression-byindex0-accept#23",
+      "register-pair-expression-byindex1-accept#25",
+      "register-pair-expression-constant-eq-errored#15",
+      "register-pair-expression-eq-constant-errored#13",
+      "register-pair-expression-eq-self-errored#19",
+      "register-pair-expression-field1-errored#29",
+      "register-pair-expression-field2-errored#31",
+      "register-pair-expression-get-accept#11",
+      "register-pair-expression-neq-constant-errored#17",
+      "register-pair-expression-size-accept#21",
+      "register-tuple-constant-accept#0",
+      "register-tuple-expression-accept#1"
+    ],
+    "expression-register": [
+      "register-coll-expression-accept#3",
+      "register-coll-expression-eq-accept#5",
+      "register-coll-expression-zip-eq-accept#7"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_var.json": {
+    "tuple-as-collection": [
+      "getvar-tuple-constant-accept#0"
+    ],
+    "expression-register": [
+      "getvar-pair-expression-byindex0-accept#17",
+      "getvar-pair-expression-byindex1-accept#19",
+      "getvar-pair-expression-get-accept#5",
+      "getvar-pair-expression-isdefined-accept#3",
+      "getvar-pair-expression-size-accept#15",
+      "getvar-tuple-expression-accept#1"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_type_check.json": {
+    "checked-type": [
+      "eq-triple-errored#0"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_value_gates.json": {
+    "method-not-implemented": [
+      "min_method_control-accept#12",
+      "min_method_left_any-errored#6",
+      "min_method_right_any-accept#9",
+      "plus_method_control-accept#11",
+      "plus_method_left_any-errored#5",
+      "plus_method_right_any-accept#8"
+    ],
+    "tuple-as-collection": [
+      "plus_node_right_any-accept#7"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_value_ops.json": {
+    "tuple-as-collection": [
+      "and_tuple-accept#26",
+      "append_self_size_tuple-accept#10",
+      "exists_tuple-accept#16",
+      "filter_size_tuple-accept#12",
+      "fold_tuple-accept#20",
+      "forall_tuple-accept#18",
+      "index_default_oob_tuple-accept#4",
+      "index_tuple-accept#2",
+      "map_tuple-accept#14",
+      "one_item_tuple_size-accept#46",
+      "or_tuple-accept#28",
+      "size_tuple-accept#0",
+      "slice_bare_root_tuple-accept#8",
+      "slice_size_tuple-accept#6",
+      "unit_tuple_size-accept#45",
+      "xor_left_tuple-accept#36",
+      "xor_of_tuple-accept#30",
+      "xor_right_tuple-accept#38"
+    ],
+    "method-not-implemented": [
+      "update_many_one_item_tuple_updates-accept#49",
+      "update_many_tuple_receiver-accept#47"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_value_producers.json": {
+    "tuple-as-collection": [
+      "content_of_an_option-accept#3",
+      "data_collection_root-accept#5",
+      "deserialize_to_tuple-accept#4",
+      "eq_coll_of_pair_holding_tuple_vs_concrete-accept#10",
+      "eq_two_data_collections-accept#6",
+      "eq_two_options-accept#8",
+      "eq_two_pairs_holding_tuples-accept#9",
+      "item_of_data_collection-accept#2",
+      "select_field_of_nested_tuple-accept#0"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_value_type_directed.json": {
+    "tuple-as-collection": [
+      "subst_constants_tuple_new_values-errored#5"
+    ]
+  },
+  "v6/authored/Tuple.small_tuples.json": {
+    "checked-type": [
+      "const_one_item_type_eq_self-errored#9",
+      "const_zero_item_type-errored#1"
     ]
   }
 }

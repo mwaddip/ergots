@@ -1,0 +1,1157 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_value_ops",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-non-pair-tuple-values",
+  "entries" : [
+    {
+      "name" : "size_tuple-accept#0",
+      "script" : "[T1] `SizeOf((1,2,3))` — **3 at cost 19**. A non-pair tuple's value IS a generic `Coll[Any]`, so `SizeOf` reads its length. **SEPARATING:** an implementation holding tuples in a dedicated node refuses this and OVER-REJECTS. Compare C1: same value, same cost, ordinary collection.",
+      "tree_bytes_hex" : "0b08b148040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 19,
+        "error" : null
+      }
+    },
+    {
+      "name" : "size_coll_control-accept#1",
+      "script" : "[C1] **CONTROL for T1** — `SizeOf(Coll[Int](1,2,3))`, 3 at cost 19. Identical to T1, which is the family's first claim: the representation costs nothing extra.",
+      "tree_bytes_hex" : "0b06b11003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 19,
+        "error" : null
+      }
+    },
+    {
+      "name" : "index_tuple-accept#2",
+      "script" : "[T2] `ByIndex((1,2,3), 0)` — **1 at cost 40**. The node's static result type is `SAny`, and the value is the `Int`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0bb248040404020406040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "index_coll_control-accept#3",
+      "script" : "[C2] **CONTROL for T2** — 1 at cost 40, identical.",
+      "tree_bytes_hex" : "0b09b21003020406040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 40,
+        "error" : null
+      }
+    },
+    {
+      "name" : "index_default_oob_tuple-accept#4",
+      "script" : "[T3] `ByIndex((1,2,3), 5, default 9)` — **9 at cost 45**: the default is returned, not thrown. Worth pinning because `ByIndex`'s default is the one place where a SPECIALISED receiver throws even in range (`Coll.specialisation_getorelse`); a tuple is the generic class, so it behaves like any generic collection. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0db248040404020406040a010412",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 9
+        },
+        "cost" : 45,
+        "error" : null
+      }
+    },
+    {
+      "name" : "index_default_oob_coll_control-accept#5",
+      "script" : "[C3] **CONTROL for T3** — 9 at cost 45, identical.",
+      "tree_bytes_hex" : "0b0bb21003020406040a010412",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 9
+        },
+        "cost" : 45,
+        "error" : null
+      }
+    },
+    {
+      "name" : "slice_size_tuple-accept#6",
+      "script" : "[T4] `SizeOf(Slice((1,2,3), 0, 2))` — **2 at cost 41**. `Slice` over a tuple yields a `Coll[Any]` of 2 items while the node's STATIC type stays the 3-item tuple: the declared type lies about the length, which is why the expected value can never be derived from the root type. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0db1b44804040402040604000404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 41,
+        "error" : null
+      }
+    },
+    {
+      "name" : "slice_size_coll_control-accept#7",
+      "script" : "[C4] **CONTROL for T4** — 2 at cost 41, identical.",
+      "tree_bytes_hex" : "0b0bb1b4100302040604000404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 41,
+        "error" : null
+      }
+    },
+    {
+      "name" : "slice_bare_root_tuple-accept#8",
+      "script" : "[T5] `Slice((1,2,3), 0, 2)` with a BARE root — **`Coll[Any](1, 2)` at cost 27**, encoded `{\"kind\":\"Coll\",\"elem\":{\"tag\":\"SAny\"},\"items\":[…]}` with each item by its runtime kind. THE ENCODING PIN, and the corpus's first `{\"tag\":\"SAny\"}`: T4 wraps the same call in `SizeOf` and so hides the item type, which is exactly the thing a port has to get right. **SEPARATING, twice over** — on the value and on its item type (compare C5, `SInt`).",
+      "tree_bytes_hex" : "0b0cb44804040402040604000404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SAny"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 27,
+        "error" : null
+      }
+    },
+    {
+      "name" : "slice_bare_root_coll_control-accept#9",
+      "script" : "[C5] **CONTROL for T5** — `Slice(Coll[Int](1,2,3), 0, 2)` is `Coll[Int](1, 2)` at the same cost 27, with `elem` `SInt`. The pair T5/C5 is the whole statement: same items, same cost, and the item TYPE is the only observable the representation moves.",
+      "tree_bytes_hex" : "0b0ab4100302040604000404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 27,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_self_size_tuple-accept#10",
+      "script" : "[T6] `SizeOf(Append(t, t))` — **6 at cost 46**. Appending a tuple to a tuple works: both sides are reference-backed, so the arraycopy is legal. Pairs with T12/T13, where ONE primitive-backed operand makes the same node throw. **SEPARATING.**",
+      "tree_bytes_hex" : "0b10b1b34804040402040648040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 6
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_self_size_coll_control-accept#11",
+      "script" : "[C6] **CONTROL for T6** — 6 at cost 46, identical.",
+      "tree_bytes_hex" : "0b0cb1b310030204061003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 6
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_size_tuple-accept#12",
+      "script" : "[T7] `SizeOf(Filter(t, x => x > 1))` — **2 at cost 150**. The lambda takes `Int` and the items are `Int`s, so the filter runs; the result is a `Coll[Any]` of 2. **SEPARATING.**",
+      "tree_bytes_hex" : "0b12b1b548040404020406d90101049172010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 150,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_size_coll_control-accept#13",
+      "script" : "[C7] **CONTROL for T7** — 2 at cost 150, identical.",
+      "tree_bytes_hex" : "0b10b1b51003020406d90101049172010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 150,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map_tuple-accept#14",
+      "script" : "[T8] `MapCollection(t, x => x + 1)` — **`Coll[Int](2,3,4)` at cost 121**. The NODE maps a tuple with a concretely-typed lambda, and the result is a proper `Coll[Int]` (not `Coll[Any]`) because the mapper's range decides it. Note `map` as a METHOD CALL does NOT work on the same receiver — the method's output type variable cannot unify with an `SAny` item type — so the node and the MethodCall differ here. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11ad48040404020406d90101049a72010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            },
+            {
+              "kind" : "Int",
+              "value" : 4
+            }
+          ]
+        },
+        "cost" : 121,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map_coll_control-accept#15",
+      "script" : "[C8] **CONTROL for T8** — `Coll[Int](2,3,4)` at cost 121, identical in value AND item type: once a mapper has run, nothing of the receiver's representation survives in the result.",
+      "tree_bytes_hex" : "0b0fad1003020406d90101049a72010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SInt"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 2
+            },
+            {
+              "kind" : "Int",
+              "value" : 3
+            },
+            {
+              "kind" : "Int",
+              "value" : 4
+            }
+          ]
+        },
+        "cost" : 121,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists_tuple-accept#16",
+      "script" : "[T9] `Exists(t, x => x == 1)` — **true at cost 32**. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11ae48040404020406d90101049372010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 32,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists_coll_control-accept#17",
+      "script" : "[C9] **CONTROL for T9** — true at cost 32, identical.",
+      "tree_bytes_hex" : "0b0fae1003020406d90101049372010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 32,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall_tuple-accept#18",
+      "script" : "[T10] `ForAll(t, x => x > 0)` — **true at cost 119**. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11af48040404020406d90101049172010400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 119,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall_coll_control-accept#19",
+      "script" : "[C10] **CONTROL for T10** — true at cost 119, identical.",
+      "tree_bytes_hex" : "0b0faf1003020406d90101049172010400",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 119,
+        "error" : null
+      }
+    },
+    {
+      "name" : "fold_tuple-accept#20",
+      "script" : "[T11] `Fold(t, 0, p => p._1 + p._2)` — **6 at cost 169**. The accumulator is an `Int` here; a non-pair tuple as the ACCUMULATOR is fatal instead (`Value.checkType` refuses the zero), which is a separate row of its own. **SEPARATING.**",
+      "tree_bytes_hex" : "0b17b0480404040204060400d90101589a8c7201018c720102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 6
+        },
+        "cost" : 169,
+        "error" : null
+      }
+    },
+    {
+      "name" : "fold_coll_control-accept#21",
+      "script" : "[C11] **CONTROL for T11** — 6 at cost 169, identical.",
+      "tree_bytes_hex" : "0b15b010030204060400d90101589a8c7201018c720102",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 6
+        },
+        "cost" : 169,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_primitive_right_tuple-errored#22",
+      "script" : "[T12] `SizeOf(Append(t, Coll[Int](7)))` — **throws `ArrayStoreException: can not copy int[] into object array[]`**. The first row where the ARRAY and not the interface is needed: `Append` arraycopies the operand into the receiver's array, and a primitive-backed operand cannot go into an `Object[]`. **SEPARATING:** C12 is the same node with an ordinary collection and it RETURNS 4, so an implementation that answers here over-accepts.",
+      "tree_bytes_hex" : "0b0cb1b34804040402040610010e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append_primitive_right_coll_control-accept#23",
+      "script" : "[C12] **CONTROL for T12** — `SizeOf(Append(Coll[Int](1,2,3), Coll[Int](7)))` is 4 at cost 46. What makes T12's throw the tuple's doing rather than `Append`'s.",
+      "tree_bytes_hex" : "0b0ab1b3100302040610010e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 4
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "append_primitive_left_tuple-errored#24",
+      "script" : "[T13] The same with the operands SWAPPED: `SizeOf(Append(Coll[Int](7), t))` — **throws `ArrayStoreException: can not copy object array[] into int[]`**, the mirror message. The asymmetry is worth having: BOTH directions fail, for opposite reasons, so an implementation cannot fix one by ordering the copy differently. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0cb1b310010e48040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "append_primitive_left_coll_control-accept#25",
+      "script" : "[C13] **CONTROL for T13** — 4 at cost 46.",
+      "tree_bytes_hex" : "0b0ab1b310010e1003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 4
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "and_tuple-accept#26",
+      "script" : "[T14] `AND((true,true,true))` — **true at cost 20**. A tuple of Booleans drives the Boolean connectives, which read the collection through the interface. **SEPARATING.**",
+      "tree_bytes_hex" : "0b089648010101010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "and_coll_control-accept#27",
+      "script" : "[C14] **CONTROL for T14** — `AND(Coll[Boolean](true,true,true))` as a CONSTANT, true at cost 20. It has to be a constant and not a `ConcreteCollection`: the latter costs 30 more to build, which would make the tuple look cheaper than it is. That mistake was made and caught here.",
+      "tree_bytes_hex" : "0b04960d0307",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 20,
+        "error" : null
+      }
+    },
+    {
+      "name" : "or_tuple-accept#28",
+      "script" : "[T15] `OR((true,true,true))` — **true at cost 15** (it short-circuits on the first item, which is why it is cheaper than `AND` on an all-true input). **SEPARATING.**",
+      "tree_bytes_hex" : "0b089748010101010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "or_coll_control-accept#29",
+      "script" : "[C15] **CONTROL for T15** — true at cost 15.",
+      "tree_bytes_hex" : "0b04970d0307",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 15,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_of_tuple-accept#30",
+      "script" : "[T16] `XorOf((true,true,true))` — **true at cost 30**. **SEPARATING.**",
+      "tree_bytes_hex" : "0b08ff48010101010101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 30,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_of_coll_control-accept#31",
+      "script" : "[C16] **CONTROL for T16** — true at cost 30.",
+      "tree_bytes_hex" : "0b04ff0d0307",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 30,
+        "error" : null
+      }
+    },
+    {
+      "name" : "blake2b256_tuple-errored#32",
+      "script" : "[T17] `SizeOf(CalcBlake2b256((1b,2b,3b)))` — **throws `ClassCastException: [Ljava.lang.Object; cannot be cast to class [B`**. A hash needs the real `byte[]`, and a tuple of Bytes is an `Object[]`. **SEPARATING:** C17 returns 32.",
+      "tree_bytes_hex" : "0b09b1cb48020202010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "blake2b256_coll_control-accept#33",
+      "script" : "[C17] **CONTROL for T17** — `SizeOf(CalcBlake2b256(Coll[Byte](1,2,3)))` is 32 at cost 46.",
+      "tree_bytes_hex" : "0b07b1cb0e03010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 32
+        },
+        "cost" : 46,
+        "error" : null
+      }
+    },
+    {
+      "name" : "sha256_tuple-errored#34",
+      "script" : "[T18] `SizeOf(CalcSha256((1b,2b,3b)))` — the same cast, the same throw. Both hashes are here because they are separate nodes with separate costs, and an implementation can easily fix one. **SEPARATING.**",
+      "tree_bytes_hex" : "0b09b1cc48020202010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "sha256_coll_control-accept#35",
+      "script" : "[C18] **CONTROL for T18** — 32 at cost 107 (SHA-256 is dearer than Blake2b-256 here).",
+      "tree_bytes_hex" : "0b07b1cc0e03010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 32
+        },
+        "cost" : 107,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_left_tuple-accept#36",
+      "script" : "[T19] `Xor((1b,2b,3b), Coll[Byte](9,9,9))` — **`Coll[Byte](8,11,10)` at cost 22. THE EXCEPTION TO THE RULE:** `Xor` consumes a `Coll[Byte]` and is the only such consumer measured that does NOT need the array, so it answers over a tuple where every hash and conversion throws. An implementation that rejects a non-Byte item type here OVER-REJECTS, which is the state sigma-rust reports for itself. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0d9b480202020102030e03090909",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 10
+            }
+          ]
+        },
+        "cost" : 22,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_left_coll_control-accept#37",
+      "script" : "[C19] **CONTROL for T19** — `Coll[Byte](8,11,10)` at cost 22, identical.",
+      "tree_bytes_hex" : "0b0b9b0e030102030e03090909",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 10
+            }
+          ]
+        },
+        "cost" : 22,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_right_tuple-accept#38",
+      "script" : "[T20] The same with the tuple on the RIGHT — `Coll[Byte](8,11,10)` at cost 22 again, so `Xor` is blind to the representation in both operand positions. Pairs with T12/T13, where the operand position decides the message but not the verdict. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0d9b0e0309090948020202010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 10
+            }
+          ]
+        },
+        "cost" : 22,
+        "error" : null
+      }
+    },
+    {
+      "name" : "xor_right_coll_control-accept#39",
+      "script" : "[C20] **CONTROL for T20** — identical at cost 22.",
+      "tree_bytes_hex" : "0b0b9b0e030909090e03010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 8
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 10
+            }
+          ]
+        },
+        "cost" : 22,
+        "error" : null
+      }
+    },
+    {
+      "name" : "at_least_tuple-errored#40",
+      "script" : "[T21] `AtLeast(2, (sigmaProp(true) × 3))` — **throws `ClassCastException: [Ljava.lang.Object; cannot be cast to class [Lsigma.SigmaProp;`**. The probe predicted a VALUE here and the measurement refuted it: `AtLeast` casts the collection's array to `SigmaProp[]`. This is the row with consensus teeth — an `AtLeast` over a tuple is a SPEND the JVM refuses. **SEPARATING.**",
+      "tree_bytes_hex" : "0b0a98040448080808d3d3d3",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "at_least_coll_control-accept#41",
+      "script" : "[C21] **CONTROL for T21** — the same `AtLeast` over a collection of the same three props returns a `SigmaProp` at cost 63.",
+      "tree_bytes_hex" : "0b0c98040483030808d308d308d3",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 63,
+        "error" : null
+      }
+    },
+    {
+      "name" : "byte_array_to_bigint_tuple-errored#42",
+      "script" : "[T22] `ByteArrayToBigInt((1b,2b,3b))` — the `Object[]`-to-`byte[]` cast again, on a conversion rather than a hash. **SEPARATING.**",
+      "tree_bytes_hex" : "0b087b48020202010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "byte_array_to_bigint_coll_control-accept#43",
+      "script" : "[C22] **CONTROL for T22** — `BigInt 66051` (0x010203) at cost 35.",
+      "tree_bytes_hex" : "0b067b0e03010203",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "BigInt",
+          "value" : "66051"
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "pair_size_errored-errored#44",
+      "script" : "[P1] `SizeOf((1, 2))` — a PAIR, and it **throws `ClassCastException: scala.Tuple2 cannot be cast to class sigma.Coll`**. THE LOWER BOUNDARY of the family: `Evaluation.toDslTuple` pairs up at arity 2 and only there, so the pair is a Scala `Tuple2` and is NOT a collection at all. An implementation that holds every tuple the same way gets either this row or all the others wrong. (The probe's own hex for this row declared size 5 over a 4-byte body; this is the corrected tree.) **SEPARATING.**",
+      "tree_bytes_hex" : "0b04b1580204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "unit_tuple_size-accept#45",
+      "script" : "[Z1] `SizeOf(())` — the ZERO-item tuple type: **0 at cost 19**. It parses, it evaluates, and it can NEVER be written back: `TypeSerializer.serialize` refuses a tuple type with fewer than 2 items (`TypeSerializer.scala:95`), so no box can carry this script — its id is over the writer's form and cannot be computed. Eval-tier only, no spend arm, by construction. `Tuple.small_tuples` has the same type REFUSED at the `SelectField`/`EQ` type-check sites; `SizeOf` does not type-check its input, which is why it answers. **SEPARATING.**",
+      "tree_bytes_hex" : "0b03b16000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 0
+        },
+        "cost" : 19,
+        "error" : null
+      }
+    },
+    {
+      "name" : "one_item_tuple_size-accept#46",
+      "script" : "[Z2] `SizeOf((1))` — the ONE-item tuple type: **1 at cost 19**. Same story as Z1: readable and NEVER writable, since `TypeSerializer.serialize` refuses any tuple type with fewer than 2 items (`TypeSerializer.scala:95`), so there is no box and no spend arm for it either. The pair Z1/Z2 pins that the reader accepts a count the writer refuses, at both ends of the gap. **SEPARATING.**",
+      "tree_bytes_hex" : "0b05b160010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 19,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update_many_tuple_receiver-accept#47",
+      "script" : "[T23] `SizeOf(updateMany((1,2,3), Coll(0), Coll(1)))` — **3 at cost 55.** `updateMany` over a non-pair tuple RECEIVER. Pair it with U2: identical in value AND cost, so the operation is entirely REPRESENTATION-BLIND and the tuple's backing `Coll[Any]` costs nothing extra. **SEPARATING:** sigma-rust refuses this on a 2021 item-type guard, which the identical cost against C23 shows to be an over-reject rather than a conservative choice.",
+      "tree_bytes_hex" : "0b12b1dc0c15480404040204060210010010010e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 55,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update_many_plain_coll_control-accept#48",
+      "script" : "[C23] **CONTROL for T23** — the same `updateMany` over an ordinary `Coll[Int]` of the same items: 3 at cost 55, the SAME NUMBER. That identity is the whole point; read U1 alone and a refusal could be argued for, read the pair and it cannot. T23/C23 is this family's 23rd pair and its newest instance of the central claim.",
+      "tree_bytes_hex" : "0b10b1dc0c1510030204060210010010010e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 55,
+        "error" : null
+      }
+    },
+    {
+      "name" : "update_many_one_item_tuple_updates-accept#49",
+      "script" : "[U3] `updateMany` with the UPDATES collection given as a 1-item TUPLE — **also 3 at cost 55.** Hand-crafted, since the writer refuses a tuple TYPE of fewer than 2 items and so no round-trip could produce it. So the blindness holds on the ARGUMENT side as well as the receiver's, which is what makes the rule about the operation rather than about one position. **SEPARATING** on the same sigma-rust guard as T23.",
+      "tree_bytes_hex" : "0b11b1dc0c151003020406021001006001040e",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 55,
+        "error" : null
+      }
+    }
+  ]
+}
