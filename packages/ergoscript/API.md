@@ -42,6 +42,7 @@ import {
   boxTreeOf, reencodeTreeBytes, seedBoxTree, boxBytesOf, boxIdOf,
   violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
+  tupleColl,
   isUnparsedTree,
   MAX_TREE_SIZE, MAX_PROPOSITION_SIZE, VERSION,
   type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
@@ -317,6 +318,16 @@ A `Coll` value carries an optional `cls: CollClass` — the class of the JVM's `
 A `Tuple` value holds exactly two items, as the JVM's `Tuple2` does. A tuple value of any other arity is a `Coll` with `elem` the JVM's `SAny` (`SANY_JVM`) and `cls: { shape: 'array', specialised: false, array: 'Object' }` — the plain class over `Object[]` that the JVM's `Colls.fromArray(arr)(sigma.AnyType)` gives (`CoreDataSerializer.scala:139-144`, `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). A collection of non-pair tuples takes `elem: SColl(SAny)` (`CoreDataSerializer.scala:179-180`). A `Tuple` expression in a register or a context variable gives this `Coll[Any]` at every arity, two included, when the value is read (`values.scala:818-822`). The two routes that give a script such a value — a data constant and a `Tuple` expression — are the inputs to the readers that cast a collection's array (`AtLeast`, the hashes, `ByteArrayToBigInt`, the AvlTree key and proof arguments, `updateDigest`, `Global.powHit`'s byte arguments, and `Append` against a primitive-backed operand); each refuses a `Coll[Any]` with `'coll-class-cast'`. `SelectField` answers on a `kind: 'Tuple'` value only; a `Coll[Any]` is a type error (`'select-field-non-pair'`). At each JVM `checkType` site a `Coll[Any]` under a pair type is `'checked-value-class'` (`SType.scala:200-201`); a declared type of the JVM's `SAny` or `NoType`, or of a non-pair `STuple` or non-unary `SFunc`, at those sites is `'unsupported-value-type'`. See `facts/ergoscript-eval.md`, "Tuples and non-pair tuple values", for the full rule and the writer's `fromDslTuple` behaviour.
 
 `SigmaProp.value` is a structural `SigmaBoolean` (6-variant discriminated union — see `facts/ergoscript-sigma.md`). Wire parse + serialize is byte-identical against sigma-rust; structural access is consumed by `verifySignature` and by the `SigmaPropBytes` evaluator arm.
+
+### `tupleColl(items)`
+
+```ts
+function tupleColl(items: SValue[]): SValue /* a Coll[Any] */;
+```
+
+Build the `Coll[Any]` the JVM data reader gives for a tuple of another arity than two (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). The resulting value is `{ kind: 'Coll'; elem: SANY_JVM; items; cls: { shape: 'array', specialised: false, array: 'Object' } }` — the plain class over `Object[]`, with `elem` set to the one `SANY_JVM` identity the readers recognise (told from ergots' own `SAny` by object identity).
+
+A caller that binds a tuple value of another arity than two at an extension or register position uses this builder: the collection's `elem` is identity-sensitive, and this is the one API that produces it. `items` is one `SValue` per tuple item, in order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). A pair stays `{ kind: 'Tuple', items }` — the builder is for non-pair arities.
 
 ### `CollClass` / `ArrayClass`
 

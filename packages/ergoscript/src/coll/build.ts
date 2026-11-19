@@ -272,8 +272,16 @@ export function fromData(elem: SType, items: SValue[]): CollValue {
  * register or a context variable, whose `value` is read on access. Evaluating
  * a `Tuple` expression of that arity in a script refuses (`:826-827`).
  *
- * `items` is used as-is (one boxed value per tuple item); the caller owns the
- * array it hands in.
+ * **Caller input.** `items` is an array of one `SValue` per tuple item, in
+ * order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). Each item is
+ * a boxed value of whatever kind the item happens to be. The builder uses
+ * `items` as-is: the caller owns the array it hands in.
+ *
+ * **The public export.** This builder is a public API of `@ergots/ergoscript`
+ * (re-exported from the package root): a caller that binds a tuple value of
+ * another arity than two at an extension or register position produces it
+ * with this function, so the collection's `elem` is told by the one `SANY_JVM`
+ * identity the readers recognise.
  */
 export function tupleColl(items: SValue[]): CollValue {
   return {
