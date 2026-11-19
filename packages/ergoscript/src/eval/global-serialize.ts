@@ -103,13 +103,13 @@ export function evalGlobalSerialize(
 
   // The writer is handed the argument's static type where that type is the
   // JVM's SAny or holds a non-pair tuple at any depth (see module comment),
-  // the value-derived type otherwise. A caller that did not pass the MIR node
-  // (no `extra`) falls back to the value-derived type.
+  // the value-derived type otherwise. `extra` is supplied by `evalMethodCall`
+  // (`eval/method-call.ts:147-152`): `serialize` is registered at (106, 3), a
+  // MethodCall opcode, and the PropertyCall path (zero args, no `extra`) is
+  // rejected by the length check above before any read of `extra`.
   let T: SType
   try {
-    T = extra === undefined
-      ? sValueType(value)
-      : serializeType(value, extra.mc, ctx.treeVersion ?? 0)
+    T = serializeType(value, extra!.mc, ctx.treeVersion ?? 0)
   } catch (e) {
     if (e instanceof EvalError) throw e
     throw new EvalError(
