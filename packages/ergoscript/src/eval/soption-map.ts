@@ -27,7 +27,7 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { assertCheckedNode } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 
 /**
@@ -86,14 +86,16 @@ export function evalSOptionMap(
   // after the None early-return above ⇒ Option.map over None never invokes the
   // lambda, so it never throws (matches the JVM: no invocation, no resolution).
   assertArgTypeResolved(closure.argTpes[0]!)
+  // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+  // value's class against the Some payload, before the AddToEnvironmentDesc 5 is charged and
+  // before the body is evaluated. A None input never applies the lambda, so this never fires on
+  // None either (matches the JVM). See eval/_check-type.ts.
+  assertCheckedValue(closure.argTpes[0]!, obj.value)
   // Lambda-arg env binding: ADD_TO_ENV_COST (5) per FuncValue application —
   // JVM AddToEnvironmentDesc; same class as apply.ts:74 / scoll-flat-map.ts
   // per-element charge. F3.5 (SANTA Option.map vectors: Some 65 incl. the 5;
   // None 39 without — the lambda is never invoked on None).
   ctx.addCost(5)
-  // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
-  // JVM-faithful for v6. For inline map lambdas capturedEnv == the caller env
-  // (no-op); differs only for out-of-scope-captured lambdas.
   const bodyEnv = closure.capturedEnv.extend(argId, obj.value)
   const result = evalExpr(closure.body, bodyEnv, ctx)
   // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the

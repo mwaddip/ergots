@@ -80,7 +80,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { assertCheckedNode } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
@@ -156,17 +156,16 @@ export function evalForAll(e: ForAll, env: Env, ctx: EvalContext): SValue {
   // SHORT-CIRCUIT: return immediately on first FALSE (unlike Filter which visits ALL items).
   // NOTE: This is the inverse of Exists (which short-circuits on first true).
   for (const item of inputColl.items) {
+    // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
+    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the item, before the AddToEnvironmentDesc 5 is charged and before
+    // the body is evaluated. Per-element ⇒ an empty input never checks. See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[0]!, item)
     // Per-iter cost (sigma-rust coll_forall.rs:29: ctx.add_jit_cost(5)?).
     // Only charged for VISITED items — short-circuit reduces the number of charges.
     ctx.addCost(COLL_FORALL_PER_ITER)
-
-    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
-    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_forall.rs:30:
-    // env.insert(func_arg.idx, arg)). For inline predicate lambdas capturedEnv
-    // == the caller env (no-op); differs only for out-of-scope-captured lambdas.
-    // v6 P6: reject a type-var arg type at the per-element apply (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
-    assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
 
     // Eval body (sigma-rust coll_forall.rs:31: func_value.body.eval(env, ctx)).

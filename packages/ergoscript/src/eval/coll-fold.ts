@@ -65,7 +65,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { assertCheckedNode } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 
 // Outer cost: add_per_item_jit_cost(base=3, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_fold.rs:48
@@ -128,21 +128,24 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
   // Sigma-rust: per-iter cost at line 29 (before body eval), env insert at line 30.
   let acc: SValue = zeroVal
   for (const item of inputColl.items) {
-    // Per-iter cost (sigma-rust coll_fold.rs:29: ctx.add_jit_cost(5)?).
-    ctx.addCost(COLL_FOLD_PER_ITER)
-
     // Construct the 2-tuple argument: { kind: 'Tuple', items: [acc, item] }
     // Mirrors sigma-rust coll_fold.rs:53: Value::Tup([acc, Value::Byte(*byte)].into())
     // and coll_fold.rs:61: Value::Tup([acc, item.clone()].into())
     const tupArg: SValue = { kind: 'Tuple', items: [acc, item] }
 
-    // Extend the lambda's CAPTURED (definition-site) env with the arg binding
-    // — lexical scoping, JVM-faithful for v6 (sigma-rust coll_fold.rs:30:
-    // env.insert(func_arg.idx, arg)). For inline fold_op lambdas capturedEnv ==
-    // the caller env (no-op); differs only for out-of-scope-captured lambdas.
-    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
     // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
     assertArgTypeResolved(closure.argTpes[0]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the (acc, item) tuple, before the AddToEnvironmentDesc 5 is charged
+    // and before the body is evaluated. Per-element ⇒ an empty input never checks. The arg type
+    // here is a pair STuple(zero, elem); the tuple argument passes the pair-class check by
+    // construction, and the type-driven arm catches a declared `SAny`/`NoType`, a non-pair arg
+    // type (unreachable from parse, defensive for an API-built node) or a non-unary SFunc.
+    // See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[0]!, tupArg)
+    // Per-iter cost (sigma-rust coll_fold.rs:29: ctx.add_jit_cost(5)?).
+    ctx.addCost(COLL_FOLD_PER_ITER)
     const itemEnv = closure.capturedEnv.extend(argId, tupArg)
 
     // Eval body (sigma-rust coll_fold.rs:31: func_value.body.eval(env, ctx)).

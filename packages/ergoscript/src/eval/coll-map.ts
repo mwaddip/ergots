@@ -67,7 +67,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { assertCheckedNode } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
@@ -166,14 +166,15 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // `mapped` call below makes.
   const outItems: SValue[] = []
   for (const item of inputColl.items) {
-    // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
-    ctx.addCost(COLL_MAP_PER_ITER)
-    // Extend the lambda's CAPTURED (definition-site) env with the arg
-    // binding — lexical scoping, JVM-faithful for v6. For inline mapper
-    // lambdas capturedEnv == the caller env, so this is a no-op.
-    // v6 P6: reject a type-var arg type at the per-element apply (JVM
+    // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
     // "Unknown type T"). Per-element ⇒ an empty input never binds.
     assertArgTypeResolved(closure.argTpes[0]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the item, before the AddToEnvironmentDesc 5 is charged and before
+    // the body is evaluated. Per-element ⇒ an empty input never checks. See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[0]!, item)
+    // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
+    ctx.addCost(COLL_MAP_PER_ITER)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
     // Lambda body (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:

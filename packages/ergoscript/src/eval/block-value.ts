@@ -29,8 +29,9 @@ export function evalBlockValue(e: BlockValue, env: Env, ctx: EvalContext): SValu
       )
     }
     const v = evalExpr(item.rhs, scope, ctx)
-    // BlockValue.eval (values.scala:1027): Value.checkType reads the rhs's type and the value's
-    // class after the rhs is evaluated. See eval/_check-type.ts.
+    // BlockValue.eval (values.scala:1027): Value.checkType reads the ValDef node's declared type
+    // and the value's class after the rhs is evaluated. The ValDef node's `tpe` is the rhs's
+    // (values.scala:953), so `exprTpe(item.rhs)` reads the same type. See eval/_check-type.ts.
     assertCheckedNode(item.rhs, v, ctx)
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust block.rs:30
     scope = scope.extend(item.id, v)
