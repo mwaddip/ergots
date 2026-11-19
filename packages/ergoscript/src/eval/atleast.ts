@@ -1,33 +1,51 @@
 /**
- * `Atleast` evaluator arm — THRESHOLD sigma combinator.
+ * `AtLeast` evaluator arm — THRESHOLD sigma combinator.
  *
- * `Atleast { bound: Expr<SInt>, input: Expr<SColl[SSigmaProp]> }` evaluates
+ * `AtLeast { bound: Expr<SInt>, input: Expr<SColl[SSigmaProp]> }` evaluates
  * the bound integer k and the input collection of SigmaProps, then reduces
  * via `cthresholdReduce(k, items)`.
  *
- * Pattern B: per-item cost `addPerItemCost(20, 3, 5, n)` is charged AFTER
- * eval-children (bound + input).
+ * JVM path at 6.0.7:
+ *   `AtLeast.eval` (`data/shared/src/main/scala/sigma/ast/trees.scala:314-320`)
+ *     val b     = bound.evalTo[Int](env)
+ *     val props = input.evalTo[Coll[SigmaProp]](env)
+ *     addSeqCost(AtLeast.costKind, props.length) { () =>
+ *       SigmaDsl.atLeast(b, props)
+ *     }
+ *   `SigmaDsl.atLeast` (`data/shared/src/main/scala/sigma/data/
+ *     CSigmaDslBuilder.scala:102-108`)
+ *     if (props.length > AtLeast.MaxChildrenCount) throw IllegalArgumentException
+ *     val sigmaTrees = toSigmaTrees(props.toArray)       // Array[SigmaProp] cast
+ *     val tree       = AtLeast.reduce(bound, sigmaTrees)
+ *     CSigmaProp(tree)
+ *   `AtLeast.reduce` (`trees.scala:340-359`)
+ *     if (bound <= 0)       return TrueProp
+ *     if (bound > nChildren) return FalseProp
+ *     require(nChildren <= MaxChildrenCount)
+ *     ... Cthreshold / COR / CAND normalization
  *
- * Source: steps 1-3,6 follow atleast.rs:19-58 (sigma-rust ergo-node-integration).
- * Steps 4-5 are canonical from JVM AtLeast.reduce (trees.scala:340-359):
- * bound ≤ 0 → TrivialProp(true); bound > size → TrivialProp(false).
- * Sigma-rust ergo-node-integration was fixed 2026-06-04 to agree with the JVM
- * (it no longer errors here); see inline comment for the historical fork.
- *
- * Eval flow:
- *   1. eval bound → must be Int.
- *   2. eval input → must be Coll[SigmaProp], extract SigmaBoolean[].
- *   3. charge Pattern B cost.
- *   3.5. 255-children cap — throws 'atleast-too-many-children' if items.length > 255.
- *   4-5. JVM degenerate-bound reductions (bound ≤ 0 ⇒ TrivialProp(true);
- *        bound > size ⇒ TrivialProp(false)).
- *   6. call cthresholdReduce(bound, items).
+ * The `addSeqCost` envelope charges the Pattern-B cost BEFORE the body runs,
+ * so the 255-cap throw, the array cast and the degenerate-bound short-
+ * circuits all run on a charged context. The cost is sized by `props.length`,
+ * so a `Coll[SigmaProp]` and a `Coll[Any]` of the same length pay the same.
  *
  * Error codes:
- *   'atleast-bound-not-int'           — bound eval didn't return Int
- *   'sigma-prop-input-not-coll'       — input eval didn't return Coll
- *   'sigma-prop-coll-elem-not-sigma-prop' — Coll element isn't SigmaProp
- *   'atleast-too-many-children'       — input coll length > 255 (MaxChildrenCountForAtLeastOp)
+ *   'atleast-bound-not-int'         — bound evaluates to a non-Int
+ *   'sigma-prop-input-not-coll'     — input evaluates to a non-Coll (the
+ *                                     JVM's `evalTo[Coll[SigmaProp]]` first
+ *                                     check at type-erased runtime)
+ *   'atleast-too-many-children'     — items.length > 255 (SigmaDsl.atLeast's
+ *                                     IllegalArgumentException, before the
+ *                                     cast)
+ *   'coll-class-cast'               — the backing array is of another class
+ *                                     (SigmaDsl.atLeast's `props.toArray`
+ *                                     cast to `Array[SigmaProp]`; a tuple's
+ *                                     `Coll[Any]` over `Object[]` throws)
+ *   'sigma-prop-coll-elem-not-sigma-prop'
+ *                                   — defensive per-item check once the
+ *                                     array cast has passed, against a
+ *                                     mislabelled item from
+ *                                     `ConstantPlaceholder` injection
  */
 
 import type { Atleast, SValue } from '../mir/types'
@@ -36,62 +54,69 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { cthresholdReduce } from '../mir/sigma-boolean-normalize'
-import { extractSigmaPropColl } from './_sigma-helpers'
+import { castArray } from './_coll'
+import { expectSigmaProp } from './_sigma-helpers'
 
 export function evalAtleast(e: Atleast, env: Env, ctx: EvalContext): SValue {
-  // Step 1: eval bound expression → must be Int.
+  // Step 1: eval bound expression — must be Int (`trees.scala:315`).
   const boundV = evalExpr(e.bound, env, ctx)
   if (boundV.kind !== 'Int') {
     throw new EvalError(
-      `Atleast: expected Int bound, got ${boundV.kind}`,
+      `AtLeast: expected Int bound, got ${boundV.kind}`,
       'atleast-bound-not-int',
     )
   }
 
-  // Step 2: eval input expression → must be Coll[SigmaProp], extract items.
+  // Step 2: eval input expression — must be a `Coll` at the type-erased level
+  // (`trees.scala:316`, `evalTo[Coll[SigmaProp]]`).
   const inputV = evalExpr(e.input, env, ctx)
-  const items = extractSigmaPropColl(inputV, 'Atleast')
-
-  // Step 3: Pattern B — charge per-item cost AFTER eval-children.
-  // Source: atleast.rs:34 — ctx.add_per_item_jit_cost(20, 3, 5, n)
-  ctx.addPerItemCost(20, 3, 5, items.length)
-
-  // Step 3.5: 255-children cap — JVM order is charge → cap-throw → degenerate
-  // reductions: CSigmaDslBuilder.atLeast (CSigmaDslBuilder.scala:102-108)
-  // throws BEFORE AtLeast.reduce; the bound≤0 / bound>n reductions live INSIDE
-  // reduce (trees.scala:340-359). So atLeast(0, >255 children) THROWS — it does
-  // not reduce to TrivialProp. MaxChildrenCountForAtLeastOp = 255
-  // (SigmaConstants.scala:65); CTHRESHOLD GF(2^192) polynomial arithmetic takes
-  // single-byte inputs, so >255 children are unrepresentable. eni caps only in
-  // the non-degenerate path (TrueProp for atLeast(≤0, >255)) — a JVM↔sigma-rust
-  // fork; ergots follows the JVM (F5 batch 4, verdict 1).
-  if (items.length > 255) {
+  if (inputV.kind !== 'Coll') {
     throw new EvalError(
-      `Atleast: ${items.length} children exceeds MaxChildrenCount (255)`,
+      `AtLeast: expected Coll[SigmaProp], got ${inputV.kind}`,
+      'sigma-prop-input-not-coll',
+    )
+  }
+
+  // Step 3: Pattern B — `addSeqCost(AtLeast.costKind, props.length)` at
+  // `trees.scala:317` charges before the body runs. `costKind =
+  // PerItemCost(20, 3, 5)` (`trees.scala:326-327`).
+  ctx.addPerItemCost(20, 3, 5, inputV.items.length)
+
+  // Step 4: `SigmaDsl.atLeast`'s length check
+  // (`CSigmaDslBuilder.scala:103-104`) throws BEFORE the array cast.
+  // `MaxChildrenCountForAtLeastOp = 255` (`SigmaConstants.scala:65`);
+  // CTHRESHOLD's GF(2^192) polynomial arithmetic takes single-byte inputs,
+  // so >255 children are unrepresentable.
+  if (inputV.items.length > 255) {
+    throw new EvalError(
+      `AtLeast: ${inputV.items.length} children exceeds MaxChildrenCount (255)`,
       'atleast-too-many-children',
     )
   }
 
-  // Steps 4-5: JVM degenerate-bound reductions — canonical authority is
-  // JVM AtLeast.reduce (trees.scala:340-359): bound ≤ 0 ⇒ TrivialProp(true);
-  // bound > size ⇒ TrivialProp(false). ergots follows the JVM.
-  //
-  // Historical fork: the STALE vendored sigma-rust (integration/ergots) errored
-  // here via u8 try_into + bound>len checks (atleast.rs:47-55); that was the
-  // shape that wedged ergo-node-rust on testnet tx at h=184137. Canonical
-  // sigma-rust (ergo-node-integration) was fixed 2026-06-04 to reduce, matching
-  // the JVM. Blessed fixtures: atLeast_with_a_degenerate_bound #1/#4/#5/#6
-  // (cost 46/46/46/44 — Pattern-B charge above is unchanged for degenerate cases).
-  // See Step 3.5 above for the 255-children cap that now precedes these reductions.
+  // Step 5: `SigmaDsl.atLeast`'s `props.toArray` cast to `Array[SigmaProp]`
+  // (`CSigmaDslBuilder.scala:105`, `toSigmaTrees`'s signature at `:90`). A
+  // collection whose backing array is of another class — `Object[]` from a
+  // tuple's `Coll[Any]` — throws a `ClassCastException` here, before
+  // `AtLeast.reduce`'s degenerate-bound short-circuits run.
+  const items = castArray(inputV, 'SigmaProp', 'AtLeast')
+  const sigmaBooleans = items.map((sv, i) =>
+    expectSigmaProp(sv, `AtLeast item ${i}`),
+  )
+
+  // Step 6: `AtLeast.reduce`'s degenerate-bound short-circuits
+  // (`trees.scala:342-344`): `bound <= 0` returns `TrueProp`;
+  // `bound > nChildren` returns `FalseProp`.
   const k = boundV.value
   if (k <= 0) {
     return { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }
   }
-  if (k > items.length) {
+  if (k > sigmaBooleans.length) {
     return { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: false } }
   }
 
-  // Step 6: reduce via Cthreshold::reduce — handles k==0 → TrivialProp(true),
-  // degenerate collapses (k==1 → Cor, k==n → Cand), TrivialProp partial eval.
-  return { kind: 'SigmaProp', value: cthresholdReduce(k, items) }
+  // Step 7: reduce via `Cthreshold::reduce` — handles the degenerate
+  // collapses `k == 1 -> Cor`, `k == n -> Cand` and `TrivialProp` partial
+  // evaluation (`trees.scala:363-394`).
+  return { kind: 'SigmaProp', value: cthresholdReduce(k, sigmaBooleans) }
 }

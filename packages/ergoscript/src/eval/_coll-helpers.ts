@@ -25,6 +25,7 @@
 import type { Closure, SType, SValue } from '../mir/types'
 import type { EvalErrorCode } from './errors'
 import { EvalError } from './eval-context'
+import { castArray } from './_coll'
 
 /**
  * Assert that `v` is a `Coll` SValue and return its runtime view.
@@ -78,18 +79,17 @@ export function extractFuncValue(v: SValue): Closure {
 }
 
 /**
- * Extract a `Coll[Int]` SValue as a `number[]`. Throws `EvalError` with the
- * supplied code on:
- *   - non-Coll input (`v.kind !== 'Coll'`)
- *   - declared element type isn't `SInt`
- *   - per-item kind mismatch (defends against `ConstantPlaceholder` injection
- *     in hand-crafted MIR)
+ * Extract a `Coll[Int]`'s items as a `number[]`, by the JVM's array cast
+ * (`toArray.asInstanceOf[Array[Int]]`, the `SubstConstants.positions` read
+ * at `trees.scala:643`: `positions = positionsV.toArray`).
  *
- * Used by: `SubstConstants` (T9 phase 2i-a) for the `positions` argument.
+ * A non-`Coll` input is a type error and throws the caller's `code`. A `Coll`
+ * whose array is of another class routes through the module's `castArray`
+ * (`coll/ops.ts`) to `'coll-class-cast'`, the JVM's `ClassCastException` on
+ * the array cast. An empty collection of the unknown class returns an empty
+ * array.
  *
- * Default code `'coll-input-not-coll'` so existing Coll-HOF call-sites can
- * adopt the helper without widening their taxonomy; T9 passes its arm-specific
- * code (`'subst-constants-error'`) to keep all 7 throw paths under one umbrella.
+ * Used by: `SubstConstants` for the `positions` argument.
  */
 export function extractCollInt(
   v: SValue,
@@ -102,16 +102,14 @@ export function extractCollInt(
       code,
     )
   }
-  if (v.elem.tag !== 'SInt') {
-    throw new EvalError(
-      `${arm}: expected Coll[Int], got Coll[${v.elem.tag}]`,
-      code,
-    )
-  }
-  const out: number[] = new Array(v.items.length)
-  for (let i = 0; i < v.items.length; i++) {
-    const item = v.items[i]!
+  const items = castArray(v, 'int', arm)
+  const out: number[] = new Array(items.length)
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!
     if (item.kind !== 'Int') {
+      // Defensive: an array of class `'int'` holds `Int` items. A caller
+      // may still hand in a mislabelled value; fall back to the caller's
+      // code.
       throw new EvalError(
         `${arm}: Coll[Int] item is not Int (got '${item.kind}')`,
         code,
