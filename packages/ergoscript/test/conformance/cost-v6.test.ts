@@ -151,9 +151,8 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
 // bytes_hex:...}` is the bytes a node reads for that position, bound
 // through this package's own reader. The control row below is the first
 // register-position `Value` binding in the vendored corpus; this test pins
-// that the harness no longer throws `hydrateSValue: unknown kind Value`
-// on it. The row itself is red until a later task (the pair / three-arity
-// tuple value split): assert only that the entry runs to an outcome.
+// that the harness runs it to an outcome (`errored`, `not-implemented`, or a
+// value).
 describe('register-position Value binding runs (control row)', () => {
   it('Tuple.binding_provenance_register register-tuple-constant-accept#0 runs', () => {
     const doc = JSON.parse(
