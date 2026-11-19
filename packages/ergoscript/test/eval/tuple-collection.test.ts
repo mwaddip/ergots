@@ -19,8 +19,9 @@
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
-import { makeContext } from '../../src/eval/eval-context'
+import { makeContext, type EvalContext } from '../../src/eval/eval-context'
 import { tupleColl } from '../../src/coll'
+import { serializeCost } from '../../src/eval/serialize-cost'
 import type { Expr, SType, SValue } from '../../src/mir/types'
 import { captureEvalError } from '../_helpers'
 
@@ -135,5 +136,25 @@ describe('the EQ / NEQ checkType sites', () => {
     const right: Expr = { tag: 'Tuple', items: [intConst(1), intConst(2)] }
     const err = captureEvalError(() => run(neq(left, right), PAIR_II, intTupleColl([1, 2])))
     expect(err.code).toBe('checked-value-class')
+  })
+})
+
+describe('serializeCost under a tuple type follows fromDslTuple', () => {
+  it('a tupleColl([1,2,3]) under (Int,Int,Int) costs the same as a kind: Tuple of the same items', () => {
+    // The cost walker must take the same path the writer does: through
+    // `tupleItems`, iterating items under the type's item types. Two differently
+    // shaped values of the same three items must charge identical costs.
+    const costOf = (v: SValue): number => {
+      const ctx: EvalContext = makeContext({ treeVersion: 3 })
+      serializeCost(TRIPLE_III, v, ctx)
+      return ctx.jitCost
+    }
+    const asColl = costOf(intTupleColl([1, 2, 3]))
+    const asTuple = costOf({
+      kind: 'Tuple',
+      items: [{ kind: 'Int', value: 1 }, { kind: 'Int', value: 2 }, { kind: 'Int', value: 3 }],
+    })
+    expect(asColl).toBe(asTuple)
+    expect(asColl).toBeGreaterThan(0)
   })
 })

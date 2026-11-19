@@ -17,6 +17,7 @@
  */
 
 import type { ErgoBox, SType, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import { ByteWriter, serializeHeader } from '@ergots/scorex'
 import { serializeSType } from './serialize-stype'
 import { serializeSigmaBoolean } from './sigma-boolean'
@@ -381,17 +382,29 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
     }
 
     case 'STuple': {
-      assertKind(t, v, 'Tuple')
-      // Arity must match the SType, since the wire has no length prefix
-      // and the parser will key off `t.items.length`.
-      if (v.items.length !== t.items.length) {
+      // `fromDslTuple` gives the items the writer emits
+      // (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`): a pair
+      // value's two items, a collection whose item type is the JVM's `SAny`
+      // at every arity. Any other value is `sys.error` on that arm.
+      const items = tupleItems(v)
+      if (items === null) {
         throw new SValueSerializeError(
-          `STuple arity mismatch: type has ${t.items.length} items, value has ${v.items.length}`,
+          `SType STuple expects a kind: 'Tuple' value or a kind: 'Coll' of SANY_JVM, got kind=${v.kind}`,
+          'type-value-mismatch'
+        )
+      }
+      // Length assertion at `CoreDataSerializer.scala:74`: a wrong length is
+      // the AssertionError the JVM raises before any item is written.
+      if (items.length !== t.items.length) {
+        throw new SValueSerializeError(
+          `STuple arity mismatch: type has ${t.items.length} items, value has ${items.length}`,
           'tuple-arity-mismatch'
         )
       }
+      // Each item is emitted under the type's item type at that index
+      // (`CoreDataSerializer.scala:75-80`).
       for (let i = 0; i < t.items.length; i++) {
-        serializeSValue(t.items[i]!, v.items[i]!, treeVersion, w)
+        serializeSValue(t.items[i]!, items[i]!, treeVersion, w)
       }
       return
     }
@@ -578,6 +591,23 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
       )
     }
   }
+}
+
+/**
+ * `Evaluation.fromDslTuple` (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`):
+ * the items a value at a tuple type gives the writer. A `kind: 'Tuple'` value
+ * gives its items; a `kind: 'Coll'` whose item type is the JVM's `SAny`
+ * (`SANY_JVM`, told apart from ergots' own `SAny` by object identity) gives
+ * its items. Anything else is refused by `fromDslTuple`'s `case _`
+ * (`sys.error`), and the writer calls this helper refusing with
+ * `'type-value-mismatch'`.
+ *
+ * Returns `null` for a value the writer refuses.
+ */
+export function tupleItems(v: SValue): SValue[] | null {
+  if (v.kind === 'Tuple') return v.items
+  if (v.kind === 'Coll' && v.elem === SANY_JVM) return v.items
+  return null
 }
 
 /**
