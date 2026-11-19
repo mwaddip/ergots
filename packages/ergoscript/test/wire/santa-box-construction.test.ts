@@ -1,9 +1,11 @@
-// SANTA JVM-blessed Box vectors for the JVM's node construction at parse (sigma-state 6.0.6), santa
-// 7f88e28 (Box.tree_parse_acceptance #0-#24 unchanged from 3f75e14, #25-#47 appended at 7e2f5f4 and
-// unchanged, #48-#53 appended; Box.tree_bool_pair_form unchanged), replayed as Dasher does:
-// parseSValue(SBox) then serializeSValue(SBox); the expected bytes are expected_bytes_hex ?? bytes_hex.
-// Each errored entry's reject is pinned below by class and code; the entries ergots still diverges on
-// are pinned as divergences, so the test flips when one closes.
+// SANTA JVM-blessed Box vectors for the JVM's node construction at parse (sigma-state 6.0.6 for the
+// earlier blocks, 6.0.7 for Box.small_tuples and Box.non_pair_tuple_operand; santa bd264f2),
+// replayed as Dasher does: parseSValue(SBox) then serializeSValue(SBox); the expected bytes are
+// expected_bytes_hex ?? bytes_hex. Each errored entry's reject is pinned below by class and code;
+// the entries ergots still diverges on are pinned as divergences, so the test flips when one closes.
+// For a TypeWrite row (the JVM parses the bytes and refuses on the WRITE), the entry's reject is
+// pinned in WRITE_REJECTS, which asserts the parse succeeds and the write throws — so a drift to a
+// parse-side refusal inside a sized tree (which would degrade and over-accept) would flip the test.
 import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { join } from 'node:path'
@@ -14,6 +16,7 @@ import { ErgoTreeParseError } from '../../src/wire/ergo-tree'
 import { boxTreeOf } from '../../src/wire/box-tree'
 import { ExprParseError } from '../../src/wire/errors'
 import { STypeParseError } from '../../src/wire/parse-stype'
+import { STypeSerializeError } from '../../src/wire/serialize-stype'
 import { ExprTpeError } from '../../src/mir/expr-tpe'
 import { isUnparsedTree } from '../../src/mir/types'
 
@@ -35,6 +38,8 @@ const FILES: [string, number][] = [
   ['Box.tree_bool_pair_form.json', 14],
   ['Box.methodcall_type_id_order.json', 4],
   ['Box.unevaluated_node_kinds.json', 32],
+  ['Box.small_tuples.json', 22],
+  ['Box.non_pair_tuple_operand.json', 5],
 ]
 
 // Each errored entry's reject: the construction check that fails, as each entry's description gives it.
@@ -116,6 +121,41 @@ const ERRORS: Record<string, Reject> = {
   'unevaluated-bool-operand-v0-reject-box#29': BIT_OP,
   'unevaluated-bool-operand-v3-reject-box#30': BIT_OP,
   'unevaluated-spip-filter-v0-reject-box#31': { cls: ExprTpeError, code: 'filter-input-not-scoll' },
+  // Box.small_tuples.json. The 128-item Tuple expression: TupleSerializer.scala:28 reads the count
+  // via signed getByte, so 0x80 is -128 and safeNewArray throws NegativeArraySizeException
+  // (sigma/util/package.scala:9-13 bounds only the upper end); no ValidationException, no degrade.
+  // ergots mirrors: its parse rejects 128 and above on the lead byte.
+  'small-tuple-tuple_expr_128_items-v0-box#10': { cls: ExprParseError, code: 'tuple-arity-out-of-range' },
+  'small-tuple-tuple_expr_128_items-v3-box#11': { cls: ExprParseError, code: 'tuple-arity-out-of-range' },
+  // Box.non_pair_tuple_operand.json. The deserialization builder's check2(SameType) refuses an SAny
+  // operand against a concrete type (SigmaBuilder.scala:691, ConstraintFailed, not a ValidationException,
+  // no degrade); check2(OnlyNumeric) refuses an SAny operand under a comparison (`:699`), including the
+  // SAny vs SAny row where SameType is satisfied.
+  'non-pair-tuple-operand-eq-any-concrete-v3-box#0': { cls: ExprParseError, code: 'relation-operand-type-mismatch' },
+  'non-pair-tuple-operand-gt-any-concrete-v3-box#1': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  'non-pair-tuple-operand-gt-any-any-v3-box#2': { cls: ExprParseError, code: 'relation-operand-not-numeric' },
+}
+
+// Box.small_tuples.json TypeWrite rows. The JVM PARSES a one-item or zero-item tuple TYPE
+// (TypeSerializer.scala:188-194, getUByte, no arity require) and REFUSES on the WRITE
+// (TypeSerializer.scala:93-95, `sys.error("Invalid Tuple type with less than 2 items ...")`);
+// ergots mirrors — its STuple parse has no lower bound (parse-stype.ts:212-217) and its STuple
+// write throws STypeSerializeError('tuple-too-short') on < 2 (serialize-stype.ts:231-236). At tree
+// version 3 an implementation that refused at parse would DEGRADE the sized tree and over-accept;
+// the pin below asserts the parse succeeds and the WRITE throws, so a drift to a parse-side refusal
+// would flip the test.
+//
+// register_one_item_type#20 is the register twin: the register value is a `Constant` whose declared
+// type is the one-item tuple `(Int)`; the register parses (one-item tuple type reads), and the box's
+// re-serialization writes the registers through `w.putValue` (ErgoBoxCandidate.scala:175), which
+// writes the type and throws there. There is no size bit between the register and the enclosing
+// tree, so the row is a control at every version.
+const WRITE_REJECTS: Record<string, Reject> = {
+  'small-tuple-const_one_item_type-v0-box#0': { cls: STypeSerializeError, code: 'tuple-too-short' },
+  'small-tuple-const_one_item_type-v3-box#1': { cls: STypeSerializeError, code: 'tuple-too-short' },
+  'small-tuple-const_zero_item_type-v0-box#2': { cls: STypeSerializeError, code: 'tuple-too-short' },
+  'small-tuple-const_zero_item_type-v3-box#3': { cls: STypeSerializeError, code: 'tuple-too-short' },
+  'small-tuple-register_one_item_type-box#20': { cls: STypeSerializeError, code: 'tuple-too-short' },
 }
 
 // The accepted entries whose tree the JVM degrades, with the ergots error of the rule it degrades on, a
@@ -154,6 +194,25 @@ function expectReject(e: Entry, want: Reject): void {
   if (want.cause !== undefined) expect(((err as Error).cause as { code?: string }).code).toBe(want.cause)
 }
 
+/**
+ * Parse SUCCEEDS, the write refuses with the pinned class and code. Pins the stage of the refusal:
+ * the JVM's TypeWrite rows parse the bytes (TypeSerializer.scala:188-194) and die on the write
+ * (:93-95), after a successful parse; the test fails if parseSValue throws (a parse-side refusal
+ * that at tree version 3 would degrade a sized tree and over-accept the carrier).
+ */
+function expectWriteReject(e: Entry, want: Reject): void {
+  const v = parseSValue({ tag: 'SBox' }, e.version.ergoTree, new ByteReader(hex(e.bytes_hex)))
+  const w = new ByteWriter()
+  let err: unknown
+  try {
+    serializeSValue({ tag: 'SBox' }, v, e.version.ergoTree, w)
+  } catch (x) {
+    err = x
+  }
+  expect(err, `${e.name}: expected a write-side reject`).toBeInstanceOf(want.cls)
+  expect((err as { code?: string }).code).toBe(want.code)
+}
+
 for (const [file, count] of FILES) {
   const data = JSON.parse(readFileSync(join(__dirname, '../fixtures/conformance/wire', file), 'utf8')) as { blessed_by: string; entries: Entry[] }
   describe(`SANTA ${file} (${data.blessed_by})`, () => {
@@ -175,6 +234,11 @@ for (const [file, count] of FILES) {
       }
       it(e.name, () => {
         if (e.error === 'errored') {
+          const writeReject = WRITE_REJECTS[e.name]
+          if (writeReject !== undefined) {
+            expectWriteReject(e, writeReject)
+            return
+          }
           const want = ERRORS[e.name]
           expect(want, `no reject pinned for ${e.name}`).toBeDefined()
           expectReject(e, want!)

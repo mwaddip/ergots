@@ -1,0 +1,256 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.small_tuples",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "small-tuple-const_one_item_type-v0-tx#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a CONSTANT of type `(Int)` — a one-item tuple TYPE, which the JVM parses and can never write back. At tree version 0, UNSIZED. THE CONTROL OF THIS PAIR, not evidence. The JVM refuses on the WRITE, after the parse succeeded; an implementation that refuses the tuple at PARSE has no degrade path at an unsized tree and refuses too. Both sides refuse for different reasons and the row grades GREEN. Its v3 twin is where the disagreement shows.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c60010402010402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-const_one_item_type-v3-tx#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a CONSTANT of type `(Int)` — a one-item tuple TYPE, which the JVM parses and can never write back. At tree version 3, SIZE-FLAGGED. THE SEPARATING ROW. The JVM's answer is the same as at v0 — it parses the tree and then cannot write it back — but an implementation that refuses the tuple at PARSE now has the size bit to degrade behind: it stores the tree as opaque bytes and ACCEPTS the carrier the JVM rejects. An over-accept, and the only row of this pair that can show it.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b0ad1938c60010402010402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-const_zero_item_type-v0-tx#2",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c == c) where c is a CONSTANT of type `()` — a zero-item tuple TYPE, whose data occupies no bytes at all. At tree version 0, UNSIZED. THE CONTROL OF THIS PAIR, not evidence. The JVM refuses on the WRITE, after the parse succeeded; an implementation that refuses the tuple at PARSE has no degrade path at an unsized tree and refuses too. Both sides refuse for different reasons and the row grades GREEN. Its v3 twin is where the disagreement shows.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d19360006000010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-const_zero_item_type-v3-tx#3",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c == c) where c is a CONSTANT of type `()` — a zero-item tuple TYPE, whose data occupies no bytes at all. At tree version 3, SIZE-FLAGGED. THE SEPARATING ROW. The JVM's answer is the same as at v0 — it parses the tree and then cannot write it back — but an implementation that refuses the tuple at PARSE now has the size bit to degrade behind: it stores the tree as opaque bytes and ACCEPTS the carrier the JVM rejects. An over-accept, and the only row of this pair that can show it.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b06d19360006000010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_one_item-v0-tx#4",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1)._1 == 1) — a one-item tuple EXPRESSION. `TupleSerializer` writes a count and no type, so this round-trips verbatim; `Tuple.eval` then refuses it. At tree version 0, UNSIZED. THE SEPARATING ROW, and the exact MIRROR of the `_type` pair. `TupleSerializer` writes a count and no type, so the JVM round-trips this carrier verbatim. An implementation whose tuples hold 2..255 refuses it, and at an unsized tree it has nothing to degrade behind — an over-reject of a box the JVM accepts, reachable since v6 activated.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c86010402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_one_item-v3-tx#5",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1)._1 == 1) — a one-item tuple EXPRESSION. `TupleSerializer` writes a count and no type, so this round-trips verbatim; `Tuple.eval` then refuses it. At tree version 3, SIZE-FLAGGED. THE CONTROL OF THIS PAIR, not evidence — the mirror of the `_type` pair, whose control is the v0 row. This row is GREEN whether an implementation parses the tuple correctly (and echoes the bytes) or refuses it at parse and DEGRADES behind the size bit (and echoes the same bytes). The wire tier is degrade-blind, so the row cannot tell those two apart and is not evidence of either. Its v0 twin is where the disagreement shows.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b0ad1938c86010402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_zero_item-v0-tx#6",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple() == Tuple()) — a zero-item tuple EXPRESSION on both sides of an EQ. At tree version 0, UNSIZED. THE SEPARATING ROW, and the exact MIRROR of the `_type` pair. `TupleSerializer` writes a count and no type, so the JVM round-trips this carrier verbatim. An implementation whose tuples hold 2..255 refuses it, and at an unsized tree it has nothing to degrade behind — an over-reject of a box the JVM accepts, reachable since v6 activated.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d19386008600010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_zero_item-v3-tx#7",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple() == Tuple()) — a zero-item tuple EXPRESSION on both sides of an EQ. At tree version 3, SIZE-FLAGGED. THE CONTROL OF THIS PAIR, not evidence — the mirror of the `_type` pair, whose control is the v0 row. This row is GREEN whether an implementation parses the tuple correctly (and echoes the bytes) or refuses it at parse and DEGRADES behind the size bit (and echoes the same bytes). The wire tier is degrade-blind, so the row cannot tell those two apart and is not evidence of either. Its v0 twin is where the disagreement shows.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b06d19386008600010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_127_items-v0-tx#8",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1 x 127)._1 == 1) — the LARGEST script tuple a signed count can express. The byte is 0x7f; one more wraps negative. At tree version 0, UNSIZED. THE SEPARATING ROW, and the exact MIRROR of the `_type` pair. `TupleSerializer` writes a count and no type, so the JVM round-trips this carrier verbatim. An implementation whose tuples hold 2..255 refuses it, and at an unsized tree it has nothing to degrade behind — an over-reject of a box the JVM accepts, reachable since v6 activated.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c867f0402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_127_items-v3-tx#9",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1 x 127)._1 == 1) — the LARGEST script tuple a signed count can express. The byte is 0x7f; one more wraps negative. At tree version 3, SIZE-FLAGGED. THE CONTROL OF THIS PAIR, not evidence — the mirror of the `_type` pair, whose control is the v0 row. This row is GREEN whether an implementation parses the tuple correctly (and echoes the bytes) or refuses it at parse and DEGRADES behind the size bit (and echoes the same bytes). The wire tier is degrade-blind, so the row cannot tell those two apart and is not evidence of either. Its v0 twin is where the disagreement shows.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b8602d1938c867f0402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_128_items-v0-tx#10",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1 x 128)._1 == 1) — one past the boundary. The count byte 0x80 reads as -128 and `safeNewArray` bounds only the upper end, so the parse throws NegativeArraySizeException and takes the whole carrier with it. At tree version 0, UNSIZED. SEPARATING AT BOTH VERSIONS, and no degrade is involved: an implementation that reads the count UNSIGNED parses 128 items successfully and accepts the carrier. The JVM's refusal is a NegativeArraySizeException, which is not a ValidationException, so the size bit cannot turn it into a degrade either.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c868004020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_128_items-v3-tx#11",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1 x 128)._1 == 1) — one past the boundary. The count byte 0x80 reads as -128 and `safeNewArray` bounds only the upper end, so the parse throws NegativeArraySizeException and takes the whole carrier with it. At tree version 3, SIZE-FLAGGED. SEPARATING AT BOTH VERSIONS, and no degrade is involved: an implementation that reads the count UNSIGNED parses 128 items successfully and accepts the carrier. The JVM's refusal is a NegativeArraySizeException, which is not a ValidationException, so the size bit cannot turn it into a degrade either.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b8802d1938c868004020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-const_pair_type_control-v0-tx#12",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_one_item_type`, identical in shape. At tree version 0, UNSIZED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c580204010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-const_pair_type_control-v3-tx#13",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_one_item_type`, identical in shape. At tree version 3, SIZE-FLAGGED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b09d1938c580204010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-const_pair_eq_control-v0-tx#14",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c == c) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_zero_item_type`. At tree version 0, UNSIZED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d193580204580204010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-const_pair_eq_control-v3-tx#15",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c == c) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_zero_item_type`. At tree version 3, SIZE-FLAGGED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b08d193580204580204010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_two_items_control-v0-tx#16",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1, 1)._1 == 1) — the writable twin of the expression rows, and the one count `Tuple.eval` accepts, so this is the only row of the family that also SPENDS. At tree version 0, UNSIZED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c860204020402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-tuple_expr_two_items_control-v3-tx#17",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(Tuple(1, 1)._1 == 1) — the writable twin of the expression rows, and the one count `Tuple.eval` accepts, so this is the only row of the family that also SPENDS. At tree version 3, SIZE-FLAGGED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b0cd1938c860204020402010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-const_triple_type-v0-tx#18",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a `(Int,Int,Int)` CONSTANT — a THREE-item tuple type, which `TypeSerializer` writes happily (`TripleTypeCode`), so the carrier round-trips. It is here because its EVAL fails exactly as the one-item row's does: `toDslTuple` returns the raw `Coll[Any]` for ANY non-pair, so the `SelectField` divergence is not a property of small tuples at all — it is a property of non-pairs. At tree version 0, UNSIZED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc0300d1938c48040404020406010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-const_triple_type-v3-tx#19",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "sigmaProp(c._1 == 1) where c is a `(Int,Int,Int)` CONSTANT — a THREE-item tuple type, which `TypeSerializer` writes happily (`TripleTypeCode`), so the carrier round-trips. It is here because its EVAL fails exactly as the one-item row's does: `toDslTuple` returns the raw `Coll[Any]` for ANY non-pair, so the `SelectField` divergence is not a property of small tuples at all — it is a property of non-pairs. At tree version 3, SIZE-FLAGGED. A WRITABLE TWIN: green by construction, identical in shape to the row it guards, with a tuple the JVM can write. It is here so that a red on its partner cannot be blamed on the shape of the carrier.",
+      "bytes_hex" : "01e6d48a5b3ed02dd7e53777ab7f1b05d0a87a33df788a27c176f4d0d376a71ab100000000018094ebdc030b0dd1938c48040404020406010402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "small-tuple-register_one_item_type-tx#20",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "R4 holds a CONSTANT of type `(Int)` — a one-item tuple type in a REGISTER rather than in the tree, on a box guarded by `sigmaProp(true)`. The box PARSES and the register reads back as `ConstantNode(Coll(1),(SInt$))`, a one-element `Coll[Any]` carrying a declared type of `(Int)`; writing it again throws in `w.putValue` (`ErgoBoxCandidate.scala:175`). ALSO A CONTROL: a register value sits outside the tree, so there is no size bit to degrade behind at any version and an implementation that refuses the tuple at parse refuses too. Green on both sides today; it is here to catch the over-accept if one ever starts reading such a type.",
+      "bytes_hex" : "01ddc4439596aee1cb694ece383f7248ed4f7159b39435ffc3c57aa1efab0cbb8900000000018094ebdc030008d301000160010402",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "small-tuple-register_nested_tuple_expr-tx#21",
+      "kind" : "Transaction",
+      "source" : "santa:authored-small-tuples",
+      "description" : "R4 holds `Tuple(Tuple(1), 1)` — a pair whose FIRST item is a one-item tuple, as an EXPRESSION. `TupleSerializer` writes a count and no type, so the JVM writes this register itself and the carrier is valid. SEPARATING: an implementation whose tuples hold 2..255 refuses the nested one and so refuses a box the JVM accepts. The transaction tier carries its spend — `SELF.R4[((Int),Int)].isDefined` is true, and the value is `Coll(Coll(1),1)`, from which no field can be selected.",
+      "bytes_hex" : "0129ced20bbf1c0d9b00cd2ee36ee2f8bf066e8cb031815501d1ac12635a29e40300000000018094ebdc030008d30100018602860104020402",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 0
+      }
+    }
+  ]
+}

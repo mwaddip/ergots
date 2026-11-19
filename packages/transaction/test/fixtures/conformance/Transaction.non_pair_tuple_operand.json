@@ -1,0 +1,65 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.non_pair_tuple_operand",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "non-pair-tuple-operand-eq-any-concrete-v3-tx#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-non-pair-tuple-operand",
+      "description" : "`sigmaProp(ByIndex((1,2,3),0) == 1)` — an `SAny` operand against an `SInt` one. `check2(SameType)` in the deserialization builder refuses it, `ConstraintFailed`, so the tree never parses. THE ROW THE SIGMA-RUST SESSION CORRECTED ITSELF ON: it first read this as an eval-time `checkType` failure, then re-read the builder and expected a parse refusal. It is a parse refusal. **SEPARATING:** an implementation that parses this and fails later accepts a box the JVM cannot even read.",
+      "bytes_hex" : "01f3f4e31cd738b5cb8959eb15720e608889a42dbdbbce9e0c910502a7d4d869c600000000018094ebdc030b0fd193b2480404040204060400000402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "non-pair-tuple-operand-gt-any-concrete-v3-tx#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-non-pair-tuple-operand",
+      "description" : "`sigmaProp(ByIndex((1,2,3),0) > 1)` — the same operands under a COMPARISON. Refused too, but by a different constraint: `comparisonOp` runs `check2(OnlyNumeric)` at `:699` first, and `SAny` is not numeric. Same outcome, different reason, which matters to anyone implementing one check and reusing it. **SEPARATING.**",
+      "bytes_hex" : "01f3f4e31cd738b5cb8959eb15720e608889a42dbdbbce9e0c910502a7d4d869c600000000018094ebdc030b0fd191b2480404040204060400000402010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "non-pair-tuple-operand-gt-any-any-v3-tx#2",
+      "kind" : "Transaction",
+      "source" : "santa:authored-non-pair-tuple-operand",
+      "description" : "`sigmaProp(t(0) > t(1))` — BOTH operands `SAny`. Still REJECTED: the numeric constraint is about each operand's type and not about the two agreeing, so **a comparison has no escape** where equality does. The row that proves the next one is not a general leniency. **SEPARATING.**",
+      "bytes_hex" : "01f3f4e31cd738b5cb8959eb15720e608889a42dbdbbce9e0c910502a7d4d869c600000000018094ebdc030b18d191b248040404020406040000b248040404020406040200010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "non-pair-tuple-operand-eq-any-any-v3-tx#3",
+      "kind" : "Transaction",
+      "source" : "santa:authored-non-pair-tuple-operand",
+      "description" : "`sigmaProp(t(0) == t(1))` — BOTH operands `SAny`, under EQUALITY, and it **ACCEPTS**: `check2(SameType)` is satisfied, so the tree parses and round-trips to its own bytes. THE KEYSTONE OF THE FAMILY, and a cross-tier pair: the eval tier's `Tuple.non_pair_value_gates` G1/G2 is this very tree failing at EVAL with `Unknown type SAny`. So this is a box anyone can create, whose script no one can satisfy. **SEPARATING BOTH WAYS:** an implementation that refuses it at parse over-rejects a valid box, and one that evaluates the comparison over-accepts a spend.",
+      "bytes_hex" : "01f3f4e31cd738b5cb8959eb15720e608889a42dbdbbce9e0c910502a7d4d869c600000000018094ebdc030b18d193b248040404020406040000b248040404020406040200010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "non-pair-tuple-operand-eq-concrete-control-v3-tx#4",
+      "kind" : "Transaction",
+      "source" : "santa:authored-non-pair-tuple-operand",
+      "description" : "**THE CONTROL** — `sigmaProp(ByIndex(Coll[Int](1,2,3),0) == 1)`, the same shape over an ordinary collection: ACCEPTED, round-trip identity, and it evaluates to a `SigmaProp` too. It is what shows the four rejects above are the `SAny` operand's doing and not `ByIndex` under an equality.",
+      "bytes_hex" : "01f3f4e31cd738b5cb8959eb15720e608889a42dbdbbce9e0c910502a7d4d869c600000000018094ebdc030b0dd193b210030204060400000402010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}

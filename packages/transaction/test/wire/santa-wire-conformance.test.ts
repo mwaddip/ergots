@@ -12,11 +12,11 @@ import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 import {
-  ErgoTreeParseError, ExprParseError, ExprTpeError, STypeParseError, SValueParseError, boxTreeOf, isUnparsedTree,
+  ErgoTreeParseError, ExprParseError, ExprTpeError, STypeParseError, STypeSerializeError, SValueParseError, boxTreeOf, isUnparsedTree,
 } from '@ergots/ergoscript';
 import { ReaderError } from '@ergots/scorex';
 
-import { parseTransaction, serializeTransaction } from '../../src/index.ts';
+import { parseTransaction, serializeTransaction, TxParseError } from '../../src/index.ts';
 import { hexToBytes, bytesToHex } from '../_helpers';
 
 const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'conformance');
@@ -311,4 +311,126 @@ it('every pinned construction entry names an entry of its kind in the constructi
   expect(Object.keys(ERRORS).filter((n) => !errored.has(n))).toEqual([]);
   expect(Object.keys(DEGRADES).filter((n) => !accepted.has(n))).toEqual([]);
   expect(Object.keys(KNOWN_RESIDUAL).filter((n) => !accepted.has(n))).toEqual([]);
+});
+
+// ---------------------------------------------------------------------------------------------------------
+// The tuple family (jvm:sigma-state-6.0.7, santa bd264f2): a tuple type of arity 0 or 1 in a box's tree or
+// register, a Tuple expression of 0, 1, 127 or 128 items, and a non-pair tuple value fed to an SAny-vs-SInt
+// equality or comparison. The JVM's refusals split by STAGE: a parse refusal, or a WRITE refusal after a
+// successful parse (TypeSerializer.scala:93-95, which fires inside ErgoLikeTransactionSerializer.serialize
+// as ErgoTransaction.scala:68 computes the id eagerly, so the id computation fails at parse-time on the
+// JVM). The tier itself cannot say "this transaction does not parse" without wrapping, so an errored entry
+// here is pinned either to ergots' parseTransaction reject (a parse-time failure of the body, or the eager
+// ergoTree re-encode that parseTransaction runs on each output) or to a serializeTransaction reject (where
+// ergots lets the parse succeed and dies on the serialize). Each row's STAGE is pinned below, with the
+// class and code; KNOWN_RESIDUAL lists an entry where ergots' stage differs from the JVM's.
+// ---------------------------------------------------------------------------------------------------------
+const TUPLE_FILES: [string, number][] = [
+  ['Transaction.small_tuples.json', 22],
+  ['Transaction.non_pair_tuple_operand.json', 5],
+];
+
+/** A tuple-family reject: the stage the JVM-mirrored refusal fires at. */
+type Stage = 'parse' | 'write';
+interface TupleReject { stage: Stage; cls: ErrorClass; code: string; cause?: string }
+
+// Parse-side rejects. parseTransaction throws, either during the output's tree body parse or during the
+// eager ergoTree re-encode that parseTransaction runs on each output candidate
+// (ErgoTransaction.scala:68 → ErgoLikeTransactionSerializer.serialize → ErgoBoxCandidate.serializeBody-
+// WithIndexedDigests:142 → ErgoTreeSerializer.serializeErgoTree → TypeSerializer.serialize → sys.error).
+// For the tuple TYPE rows (const_one/zero_item_type), ergots' reencodeTreeBytes catches the write-side
+// STypeSerializeError and wraps it as TxParseError('output-tree-not-reencodable') — matching the JVM's
+// stage (parse-time) if not its exception class (the cause carries the type serializer's error).
+// For the tuple EXPRESSION 128-items rows, the ergots tree body parse itself rejects on the lead byte
+// (TupleSerializer.scala:28 signed getByte; mirrored by wire/mir/tuple.ts:70-83).
+// For the SAny-operand rows, check2 in the deserialization builder throws ExprParseError inside the body
+// parse (ConstraintFailed, not a ValidationException, no degrade; SigmaBuilder.scala:691, 699).
+const TUPLE_PARSE_ERRORS: Record<string, TupleReject> = {
+  // TypeWrite rows: ErgoTransaction.scala:68 eager id computes bytesToSign; ergots'
+  // parseTransaction re-encodes each output's ergoTree and wraps the write failure
+  // (wire/transaction.ts:124-129).
+  'small-tuple-const_one_item_type-v0-tx#0': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
+  'small-tuple-const_one_item_type-v3-tx#1': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
+  'small-tuple-const_zero_item_type-v0-tx#2': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
+  'small-tuple-const_zero_item_type-v3-tx#3': { stage: 'parse', cls: TxParseError, code: 'output-tree-not-reencodable' },
+  // CountBound rows: 128 items as a signed byte is -128; NegativeArraySizeException on the JVM, not a
+  // ValidationException, no degrade. ergots mirrors on the lead byte.
+  'small-tuple-tuple_expr_128_items-v0-tx#10': { stage: 'parse', cls: ExprParseError, code: 'tuple-arity-out-of-range' },
+  'small-tuple-tuple_expr_128_items-v3-tx#11': { stage: 'parse', cls: ExprParseError, code: 'tuple-arity-out-of-range' },
+  // Non-pair tuple operand rows: check2 in the deserialization builder.
+  'non-pair-tuple-operand-eq-any-concrete-v3-tx#0': { stage: 'parse', cls: ExprParseError, code: 'relation-operand-type-mismatch' },
+  'non-pair-tuple-operand-gt-any-concrete-v3-tx#1': { stage: 'parse', cls: ExprParseError, code: 'relation-operand-not-numeric' },
+  'non-pair-tuple-operand-gt-any-any-v3-tx#2': { stage: 'parse', cls: ExprParseError, code: 'relation-operand-not-numeric' },
+};
+
+// KNOWN_RESIDUAL for this tier: an entry where ergots' stage differs from the JVM's.
+// register_one_item_type#20: R4 holds a Constant whose declared type is `(Int)`. The JVM REJECTS at
+// parse — ErgoTransaction.scala:68 eagerly runs bytesToSign, which writes each register through
+// `w.putValue` (ErgoBoxCandidate.scala:175), and TypeSerializer.scala:93-95 refuses the one-item type.
+// ergots' parseTransaction re-encodes each output's ergoTree only (wire/transaction.ts:117-119, a
+// recorded follow-up), not its registers, so the parse succeeds and serializeTransaction throws
+// STypeSerializeError('tuple-too-short'). A pre-check that runs the full box serializer on each output
+// at parse-time would match the JVM's stage; that is a transaction-package follow-up, not a rule of
+// this plan's tuple contract (the type serializer itself refuses the type with the right code).
+const TUPLE_KNOWN_RESIDUAL: Record<string, { residual: string; ergots: TupleReject }> = {
+  'small-tuple-register_one_item_type-tx#20': {
+    residual: 'the JVM rejects at parse through ErgoTransaction.scala:68 eager id; ergots re-encodes ' +
+      'output ergoTreeBytes only (wire/transaction.ts:117-119), not registers, so the write throws',
+    ergots: { stage: 'write', cls: STypeSerializeError, code: 'tuple-too-short' },
+  },
+};
+
+function expectTupleParseReject(bytesHex: string, want: TupleReject): void {
+  let err: unknown;
+  try { parseTransaction(hexToBytes(bytesHex)); } catch (x) { err = x; }
+  expect(err, 'expected a parse-side reject').toBeInstanceOf(want.cls);
+  expect((err as { code?: string }).code).toBe(want.code);
+  if (want.cause !== undefined) expect(((err as Error).cause as { code?: string } | undefined)?.code).toBe(want.cause);
+}
+
+function expectTupleWriteReject(bytesHex: string, want: TupleReject): void {
+  const tx = parseTransaction(hexToBytes(bytesHex));
+  let err: unknown;
+  try { serializeTransaction(tx); } catch (x) { err = x; }
+  expect(err, 'expected a write-side reject').toBeInstanceOf(want.cls);
+  expect((err as { code?: string }).code).toBe(want.code);
+}
+
+for (const [file, count] of TUPLE_FILES) {
+  const data = JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { blessed_by: string; entries: WireEntry[] };
+  describe(`SANTA ${file} (${data.blessed_by})`, () => {
+    const entries = data.entries;
+    it(`holds ${count} entries`, () => expect(entries.length).toBe(count));
+    for (const e of entries) {
+      const known = TUPLE_KNOWN_RESIDUAL[e.name];
+      if (known !== undefined) {
+        it(`${e.name}: still diverges (${known.residual})`, () => {
+          expect(e.error, 'the JVM rejects it').toBe('errored');
+          if (known.ergots.stage === 'parse') expectTupleParseReject(e.bytes_hex, known.ergots);
+          else expectTupleWriteReject(e.bytes_hex, known.ergots);
+        });
+        continue;
+      }
+      if (e.error === 'errored') {
+        const want = TUPLE_PARSE_ERRORS[e.name];
+        it(`${e.name}: ${want ? `${want.stage} throws ${want.cls.name} '${want.code}'` : 'no reject pinned'}`, () => {
+          if (want === undefined) throw new Error(`no reject pinned for ${e.name}`);
+          if (want.stage === 'parse') expectTupleParseReject(e.bytes_hex, want);
+          else expectTupleWriteReject(e.bytes_hex, want);
+        });
+      } else {
+        it(`${e.name}: round-trips${e.expected_bytes_hex ? ' to the JVM re-serialization' : ' byte-identically'}`, () => {
+          const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex))));
+          expect(out).toBe(e.expected_bytes_hex ?? e.bytes_hex);
+        });
+      }
+    }
+  });
+}
+
+it('every pinned tuple entry names an entry of its kind in the tuple files', () => {
+  const all = TUPLE_FILES.flatMap(([file]) => loadEntries(file));
+  const errored = new Set(all.filter((e) => e.error === 'errored').map((e) => e.name));
+  expect(Object.keys(TUPLE_PARSE_ERRORS).filter((n) => !errored.has(n))).toEqual([]);
+  expect(Object.keys(TUPLE_KNOWN_RESIDUAL).filter((n) => !errored.has(n))).toEqual([]);
 });
