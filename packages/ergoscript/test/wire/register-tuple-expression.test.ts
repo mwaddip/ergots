@@ -179,40 +179,52 @@ describe('a box whose R4 is the Tuple(1, 2) EXPRESSION keeps its bytes and its i
     // `value`-reading regression collapses the pin because both branches would
     // cost the same.
     //
-    // Hand derivation (walker rules in `eval/serialize-cost.ts`, JVM
-    // `ErgoBoxCandidate.scala:138-181` + `SigmaByteWriter.scala:45-185`):
+    // Hand derivation. The walker rules are in `addBoxCost`
+    // (`eval/serialize-cost.ts:481-520`) and `addRegisterExprCost`
+    // (`:550-591`); the JVM citations are on those lines
+    // (`ErgoBoxCandidate.scala:138-181`, `SigmaByteWriter.scala:45-185`,
+    // `TupleSerializer.scala:18-25`, `ConstantSerializer.scala:13-16`).
+    // `PUT_BYTE` is `1` and `PUT_NUM3` is `3` (`serialize-cost.ts:67-68`).
     //
     //   shared box walk (`addBoxCost` outside the register loop):
-    //     putULong(value=100)                   = 3     (PUT_NUM3)
-    //     putBytes(serializeErgoTree(0008d3))   = 3+3   (3-byte reencoded tree)
-    //     putUInt(creationHeight=0)             = 0     (no-DataInfo overload)
-    //     putUByte(nTokens=0)                   = 1
-    //     putUByte(nRegs=1)                     = 1
-    //     putBytes(txId, 32)                    = 35
-    //     putUShort(index=0)                    = 3     (PUT_NUM3)
-    //     shared subtotal                       = 46
+    //     putULong(value=100)                          = 3  (`:482`, PUT_NUM3)
+    //     putBytes(serializeErgoTree(00 08 d3)) = 3+3  = 6  (`:483`, putBytes overhead 3 + treeLen 3)
+    //     putUInt(creationHeight=0)                    = 0  (no-DataInfo overload, `:484`)
+    //     putUByte(nTokens=0)                          = 1  (`:485`, PUT_BYTE)
+    //     putUByte(nRegs=1)                            = 1  (`:490`, PUT_BYTE)
+    //     putBytes(txId, 32) = 3+32                    = 35 (`:518`)
+    //     putUShort(index=0)                           = 3  (`:519`, PUT_NUM3)
+    //     shared subtotal                              = 49
     //
     //   expression register `86 02 04 02 04 04` (`addRegisterExprCost`,
-    //   OP_TUPLE branch):
-    //     w.put(TupleCode)                      = 1
-    //     putUByte(count=2)                     = 1
-    //     per item (Constant, SInt lead 0x04):
-    //       putType(SInt)                       = 1
-    //       DataSerializer(Int)                 = 3     (PUT_NUM3)
-    //     2 items × 4                           = 8
-    //     register walk                         = 10
-    //     total                                 = 46 + 10 + 3 (tree hdr) = 59
+    //   OP_TUPLE branch, `serialize-cost.ts:570-581`):
+    //     w.put(TupleCode)                             = 1  (`:573`, PUT_BYTE)
+    //     putUByte(count=2)                            = 1  (`:574`, PUT_BYTE)
+    //     item 0 (Constant lead 0x04 = SInt, `:552-568`):
+    //       putType(SInt)                              = 1  (`:566`, PUT_BYTE)
+    //       DataSerializer(Int)                        = 3  (`:567` → `:91-94`, PUT_NUM3)
+    //     item 1 (Constant lead 0x04 = SInt):
+    //       putType(SInt)                              = 1
+    //       DataSerializer(Int)                        = 3
+    //     register walk                                = 10
+    //     total                                        = 49 + 10 = 59
     //
     //   constant register `58 02 04` (the `58` is the symmetric-pair-of-SInt
-    //   type code, `PAIR_SYMMETRIC (84) + SInt_prim (4)`):
-    //     putType(STuple[SInt, SInt])           = 1     (one byte, pair-sym)
-    //     DataSerializer(STuple pair):
-    //       per item SInt                       = 3     (PUT_NUM3)
-    //     register walk                         = 1 + 3 + 3 = 7
-    //     total                                 = 46 + 7 + 3 (tree hdr)  = 56
+    //   type code, `PAIR_SYMMETRIC (84) + SInt_prim (4)`; the register has no
+    //   `opaqueBytes`, so the loop takes the Constant path at
+    //   `serialize-cost.ts:515-516`):
+    //     putType(STuple[SInt, SInt])                  = 1  (`:515`, one byte, pair-symmetric,
+    //                                                        `putTypeCost` STuple arm `:369-396`)
+    //     DataSerializer(STuple pair, `tupleItems`'s pair branch, `:187-213`):
+    //       item 0 SInt (DataSerializer)               = 3  (PUT_NUM3)
+    //       item 1 SInt (DataSerializer)               = 3  (PUT_NUM3)
+    //     register walk                                = 7
+    //     total                                        = 49 + 7 = 56
     //
-    // The addBoxCost framework charges `3 + treeLen` where treeLen for the
-    // reencoded `00 08 d3` is 3, so each total is shared + register + 3.
+    // The difference 59 − 56 = 3 is the register walk's difference 10 − 7 = 3:
+    // the expression walk charges TupleCode 1 + count 1 + per-item (putType 1
+    // + Int 3) × 2 = 10; the constant walk charges putType(STuple) 1 +
+    // (Int 3) × 2 = 7. The shared box walk is identical for the two boxes.
     const sv = parseSValue({ tag: 'SBox' }, 3, new ByteReader(rawBytes))
     if (sv.kind !== 'Box') throw new Error(`unreachable: ${sv.kind}`)
     const ctx = makeContext({ treeVersion: 3 })
