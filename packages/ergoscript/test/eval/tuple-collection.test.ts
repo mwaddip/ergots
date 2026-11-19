@@ -196,14 +196,26 @@ describe('Global.serialize under a tuple-type argument', () => {
     expect(r).toEqual(collByte([0x02, 0x04, 0x06]))
   })
 
-  it('a kind: Tuple of three items read at (Int,Int,Int) writes 020406', () => {
-    // The data reader still builds `kind: 'Tuple'` at every arity today, so the
-    // value is interchangeable with a `tupleColl` here — both write the same bytes.
+  it('a kind: Tuple of three items under a three-item tuple type refuses as global-serialize-failed', () => {
+    // A `kind: 'Tuple'` value holds exactly two items by the contract
+    // ([`facts/ergoscript-eval.md`](./ergoscript-eval.md), "Tuples and
+    // non-pair tuple values"). `tupleItems` (the writer's call to
+    // `Evaluation.fromDslTuple`, `Evaluation.scala:91-96`) matches a pair
+    // only, as the JVM's pair case does; a `kind: 'Tuple'` of any other
+    // arity is a value the writer refuses.
     const tup: SValue = {
       kind: 'Tuple',
       items: [{ kind: 'Int', value: 1 }, { kind: 'Int', value: 2 }, { kind: 'Int', value: 3 }],
     }
-    const r = run(serVar(TRIPLE_III), TRIPLE_III, tup)
+    const err = captureEvalError(() => run(serVar(TRIPLE_III), TRIPLE_III, tup))
+    expect(err.code).toBe('global-serialize-failed')
+  })
+
+  it('a tupleColl([1,2,3]) read at (Int,Int,Int) writes 020406', () => {
+    // The `Coll[Any]` of a non-pair tuple goes through `fromDslTuple`'s
+    // collection branch at every arity; each item is written by the type's
+    // item type at that index (`CoreDataSerializer.scala:71-81`).
+    const r = run(serVar(TRIPLE_III), TRIPLE_III, intTupleColl([1, 2, 3]))
     expect(r).toEqual(collByte([0x02, 0x04, 0x06]))
   })
 
@@ -327,21 +339,35 @@ describe('the three predicate Coll HOFs over a tuple-collection value', () => {
 })
 
 describe('serializeCost under a tuple type follows fromDslTuple', () => {
-  it('a tupleColl([1,2,3]) under (Int,Int,Int) costs the same as a kind: Tuple of the same items', () => {
-    // The cost walker must take the same path the writer does: through
-    // `tupleItems`, iterating items under the type's item types. Two differently
-    // shaped values of the same three items must charge identical costs.
-    const costOf = (v: SValue): number => {
-      const ctx: EvalContext = makeContext({ treeVersion: 3 })
-      serializeCost(TRIPLE_III, v, ctx)
-      return ctx.jitCost
-    }
-    const asColl = costOf(intTupleColl([1, 2, 3]))
-    const asTuple = costOf({
+  it('a tupleColl([1,2,3]) under (Int,Int,Int) walks each item under the type\'s item type', () => {
+    // The cost walker takes the writer's path through `tupleItems` — the
+    // collection branch of `fromDslTuple` at every non-pair arity — and
+    // iterates the items under the type's item types. The cost is positive
+    // and the walk does not throw.
+    const ctx: EvalContext = makeContext({ treeVersion: 3 })
+    serializeCost(TRIPLE_III, intTupleColl([1, 2, 3]), ctx)
+    expect(ctx.jitCost).toBeGreaterThan(0)
+  })
+
+  it('a kind: Tuple of three items under a three-item tuple type is refused by the cost walker', () => {
+    // `tupleItems` returns `null` on a `kind: 'Tuple'` of any other arity
+    // than two, and the writer refuses the value with `'type-value-mismatch'`.
+    // The cost walker takes the same path (`serializeCost.ts` STuple arm),
+    // so it refuses too.
+    const ctx: EvalContext = makeContext({ treeVersion: 3 })
+    const tup: SValue = {
       kind: 'Tuple',
       items: [{ kind: 'Int', value: 1 }, { kind: 'Int', value: 2 }, { kind: 'Int', value: 3 }],
-    })
-    expect(asColl).toBe(asTuple)
-    expect(asColl).toBeGreaterThan(0)
+    }
+    expect(() => serializeCost(TRIPLE_III, tup, ctx)).toThrow(/STuple cost walk expects/)
+  })
+
+  it('a tupleColl([1,2]) under a pair type (Int,Int) walks the items', () => {
+    // A tuple collection whose `elem` is the JVM's `SAny` is accepted at any
+    // tuple-type length, two included — the collection branch of
+    // `fromDslTuple` (`Evaluation.scala:91-96`).
+    const ctx: EvalContext = makeContext({ treeVersion: 3 })
+    serializeCost(PAIR_II, intTupleColl([1, 2]), ctx)
+    expect(ctx.jitCost).toBeGreaterThan(0)
   })
 })

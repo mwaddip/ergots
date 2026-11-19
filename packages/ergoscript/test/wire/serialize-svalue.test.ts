@@ -30,9 +30,23 @@ function writeBytes(t: SType, v: SValue): Uint8Array {
 }
 
 describe('tupleItems', () => {
-  it('a kind: Tuple value gives its items (every arity today)', () => {
-    const v: SValue = { kind: 'Tuple', items: [intVal(1), intVal(2), intVal(3)] }
-    expect(tupleItems(v)).toEqual([intVal(1), intVal(2), intVal(3)])
+  it('a kind: Tuple of exactly two items gives its items', () => {
+    const v: SValue = { kind: 'Tuple', items: [intVal(1), intVal(2)] }
+    expect(tupleItems(v)).toEqual([intVal(1), intVal(2)])
+  })
+
+  it('a kind: Tuple of any other arity than two gives null', () => {
+    // `kind: 'Tuple'` holds exactly two items by the contract
+    // ([`facts/ergoscript-eval.md`](../../facts/ergoscript-eval.md),
+    // "Tuples and non-pair tuple values"). `tupleItems` matches the JVM's
+    // pair case (`Evaluation.scala:91-96`), so a `kind: 'Tuple'` of any
+    // other length is a value the writer refuses.
+    const tri: SValue = { kind: 'Tuple', items: [intVal(1), intVal(2), intVal(3)] }
+    expect(tupleItems(tri)).toBeNull()
+    const solo: SValue = { kind: 'Tuple', items: [intVal(1)] }
+    expect(tupleItems(solo)).toBeNull()
+    const nullary: SValue = { kind: 'Tuple', items: [] }
+    expect(tupleItems(nullary)).toBeNull()
   })
 
   it('a kind: Coll whose elem is SANY_JVM (by identity) gives its items', () => {
@@ -86,9 +100,11 @@ describe('serializeSValue STuple arm follows fromDslTuple', () => {
     expect(Array.from(writeBytes(TRIPLE_III, v))).toEqual([0x02, 0x04, 0x06])
   })
 
-  it('a three-item kind: Tuple writes the same bytes as the tupleColl under (Int, Int, Int)', () => {
+  it('a three-item kind: Tuple refuses under (Int, Int, Int): the writer takes a pair only', () => {
     const v: SValue = { kind: 'Tuple', items: [intVal(1), intVal(2), intVal(3)] }
-    expect(Array.from(writeBytes(TRIPLE_III, v))).toEqual([0x02, 0x04, 0x06])
+    expect(() => writeBytes(TRIPLE_III, v)).toThrow(
+      expect.objectContaining({ code: 'type-value-mismatch' }),
+    )
   })
 
   it('a one-item tupleColl writes 02 under (Int)', () => {

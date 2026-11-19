@@ -594,18 +594,22 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
 }
 
 /**
- * `Evaluation.fromDslTuple` (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`):
- * the items a value at a tuple type gives the writer. A `kind: 'Tuple'` value
- * gives its items; a `kind: 'Coll'` whose item type is the JVM's `SAny`
- * (`SANY_JVM`, told apart from ergots' own `SAny` by object identity) gives
- * its items. Anything else is refused by `fromDslTuple`'s `case _`
- * (`sys.error`), and the writer calls this helper refusing with
- * `'type-value-mismatch'`.
+ * `Evaluation.fromDslTuple` (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`
+ * at 6.0.7): the items a value at a tuple type gives the writer. A pair, a
+ * runtime `Tuple2`, gives its two items; a collection whose `tItem` is the
+ * JVM's `SAny` gives its items at every length. Anything else is refused by
+ * `fromDslTuple`'s `case _` (`sys.error`), and the writer calls this helper
+ * refusing with `'type-value-mismatch'`.
+ *
+ * ergots' `kind: 'Tuple'` holds exactly two items by the contract
+ * ([`facts/ergoscript-eval.md`](./ergoscript-eval.md), "Tuples and non-pair
+ * tuple values"); a `kind: 'Tuple'` of any other arity is a value the writer
+ * refuses, as the JVM's pair case refuses a non-pair.
  *
  * Returns `null` for a value the writer refuses.
  */
 export function tupleItems(v: SValue): SValue[] | null {
-  if (v.kind === 'Tuple') return v.items
+  if (v.kind === 'Tuple' && v.items.length === 2) return v.items
   if (v.kind === 'Coll' && v.elem === SANY_JVM) return v.items
   return null
 }
