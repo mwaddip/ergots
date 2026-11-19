@@ -47,8 +47,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { exprTpe } from '../mir/expr-tpe'
-import { assertValueTypeSupported } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 
 export function evalTuple(e: Tuple, env: Env, ctx: EvalContext): SValue {
   if (e.items.length !== 2) {
@@ -58,13 +57,11 @@ export function evalTuple(e: Tuple, env: Env, ctx: EvalContext): SValue {
       'tuple-invalid-arity'
     )
   }
-  // values.scala:799-805 — for each item: evalTo, then Value.checkType(item, x).
-  // checkType is run against the item's STATIC declared type (node.tpe); a
-  // non-pair STuple / non-unary SFunc declared type rejects (the JVM cannot
-  // represent such a value). See eval/_check-type.ts.
+  // values.scala:799-805 — for each item: evalTo, then Value.checkType(item, x). See
+  // eval/_check-type.ts for the rules the type and the value's class trigger.
   const items = e.items.map((item) => {
     const v = evalExpr(item, env, ctx)
-    assertValueTypeSupported(exprTpe(item, ctx.treeVersion ?? 0))
+    assertCheckedNode(item, v, ctx)
     return v
   })
   ctx.addCost(15) // Tuple = Fixed(15), charged AFTER both items (values.scala:806)

@@ -27,7 +27,7 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 
 /**
@@ -96,7 +96,8 @@ export function evalSOptionMap(
   // (no-op); differs only for out-of-scope-captured lambdas.
   const bodyEnv = closure.capturedEnv.extend(argId, obj.value)
   const result = evalExpr(closure.body, bodyEnv, ctx)
-  // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-  readCheckedType(closure.body, ctx)
+  // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+  // value's class after each application. See eval/_check-type.ts.
+  assertCheckedNode(closure.body, result, ctx)
   return { kind: 'Option', elem: outElem, value: result }
 }

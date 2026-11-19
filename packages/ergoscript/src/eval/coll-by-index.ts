@@ -51,7 +51,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { getOrElse, type CollValue } from './_coll'
 import { extractCollItems } from './_coll-helpers'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { upcastCost } from './bin-op/_numeric'
 import { exprTpe, indexUpcastOf, recordedIndexUpcast } from '../mir/expr-tpe'
 
@@ -135,20 +135,21 @@ export function evalByIndex(e: ByIndex, env: Env, ctx: EvalContext): SValue {
   const inBounds = idx >= 0 && idx < inputColl.items.length
 
   if (e.default !== null) {
-    // ByIndex.eval (transformers.scala:256-281): from tree v3 the default is evaluated and `checkType`d only out of
-    // range, then `getOrElse(index, default)`. In range the JVM calls `apply`, which the arm reads with `items[idx]`,
-    // the default untouched. Below v3 the default is always evaluated and `checkType`d, and `getOrElse` is called in
-    // range too.
+    // ByIndex.eval (transformers.scala:256-281): from tree v3 the default is evaluated and
+    // `Value.checkType`d (:268, :273) only out of range, then `getOrElse(index, default)`. In
+    // range the JVM calls `apply`, which the arm reads with `items[idx]`, the default untouched.
+    // Below v3 the default is always evaluated and `Value.checkType`d, and `getOrElse` is called
+    // in range too. See eval/_check-type.ts.
     if (treeVersion >= LAZY_DEFAULT_MIN_VERSION) {
       if (inBounds) {
         return inputColl.items[idx]!
       }
       const defaultVal = evalExpr(e.default, env, ctx)
-      readCheckedType(e.default, ctx)
+      assertCheckedNode(e.default, defaultVal, ctx)
       return getOrElse(receiver, idx, defaultVal)
     } else {
       const defaultVal = evalExpr(e.default, env, ctx)
-      readCheckedType(e.default, ctx)
+      assertCheckedNode(e.default, defaultVal, ctx)
       return getOrElse(receiver, idx, defaultVal)
     }
   }

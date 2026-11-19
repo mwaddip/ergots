@@ -66,7 +66,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
 import { filtered } from './_coll'
 
@@ -147,8 +147,9 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     // Eval body (sigma-rust coll_filter.rs:33: func_value.body.eval(env, ctx)).
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-    readCheckedType(closure.body, ctx)
+    // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+    // value's class after each application. See eval/_check-type.ts.
+    assertCheckedNode(closure.body, itemRes, ctx)
     // Result-type check: Filter's predicate MUST return Boolean.
     // sigma-rust uses try_extract_into::<bool>() which also errors on non-Boolean.
     if (itemRes.kind !== 'Boolean') {

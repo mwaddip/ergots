@@ -707,11 +707,6 @@
       "getvar-tuple-expression-accept#1"
     ]
   },
-  "v6/authored/Tuple.non_pair_type_check.json": {
-    "checked-type": [
-      "eq-triple-errored#0"
-    ]
-  },
   "v6/authored/Tuple.non_pair_value_gates.json": {
     "method-not-implemented": [
       "min_method_control-accept#12",
@@ -767,12 +762,6 @@
   "v6/authored/Tuple.non_pair_value_type_directed.json": {
     "tuple-as-collection": [
       "subst_constants_tuple_new_values-errored#5"
-    ]
-  },
-  "v6/authored/Tuple.small_tuples.json": {
-    "checked-type": [
-      "const_one_item_type_eq_self-errored#9",
-      "const_zero_item_type-errored#1"
     ]
   }
 }

@@ -31,7 +31,7 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals, hasSAny } from '../mir/stype-helpers'
 import { flatMapped, empty } from './_coll'
@@ -162,8 +162,9 @@ export function evalSCollFlatMap(
     assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-    readCheckedType(closure.body, ctx)
+    // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+    // value's class after each application. See eval/_check-type.ts.
+    assertCheckedNode(closure.body, itemRes, ctx)
     if (itemRes.kind !== 'Coll') {
       throw new EvalError(
         `SColl.flatMap: lambda body returned non-Coll; got '${itemRes.kind}'`,

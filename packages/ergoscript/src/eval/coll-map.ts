@@ -67,7 +67,7 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
@@ -176,10 +176,10 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
     assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application
-    // (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:
-    // `Value.checkType(body, res)` reads `body.tpe` before the shape check).
-    readCheckedType(closure.body, ctx)
+    // Lambda body (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:
+    // `Value.checkType(body, res)`): the body's declared type and the value's class, after each
+    // application. See eval/_check-type.ts.
+    assertCheckedNode(closure.body, itemRes, ctx)
     outItems.push(itemRes)
   }
 

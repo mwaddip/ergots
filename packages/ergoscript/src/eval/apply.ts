@@ -40,7 +40,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 
 const APPLY_COST = 30
 
@@ -93,7 +93,8 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
     bodyEnv = bodyEnv.extend(closure.argIds[i]!, argValues[i]!)
   }
   const result = evalExpr(closure.body, bodyEnv, ctx)
-  // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-  readCheckedType(closure.body, ctx)
+  // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+  // value's class after each application. See eval/_check-type.ts.
+  assertCheckedNode(closure.body, result, ctx)
   return result
 }

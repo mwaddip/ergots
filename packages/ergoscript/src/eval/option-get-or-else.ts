@@ -32,7 +32,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 
 // Cost source: ergotree-interpreter/src/eval/option_get_or_else.rs:16
 //   ctx.add_jit_cost(20)?;
@@ -52,20 +52,21 @@ export function evalOptionGetOrElse(
       'option-input-not-option'
     )
   }
-  // OptionGetOrElse.eval (transformers.scala:627-644): checkType reads the default's type right after the default is
-  // evaluated, from v3 only when it is taken, before v3 always (spec §5 item 5).
+  // OptionGetOrElse.eval (transformers.scala:627-644): Value.checkType reads the default's
+  // declared type and the value's class right after the default is evaluated (:634, :640), from
+  // v3 only when it is taken, before v3 always. See eval/_check-type.ts.
   if ((ctx.treeVersion ?? 0) >= 3) {
     // V3+ lazy: default evaluated ONLY if input is None.
     if (input.value !== null) {
       return input.value
     }
     const defaultV = evalExpr(e.default, env, ctx)
-    readCheckedType(e.default, ctx)
+    assertCheckedNode(e.default, defaultV, ctx)
     return defaultV
   }
   // V<3 eager: default always evaluated regardless of Some/None.
   const defaultV = evalExpr(e.default, env, ctx)
-  readCheckedType(e.default, ctx)
+  assertCheckedNode(e.default, defaultV, ctx)
   if (input.value !== null) {
     return input.value
   }

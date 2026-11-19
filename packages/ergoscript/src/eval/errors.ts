@@ -32,8 +32,13 @@
  *       UnparsedErgoTree handed to evaluate; net 85 → 86)
  *     + the JVM's node construction (2026-09-30: −'method-call-empty-args', moved to
  *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84;
- *       then +'deserialize-rebuild-failed', the substitution's rebuild check; 84 → 85) —
- *       current total: 85, as the union below counts
+ *       then +'deserialize-rebuild-failed', the substitution's rebuild check; 84 → 85)
+ *     + 2 codes added for the collection class rulings ('coll-class-cast',
+ *       'coll-array-store'; see the history chain below) → 87
+ *     + 1 code added for the pair-class check at every `checkType` site
+ *       ('checked-value-class': `assertCheckedValue` in `eval/_check-type.ts`;
+ *       `SType.scala:200-201`) → 88 —
+ *       current total: 88, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -122,6 +127,10 @@
  *        same places; 'coll-array-store': a store an array refuses — the JVM's
  *        ArrayStoreException. CollsOverArrays.scala at 6.0.7: `getOrElse` :26 and :309-315,
  *        the updated / updateMany / patch readers :48-57) → 87.
+ *    + 1 code added for the pair-class check at every `checkType` site
+ *        ('checked-value-class': a value that is not a `Tuple` of two items at a
+ *        declared `STuple` of two items, `SType.scala:200-201`, raised by
+ *        `assertCheckedValue` in `eval/_check-type.ts`) → 88.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -1092,45 +1101,53 @@ export type EvalErrorCode =
   // 80 → 81; T3 adds 'select-field-non-pair' → 82)
   // -------------------------------------------------------------------------
   /**
-   * A value flowing through a checkType seam has a DECLARED type that is a
-   * non-pair `STuple` (`items.length !== 2`) or a non-unary `SFunc`
-   * (`args.length !== 1`). Mirrors JVM `SType.isValueOfType` (SType.scala:200-205)
-   * which `sys.error`s "Unsupported tuple type"/"Unsupported function type" —
-   * the JVM runtime has only `Tuple2` / `Function1`, so it cannot represent a
-   * value of such a type and rejects regardless of the runtime value. These
-   * declared types ARE wire-constructible (arity-N tuple constant types parse;
-   * multi-arg SFunc annotations are representable).
+   * A value flowing through a `checkType` site has a DECLARED type for which
+   * the JVM's `SType.isValueOfType` (SType.scala:187-213) throws whatever the
+   * value is: a non-pair `STuple` (`items.length !== 2`, :200-202,
+   * "Unsupported tuple type"), a non-unary `SFunc` (`args.length !== 1`,
+   * :203-205, "Unsupported function type"), or the JVM's `SAny` or `NoType`
+   * (the `case _` arm, :212, "Unknown type"; the two are told by object
+   * identity through `SANY_JVM` and `NOTYPE_JVM` in `mir/types.ts`). The JVM
+   * runtime has only `Tuple2` and `Function1` and no wildcard class, so a
+   * value of such a declared type is unrepresentable and the tree rejects
+   * without looking at the value.
    *
-   * Emitted by the shared `assertValueTypeSupported(tpe)` helper
-   * (eval/_check-type.ts), called from `Value.checkType`'s seams:
-   *   - Tuple items (eval/tuple.ts; values.scala:801,804). Covers W1
-   *     `008602480101010101010402`.
-   *   - ConstantPlaceholder (eval/const-placeholder.ts; values.scala:412).
-   *     Covers W2 `1002480101010101010402860273007301`.
-   *   - ConcreteCollection items (eval/collection.ts).
-   *   - BlockValue valdef-rhs + result (eval/block-value.ts).
-   *   - ValUse (eval/val-use.ts).
-   * TOP-LEVEL check (non-recursive — matches the JVM single isValueOfType call;
-   * nesting is covered because each seam runs its own checkType on the
-   * sub-value it surfaces). Hooked INSIDE the eval arms (not a whole-tree
+   * Emitted by `assertCheckedType(tpe)` in `eval/_check-type.ts` (called via
+   * `assertCheckedValue(tpe, value)` where a value is at hand), at every
+   * `checkType` site (`facts/ergoscript-eval.md`, "Tuples and non-pair tuple
+   * values"): `EQ`'s and `NEQ`'s operands (`trees.scala:1206-1230`); each
+   * `Tuple` item and each `ConcreteCollection` item (`values.scala:830, 833,
+   * 894`); each `BlockValue` right-hand side and its result (`:1027, 1034`);
+   * a lambda's body, at each application (`:1080`); the taken `If` branch
+   * (`trees.scala:1360, 1364`); `Fold`'s zero, `ByIndex`'s default and
+   * `OptionGetOrElse`'s default (`transformers.scala:227, 268, 273, 634,
+   * 640`); `ValUse` (`values.scala:991`) and `ConstantPlaceholder`
+   * (`values.scala:412`).
+   *
+   * TOP-LEVEL check (non-recursive — matches the JVM's single `isValueOfType`
+   * call per site; nesting is covered because each site runs its own call on
+   * the sub-value it surfaces). Hooked INSIDE the eval arms (not a whole-tree
    * pre-eval pass) ⇒ JVM-faithful laziness: a non-pair-tuple-typed const in a
    * DEAD branch is never evaluated, so it never rejects.
    *
-   * Adversarial-only (honest compilers never emit these). The FuncValue/Apply
-   * param+body SFunc arms (P6 closure path) are not hooked and need no hook: a
-   * FuncValue of other than one parameter rejects where it is evaluated, before
-   * any seam sees its value ('apply-arity-mismatch', eval/func-value.ts;
+   * Adversarial-only (honest compilers never emit these). ergots' own `SAny`
+   * (a fresh `{ tag: 'SAny' }` object the method typing builds for a method
+   * ergots cannot type, residual 1 of `facts/ergoscript-wire.md`) is refused
+   * by no rule here — told by identity from `SANY_JVM`. The FuncValue/Apply
+   * param+body SFunc arms (P6 closure path) are not hooked and need no hook:
+   * a FuncValue of other than one parameter rejects where it is evaluated,
+   * before any site sees its value ('apply-arity-mismatch', eval/func-value.ts;
    * values.scala:1070-1085). So the helper's SFunc branch is reached only
-   * through MIR built by the API, such as a Const declared with a non-unary
+   * through MIR built by the API, such as a `Const` declared with a non-unary
    * SFunc type.
    *
-   * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the Tuple EXPR
-   * node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
-   * representability check on a value flowing through a seam (W1's outer Tuple
-   * is a valid pair — the violation is item0's TYPE, a different mechanism).
+   * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the `Tuple`
+   * EXPR node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
+   * check on a value flowing through a site (W1's outer `Tuple` is a valid
+   * pair — the violation is item0's TYPE, a different mechanism).
    *
-   * Source: JVM SType.scala:200-205, values.scala:251-254;
-   *         eval/_check-type.ts.
+   * Source: JVM `SType.scala:187-213`, `values.scala:251-255`;
+   *         `eval/_check-type.ts`.
    *
    * Also the code the evaluator's collection facade (`eval/_coll.ts`) raises
    * for a `CollTypeRefused` from the module (`coll/class.ts`): the item type
@@ -1225,7 +1242,8 @@ export type EvalErrorCode =
   | 'coll-map-elem-type-infer-failed'
 
   // -------------------------------------------------------------------------
-  // Collection class rulings (2 new codes; 85 → 87)
+  // Collection class rulings and the pair-class check at every `checkType`
+  // site (3 new codes; 85 → 88)
   // -------------------------------------------------------------------------
   /**
    * A collection operation refuses to cast a value or an array to another
@@ -1256,3 +1274,15 @@ export type EvalErrorCode =
    * readers).
    */
   | 'coll-array-store'
+  /**
+   * The value's class is not the node's declared static type's at a JVM
+   * `checkType` site (`values.scala:251-255`). The only class check this code
+   * raises is the pair-type one (`SType.scala:200-201`,
+   * `x.isInstanceOf[Tuple2[_,_]]`): a value of kind other than `Tuple` of two
+   * items under a declared `STuple` of two items. Emitted by
+   * `assertCheckedValue(tpe, value)` in `eval/_check-type.ts`, which every
+   * `checkType` site calls after it evaluates its operand. The JVM's class
+   * checks on the other `isValueOfType` arms are residual 7 of
+   * "The Deserialize substitution" in `facts/ergoscript-eval.md`.
+   */
+  | 'checked-value-class'

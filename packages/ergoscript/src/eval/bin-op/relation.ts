@@ -28,7 +28,7 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
-import { readCheckedType } from '../_check-type'
+import { assertCheckedNode } from '../_check-type'
 import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
 import { compareUBI } from './_ubi-binop'
 import {
@@ -688,12 +688,13 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // No envelope cost — sigma-rust bin_op.rs:205 match arm is empty for Eq/NEq;
   // all JIT cost is charged INSIDE sValueEquals (mirrors data_value_comparer.rs).
   if (op === 'Eq' || op === 'NEq') {
-    // EQ.eval / NEQ.eval (trees.scala:1204-1208, 1224-1228): each operand is evaluated, then checkType reads its
-    // type (spec §5 item 5), the left one's before the right one is evaluated.
+    // EQ.eval / NEQ.eval (trees.scala:1206-1210, 1226-1230): each operand is evaluated, then
+    // Value.checkType reads its declared type and the value's class, the left one's before the
+    // right one is evaluated. See eval/_check-type.ts.
     let left = evalExpr(e.left, env, ctx)
-    readCheckedType(e.left, ctx)
+    assertCheckedNode(e.left, left, ctx)
     let right = evalExpr(e.right, env, ctx)
-    readCheckedType(e.right, ctx)
+    assertCheckedNode(e.right, right, ctx)
     // Mismatched-numeric equality: the JVM deserializer auto-upcasts the narrower
     // operand to the wider for pre-V3 ErgoTree versions (equalityOp → applyUpcast,
     // SigmaBuilder.scala:679-686,750-756), so e.g. EQ(Int 5, Long 5) compares as
