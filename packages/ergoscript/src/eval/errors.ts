@@ -346,22 +346,26 @@ export type EvalErrorCode =
    */
   | 'atleast-bound-not-int'
   /**
-   * `Atleast` / `_sigma-helpers.extractSigmaPropColl`: a Coll element
-   * evaluated to a non-SigmaProp SValue. Wire-format invariants
+   * `Atleast`'s defensive per-item check after `castArray` verifies the
+   * backing array is `SigmaProp[]` (`_sigma-helpers.expectSigmaProp`): an
+   * item whose kind is not `SigmaProp`. Wire-format invariants
    * (`Atleast::new` enforces `SColl(SSigmaProp)` on input) make this
    * unreachable for parser-produced trees; defensive against
    * `ConstantPlaceholder` injection.
    *
-   * Source: ergotree-interpreter/src/eval/atleast.rs:39-46
+   * Also raised by `SigmaAnd` and `SigmaOr` when evaluating a per-item
+   * expression that resolves to a non-SigmaProp.
+   *
+   * Source: `data/shared/src/main/scala/sigma/ast/trees.scala` — `AtLeast.eval`,
+   * `SigmaAnd.eval`, `SigmaOr.eval`.
    */
   | 'sigma-prop-coll-elem-not-sigma-prop'
   /**
-   * `Atleast` / `_sigma-helpers.extractSigmaPropColl`: input expression
-   * evaluated to a non-Coll SValue. Wire-format invariants make this
-   * unreachable for parser-produced trees; defensive against
-   * `ConstantPlaceholder` injection.
-   *
-   * Source: ergotree-interpreter/src/eval/atleast.rs:31-37
+   * `Atleast`: the input expression resolved to a non-Coll SValue, so the
+   * JVM's `evalTo[Coll[SigmaProp]]` type-erased runtime check at
+   * `trees.scala:316` fails. Wire-format invariants make this unreachable
+   * for parser-produced trees; defensive against `ConstantPlaceholder`
+   * injection.
    */
   | 'sigma-prop-input-not-coll'
   // -------------------------------------------------------------------------

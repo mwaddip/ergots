@@ -24,10 +24,14 @@
  *      a successor `AvlTreeData` with a replaced digest on successful
  *      modification.
  *
- * Defensive shape checks throw EvalError `'method-not-implemented'` per
- * the compact-taxonomy decision (Decision #1 from 2g.5). Wire-format
- * invariants make these unreachable for parser-produced trees; the guards
- * exist for hand-crafted MIR / future ConstantPlaceholder injection.
+ * An outer kind check (the value is not a `Coll`) throws
+ * `'method-not-implemented'`; an array of another class (the JVM's
+ * `toArray` cast on the key, value, proof or digest) routes through
+ * `castArray` and surfaces as `'coll-class-cast'`; an entries item that
+ * is no pair takes the JVM's failed `Tuple2` pattern-match cast as
+ * `'coll-class-cast'`. Wire-format invariants make the shape checks
+ * unreachable for parser-produced trees; the guards exist for
+ * hand-crafted MIR / `ConstantPlaceholder` injection.
  *
  * Convention: leading-underscore filename follows existing project pattern
  * (`_byte-coll.ts`, `_box-synthesis.ts`, `_coll-helpers.ts`, `_numeric.ts`).
@@ -123,8 +127,9 @@ export function buildLookupOps(keys: Uint8Array[]): Operation[] {
  * Used by `insert` — each tuple's first element becomes the key, second
  * becomes the value.
  *
- * @throws EvalError `'method-not-implemented'` if input doesn't conform
- *   (non-Coll, items not `Tuple` of arity 2, tuple elements not Coll[Byte]).
+ * @throws EvalError `'method-not-implemented'` on a non-Coll input,
+ *   `'coll-class-cast'` on an item that is no pair or whose component's
+ *   array is of another class (see `extractEntries`).
  */
 export function buildInsertOps(entries: SValue): Operation[] {
   const pairs = extractEntries(entries)
