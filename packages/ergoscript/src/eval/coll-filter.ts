@@ -1,65 +1,53 @@
 /**
- * Filter evaluator arm — second lambda HOF (phase 2f Coll HOFs Task 7).
+ * Filter evaluator arm.
  *
- * Selects all elements of a collection for which a predicate (boolean-returning
- * lambda) returns true, returning a new collection of the passing elements.
+ * Selects all elements of a collection for which a predicate
+ * (boolean-returning lambda) answers true, and returns a new collection of
+ * the passing elements. `Filter.eval` (`transformers.scala:118-127`)
+ * evaluates the input collection and the condition, charges the sequence
+ * cost at the input's length, and runs `inputV.filter(conditionV)`.
  *
- * Cost: Mixed pattern — outer + per-iter.
- *   Sigma-rust ref: ergotree-interpreter/src/eval/coll_filter.rs:15-90
+ * Cost (Mixed pattern — outer + per-iter):
+ *   Outer, AFTER input and condition are evaluated, BEFORE the loop:
+ *     `addPerItemCost(20, 1, 10, inputColl.length)` — JVM
+ *     `Filter.costKind = PerItemCost(20, 1, 10)`
+ *     (`transformers.scala:128-134`); the sequence cost at `inputV.length`.
+ *   Per-iter, inside the closure, BEFORE body eval:
+ *     `addCost(5)` — JVM `FuncValue.eval` `values.scala:1076`:
+ *     `addFixedCost(AddToEnvironmentDesc_CostKind, ...)` = 5.
  *
- *   Outer (line 61, AFTER input/condition eval, BEFORE loop):
- *     ctx.add_per_item_jit_cost(20, 1, 10, n)  where n = inputColl.length
- *
- *   Per-iter (line 31, inside closure, BEFORE body eval):
- *     ctx.add_jit_cost(5)
- *
- * Eval order (Mixed pattern):
- *   1. Eval input  → must be Coll  (throws 'coll-input-not-coll')
- *   2. Eval condition → must be Lambda (throws 'lambda-not-callable')
- *   3. Elem-type check: inputColl.elem vs declared elem_tpe on the Filter MIR
- *      (sigma-rust coll_filter.rs:52-58: `coll.elem_tpe() != &*self.elem_tpe`)
- *      In TS, the Filter MIR has no `elemTpe` field, so the elem_tpe is
- *      equivalent to `inputColl.elem` at runtime — the check cannot mismatch
- *      via normal paths. For the mismatch fixture, we detect via condition's
- *      declared arg type when the condition is a FuncValue MIR node.
- *      Throws 'coll-elem-tpe-mismatch'.
- *   4. Outer cost: addPerItemCost(20, 1, 10, n)
- *   5. Per item: addCost(5), env.extend(argId, item), eval body,
- *      result-type check MUST be Boolean (throws 'lambda-result-type-mismatch'),
- *      collect item if true
- *   6. No short-circuit — all items visited (cost determinism)
+ * Eval order:
+ *   1. Eval input  → must be Coll (throws `'coll-input-not-coll'`).
+ *   2. Eval condition → must be Lambda (throws `'lambda-not-callable'`).
+ *   3. Elem-type check: an ergots check with no JVM counterpart (see the
+ *      block in the arm). Skipped when `inputColl.elem === SANY_JVM`:
+ *      a tuple of another arity than two takes a `Coll[Any]` the JVM
+ *      accepts here, and the per-application class check (step 5) takes it
+ *      from there. For every other input the check stays, comparing
+ *      `inputColl.elem` with the condition's declared arg type when the
+ *      condition is a `FuncValue` MIR node, and throws
+ *      `'coll-elem-tpe-mismatch'` on mismatch.
+ *   4. Outer cost: `addPerItemCost(20, 1, 10, n)`.
+ *   5. Per item: `assertCheckedValue(argTpe, item)` (JVM
+ *      `FuncValue.eval`'s `Value.checkType(arg0._2, vArg)` —
+ *      `values.scala:1073-1074`, `SType.scala:187-213`), `addCost(5)`,
+ *      `env.extend(argId, item)`, eval body, `assertCheckedNode(body, res)`
+ *      (JVM `Value.checkType(body, res)`, `values.scala:1080`), result-type
+ *      check `kind === 'Boolean'` (throws `'lambda-result-type-mismatch'`
+ *      on a non-Boolean body, which `conditionV` is typed to return).
+ *      Collect the item if the body is true.
+ *   6. No short-circuit — every item is visited (cost determinism).
  *   7. Return `filtered(inputColl, kept)` — the module decides the result's
- *      class per the JVM's `builder.fromArray` / `builder.pairCollFromArrays`
- *      rules (`CollsOverArrays.scala:36` and `:348-363`).
+ *      class per the JVM's `CollOverArray.filter` (`CollsOverArrays.scala:36`)
+ *      and `PairOfCols.filter` (`:348-363`) rules.
  *
- * Key difference from Map (Task 6):
- *   - Elem-type check: Filter's check is against `self.elem_tpe` (the declared
- *     elem type stored on the MIR node, derived from input at construction time).
- *     TS MIR Filter has no `elemTpe` field; we detect mismatches via the condition
- *     FuncValue's declared arg type (condition.args[0].tpe) when available.
- *   - Result type: Map accumulates any result type; Filter body MUST return Boolean.
- *
- * Env-extend convention (same as Map — established for Tasks 7-10):
- *   TS Env is immutable. For each item we call env.extend(argId, item) to
- *   create a new scope. No save/restore needed (unlike sigma-rust's mutable env).
- *
- * Elem-type check (sigma-rust coll_filter.rs:52-58):
- *   Sigma-rust checks `coll.elem_tpe() != &*self.elem_tpe` where `self.elem_tpe`
- *   is derived from the input's SColl element type at Filter::new() construction.
- *   In TS, where Filter MIR has no `elemTpe` field, we can derive the expected
- *   input type from the condition when it is a FuncValue node
- *   (condition.args[0].tpe). This matches the mismatch fixture where the declared
- *   arg type (SLong) differs from the runtime input elem (SInt).
- *   When condition is not a FuncValue, skip the static check.
- *
- * Result-type check:
- *   Filter's predicate MUST return Boolean. Each per-item result is checked:
- *   if `itemRes.kind !== 'Boolean'` → throws 'lambda-result-type-mismatch'.
- *   This is explicitly enforced in TS (sigma-rust uses try_extract_into::<bool>()
- *   which also errors on non-Boolean results).
+ * Env-extend convention: TS Env is immutable. For each item we call
+ *   `env.extend(closure.argIds[0], item)` to create a new scope — the
+ *   previous scope is the still-live parent binding.
  */
 
 import type { Filter, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
@@ -85,7 +73,8 @@ const COLL_FILTER_PER_ITER = 5
  *
  * @throws EvalError `'coll-input-not-coll'` if input does not eval to a Coll.
  * @throws EvalError `'lambda-not-callable'` if condition does not eval to a callable Lambda.
- * @throws EvalError `'coll-elem-tpe-mismatch'` if input's elem type doesn't match condition's declared arg type.
+ * @throws EvalError `'coll-elem-tpe-mismatch'` if input's elem type doesn't match condition's declared arg type,
+ *   when `inputColl.elem !== SANY_JVM` and the condition is a `FuncValue` MIR node.
  * @throws EvalError `'lambda-result-type-mismatch'` if a body result is not Boolean.
  * @throws EvalError `'cost-limit-exceeded'` if any cost charge exceeds the limit.
  */
@@ -100,14 +89,23 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
   // 3. Guard: condition must be a callable Lambda with at least one arg.
   const closure = extractFuncValue(conditionVal)
 
-  // 3b. Elem-type check: input.elem must match condition's declared arg type.
-  // Sigma-rust coll_filter.rs:52-58: `if coll.elem_tpe() != &*self.elem_tpe → EvalError`.
-  // `self.elem_tpe` is derived from the input SColl at Filter::new() construction time.
-  // TS MIR Filter has no `elemTpe` field; we derive the expected input type from
-  // e.condition when it is a FuncValue MIR node (i.e., e.condition.args[0].tpe).
-  // When condition is not a FuncValue node (ValUse etc.), skip — the extractFuncValue
-  // guard above already enforces callable-at-runtime.
-  if (e.condition.tag === 'FuncValue' && e.condition.args.length > 0) {
+  // 3b. Elem-type check: an ergots check with no JVM counterpart. `Filter.eval`
+  // (transformers.scala:118-127) does not compare the input's item type with
+  // the condition's declared argument type; the JVM hands each item to the
+  // closure, whose `FuncValue.eval` returns a function that checks the
+  // argument's class against `isValueOfType` at the declared type on each
+  // application (`values.scala:1073-1074`, `SType.scala:187-213`). A tuple of
+  // another arity than two takes a `Coll[Any]` value
+  // (`CoreDataSerializer.scala:139-144`), and the JVM accepts it here. When
+  // the input is the tuple collection (`elem === SANY_JVM` by identity, the
+  // JVM's `Any`, the fresh object at `mir/types.ts:79`), the check is
+  // skipped: the per-application class check takes it from here. For every
+  // other input the check stays as it was.
+  if (
+    inputColl.elem !== SANY_JVM
+    && e.condition.tag === 'FuncValue'
+    && e.condition.args.length > 0
+  ) {
     const conditionInputTpe = e.condition.args[0]!.tpe
     if (!sTypeEquals(inputColl.elem, conditionInputTpe)) {
       throw new EvalError(

@@ -23,11 +23,12 @@ import { makeContext, type EvalContext } from '../../src/eval/eval-context'
 import { tupleColl } from '../../src/coll'
 import { serializeCost } from '../../src/eval/serialize-cost'
 import type { Expr, MethodCall, SType, SValue } from '../../src/mir/types'
-import { captureEvalError, specColl } from '../_helpers'
+import { captureEvalError, plainColl, specColl } from '../_helpers'
 
 const SINT: SType = { tag: 'SInt' }
 const PAIR_II: SType = { tag: 'STuple', items: [SINT, SINT] }
 const TRIPLE_III: SType = { tag: 'STuple', items: [SINT, SINT, SINT] }
+const COLL_INT: SType = { tag: 'SColl', elem: SINT }
 
 function intConst(v: number): Expr {
   return { tag: 'Const', tpe: SINT, value: { kind: 'Int', value: v } }
@@ -223,6 +224,105 @@ describe('Global.serialize under a tuple-type argument', () => {
     const expr = serSlice(TRIPLE_III, 0, 2)
     const err = captureEvalError(() => run(expr, TRIPLE_III, intTupleColl([1, 2, 3])))
     expect(err.code).toBe('global-serialize-failed')
+  })
+})
+
+describe('the three predicate Coll HOFs over a tuple-collection value', () => {
+  // `Filter.eval`, `Exists.eval` and `ForAll.eval` (transformers.scala:118-127,
+  // :143-152, :171-180) evaluate input and condition and iterate; they do NOT
+  // compare the input's item type with the lambda's declared argument type.
+  // The JVM hands each item to the lambda, whose own
+  // `FuncValue.eval`-returned closure checks each argument's class against
+  // `isValueOfType` at the declared type (`values.scala:1073-1074`,
+  // `SType.scala:187-213` — the pair-shape check for a 2-item STuple, the
+  // kind check for a scalar type). A tuple of another arity than two takes a
+  // `Coll[Any]` value (`CoreDataSerializer.scala:139-144`); the item class
+  // check per application is the one the JVM makes.
+
+  /** `λ(x: Int) → body`: a unary lambda whose argument binds to valId 1. */
+  function lambdaIntTo(body: Expr): Expr {
+    return {
+      tag: 'FuncValue',
+      args: [{ id: 1, tpe: SINT }],
+      body,
+    }
+  }
+  /** `ValUse(1)` typed as Int (the lambda's argument). */
+  const xInt: Expr = { tag: 'ValUse', valId: 1, tpe: SINT }
+  /** `x > n`: Boolean-returning body of kind Gt. */
+  function gt(n: number): Expr {
+    return { tag: 'BinOp', op: { kind: 'Relation', op: 'Gt' }, left: xInt, right: intConst(n) }
+  }
+  /** `x == n`: Boolean-returning body of kind Eq. */
+  function eqInt(n: number): Expr {
+    return { tag: 'BinOp', op: { kind: 'Relation', op: 'Eq' }, left: xInt, right: intConst(n) }
+  }
+
+  function runWithCost(expr: Expr, varTpe: SType, varVal: SValue) {
+    const ctx = makeContext({
+      treeVersion: 3,
+      extension: { values: new Map([[1, { tpe: varTpe, value: varVal }]]) },
+    })
+    const value = evalExpr(expr, Env.empty(), ctx)
+    return { value, cost: ctx.jitCost }
+  }
+
+  it('Filter over tupleColl([1,2,3]) with λ(x: Int) → x > 1: SizeOf answers Int 2, cost equals the plain-Coll[Int] twin', () => {
+    // SizeOf(Filter(getVar[(Int,Int,Int)](1).get, λ(x: Int) → x > 1)) at the
+    // tuple reading: the tupleColl has `elem: SANY_JVM`; the JVM runs the
+    // filter without the item-type check. Items [1,2,3] pass λ(x > 1) for
+    // {2,3}, so the result is 2.
+    const filterExpr = (varTpe: SType): Expr => ({
+      tag: 'SizeOf',
+      input: {
+        tag: 'Filter',
+        input: getVarGet(varTpe),
+        condition: lambdaIntTo(gt(1)),
+      },
+    })
+    const tupleRun = runWithCost(filterExpr(TRIPLE_III), TRIPLE_III, intTupleColl([1, 2, 3]))
+    expect(tupleRun.value).toEqual({ kind: 'Int', value: 2 })
+    const twin = runWithCost(
+      filterExpr(COLL_INT),
+      COLL_INT,
+      plainColl(SINT, [1, 2, 3].map((v) => ({ kind: 'Int', value: v } as SValue))),
+    )
+    expect(twin.value).toEqual({ kind: 'Int', value: 2 })
+    expect(tupleRun.cost).toBe(twin.cost)
+  })
+
+  it('Exists over tupleColl([1,2,3]) with λ(x: Int) → x == 1: answers Boolean true, cost equals the plain-Coll[Int] twin', () => {
+    const existsExpr = (varTpe: SType): Expr => ({
+      tag: 'Exists',
+      input: getVarGet(varTpe),
+      condition: lambdaIntTo(eqInt(1)),
+    })
+    const tupleRun = runWithCost(existsExpr(TRIPLE_III), TRIPLE_III, intTupleColl([1, 2, 3]))
+    expect(tupleRun.value).toEqual({ kind: 'Boolean', value: true })
+    const twin = runWithCost(
+      existsExpr(COLL_INT),
+      COLL_INT,
+      plainColl(SINT, [1, 2, 3].map((v) => ({ kind: 'Int', value: v } as SValue))),
+    )
+    expect(twin.value).toEqual({ kind: 'Boolean', value: true })
+    expect(tupleRun.cost).toBe(twin.cost)
+  })
+
+  it('ForAll over tupleColl([1,2,3]) with λ(x: Int) → x > 0: answers Boolean true, cost equals the plain-Coll[Int] twin', () => {
+    const forAllExpr = (varTpe: SType): Expr => ({
+      tag: 'ForAll',
+      input: getVarGet(varTpe),
+      condition: lambdaIntTo(gt(0)),
+    })
+    const tupleRun = runWithCost(forAllExpr(TRIPLE_III), TRIPLE_III, intTupleColl([1, 2, 3]))
+    expect(tupleRun.value).toEqual({ kind: 'Boolean', value: true })
+    const twin = runWithCost(
+      forAllExpr(COLL_INT),
+      COLL_INT,
+      plainColl(SINT, [1, 2, 3].map((v) => ({ kind: 'Int', value: v } as SValue))),
+    )
+    expect(twin.value).toEqual({ kind: 'Boolean', value: true })
+    expect(tupleRun.cost).toBe(twin.cost)
   })
 })
 
