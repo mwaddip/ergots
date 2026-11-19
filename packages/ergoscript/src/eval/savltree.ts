@@ -535,6 +535,31 @@ function expectOneArg(handlerName: string, args: SValue[]): void {
 }
 
 /**
+ * Outer-kind check for a collection argument, before the first cost charge.
+ * A non-Coll argument gives `'method-not-implemented'` as the adapter's
+ * extractors do on the same shape; the JVM's `Coll[_]` parameter type is
+ * erased at the call and the array-cast runs inside an `addSeqCost`
+ * envelope, so this check models the JVM's pre-dispatch type coercion and
+ * fires before the arm's first charge.
+ *
+ * Returns the narrowed Coll-kind value so a subsequent `.items.length`
+ * read for the cost charge type-checks.
+ */
+function expectCollArg(
+  handlerName: string,
+  arg: SValue,
+  name: string,
+): SValue & { kind: 'Coll' } {
+  if (arg.kind !== 'Coll') {
+    throw new EvalError(
+      `${handlerName}: expected ${name} to be a Coll, got kind='${arg.kind}'`,
+      'method-not-implemented'
+    )
+  }
+  return arg
+}
+
+/**
  * `SAvlTree.contains` (100:9) — single-key membership test.
  * Source: CErgoTreeEvaluator.scala:67-90 (JVM-canonical, F4).
  *
@@ -563,15 +588,25 @@ export function evalSAvlTreeContains(
 ): SValue {
   expectAvlTree('SAvlTree.contains', obj)
   expectTwoArgs('SAvlTree.contains', args)
-  const key = extractBytes(args[0]!)
-  const proof = extractBytes(args[1]!)
-  // CreateAvlVerifier — charged before construction (JVM addSeqCost wraps it).
-  chargeCreateVerifier(ctx, proof.length)
+  // Outer shape checks before the cost charges — a non-Coll argument gives
+  // `'method-not-implemented'` (unreachable from parser-produced trees).
+  expectCollArg('SAvlTree.contains', args[0]!, 'key')
+  const proofArg = expectCollArg('SAvlTree.contains', args[1]!, 'proof')
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)` wraps
+  // `CAvlTreeVerifier.apply`'s `proof.toArray` cast
+  // (`CErgoTreeEvaluator.scala:70-75`, `CAvlTreeVerifier.scala:55-60`): the
+  // charge fires on the Coll's length before the array cast runs.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   // LookupAvlTree ×1 on RAW treeHeight (contains/get take no max-1 floor —
   // CErgoTreeEvaluator.scala:80 `val nItems = bv.treeHeight`). Construct-shape
   // violations see height 0 — rootNodeHeight is never assigned (T7.5).
   const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  // `addSeqCost(LookupAvlTree_Info, nItems)` at `CErgoTreeEvaluator.scala:83`
+  // wraps `performLookup(ADKey @@ key.toArray)`'s key cast: charge fires
+  // before the key's array is read.
   chargePerOp(ctx, 40, 10, h, 1)
+  const key = extractBytes(args[0]!)
   const config = avlTreeDataToConfig(obj.value)
   const partial = verifyWithShapeRouting(
     obj.value, proof, config, buildSingleLookupOp(key)
@@ -611,13 +646,19 @@ export function evalSAvlTreeGet(
 ): SValue {
   expectAvlTree('SAvlTree.get', obj)
   expectTwoArgs('SAvlTree.get', args)
-  const key = extractBytes(args[0]!)
-  const proof = extractBytes(args[1]!)
-  chargeCreateVerifier(ctx, proof.length)
+  expectCollArg('SAvlTree.get', args[0]!, 'key')
+  const proofArg = expectCollArg('SAvlTree.get', args[1]!, 'proof')
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   // LookupAvlTree ×1 on RAW treeHeight (CErgoTreeEvaluator.scala:97);
   // construct-shape violations see height 0 (T7.5).
   const h = constructShapeBad(obj.value) ? 0 : treeHeight(obj.value)
+  // `addSeqCost(LookupAvlTree_Info, nItems)` at `CErgoTreeEvaluator.scala:97`
+  // wraps the key cast inside `performLookup`.
   chargePerOp(ctx, 40, 10, h, 1)
+  const key = extractBytes(args[0]!)
   const config = avlTreeDataToConfig(obj.value)
   const partial = verifyWithShapeRouting(
     obj.value, proof, config, buildSingleLookupOp(key)
@@ -664,9 +705,15 @@ export function evalSAvlTreeGetMany(
 ): SValue {
   expectAvlTree('SAvlTree.getMany', obj)
   expectTwoArgs('SAvlTree.getMany', args)
+  expectCollArg('SAvlTree.getMany', args[0]!, 'keys')
+  const proofArg = expectCollArg('SAvlTree.getMany', args[1]!, 'proof')
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`; the charge
+  // fires before the array is read. The batch verifier takes all cast keys
+  // at once, so the per-op charge sums after the verifier runs.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   const keys = extractByteArrayList(args[0]!)
-  const proof = extractBytes(args[1]!)
-  chargeCreateVerifier(ctx, proof.length)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildLookupOps(keys)
   const partial = verifyWithShapeRouting(obj.value, proof, config, ops)
@@ -725,15 +772,19 @@ export function evalSAvlTreeInsert(
 ): SValue {
   expectAvlTree('SAvlTree.insert', obj)
   expectTwoArgs('SAvlTree.insert', args)
+  expectCollArg('SAvlTree.insert', args[0]!, 'entries')
+  const proofArg = expectCollArg('SAvlTree.insert', args[1]!, 'proof')
   // isInsertAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:133).
   ctx.addCost(15)
   if ((obj.value.treeFlags & INSERT_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   const ops = buildInsertOps(args[0]!)
-  const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-  chargeCreateVerifier(ctx, proof.length)
   // InsertIntoAvlTree PerItem(40,10,1) × charged ops on max(height, 1)
   // ("when the tree is empty we still need to add the insert cost",
   // CErgoTreeEvaluator.scala:139). Construct-shape violations see height 0
@@ -786,15 +837,19 @@ export function evalSAvlTreeUpdate(
 ): SValue {
   expectAvlTree('SAvlTree.update', obj)
   expectTwoArgs('SAvlTree.update', args)
+  expectCollArg('SAvlTree.update', args[0]!, 'entries')
+  const proofArg = expectCollArg('SAvlTree.update', args[1]!, 'proof')
   // isUpdateAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:169).
   ctx.addCost(15)
   if ((obj.value.treeFlags & UPDATE_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   const ops = buildUpdateOps(args[0]!)
-  const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-  chargeCreateVerifier(ctx, proof.length)
   // UpdateAvlTree PerItem(120,20,1) × charged ops on max(height, 1)
   // (CErgoTreeEvaluator.scala:175-181). Construct-shape violations see
   // height 0 → max(0,1) = 1 (T7.5).
@@ -848,16 +903,20 @@ export function evalSAvlTreeRemove(
 ): SValue {
   expectAvlTree('SAvlTree.remove', obj)
   expectTwoArgs('SAvlTree.remove', args)
+  expectCollArg('SAvlTree.remove', args[0]!, 'keys')
+  const proofArg = expectCollArg('SAvlTree.remove', args[1]!, 'proof')
   // isRemoveAllowed_Info Fixed(15) — charge-then-check (CErgoTreeEvaluator.scala:233).
   ctx.addCost(15)
   if ((obj.value.treeFlags & REMOVE_ALLOWED_BIT) === 0) {
     return noneAvlTree()
   }
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   const keys = extractByteArrayList(args[0]!)
-  const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
   const ops = buildRemoveOps(keys)
-  chargeCreateVerifier(ctx, proof.length)
   // RemoveAvlTree PerItem(100,15,1) × ALL ops on max(height, 1).
   // The JVM uses cfor with per-op results DISCARDED (CErgoTreeEvaluator.scala:240-245):
   // no fast-break, every op is charged even after the verifier is poisoned —
@@ -986,6 +1045,8 @@ export function evalSAvlTreeInsertOrUpdate(
 ): SValue {
   expectAvlTree('SAvlTree.insertOrUpdate', obj)
   expectTwoArgs('SAvlTree.insertOrUpdate', args)
+  expectCollArg('SAvlTree.insertOrUpdate', args[0]!, 'entries')
+  const proofArg = expectCollArg('SAvlTree.insertOrUpdate', args[1]!, 'proof')
   // BOTH flag costs, isUpdateAllowed FIRST (CErgoTreeEvaluator.scala:199-200),
   // charged before the combined check — blessed flags-deny 73 = envelope 43
   // + 15 + 15 pins the double charge.
@@ -997,10 +1058,12 @@ export function evalSAvlTreeInsertOrUpdate(
   ) {
     return noneAvlTree()
   }
+  // CreateAvlVerifier `addSeqCost(CreateAvlVerifier_Info, proof.length)`
+  // wraps the proof cast at `CAvlTreeVerifier.scala:55-60`.
+  chargeCreateVerifier(ctx, proofArg.items.length)
+  const proof = extractBytes(proofArg)
   const ops = buildInsertOrUpdateOps(args[0]!)
-  const proof = extractBytes(args[1]!)
   const config = avlTreeDataToConfig(obj.value)
-  chargeCreateVerifier(ctx, proof.length)
   // UpdateAvlTree_Info (120,20,1) — insertOrUpdate shares update's descriptor
   // (CErgoTreeEvaluator.scala:215), × charged ops on max(height, 1).
   // Construct-shape violations see height 0 → max(0,1) = 1 (T7.5).
