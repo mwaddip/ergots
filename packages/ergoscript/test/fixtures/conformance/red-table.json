@@ -260,8 +260,13 @@
     ]
   },
   "v6/authored/Tuple.binding_provenance_register.json": {
-    "tuple-as-collection": [
-      "register-coll-data-zip-eq-accept#6",
+    "comparer-item-type": [
+      "register-coll-data-zip-eq-accept#6"
+    ],
+    "expression-register": [
+      "register-coll-expression-accept#3",
+      "register-coll-expression-eq-accept#5",
+      "register-coll-expression-zip-eq-accept#7",
       "register-pair-expression-byindex0-accept#23",
       "register-pair-expression-byindex1-accept#25",
       "register-pair-expression-constant-eq-errored#15",
@@ -273,11 +278,6 @@
       "register-pair-expression-neq-constant-errored#17",
       "register-pair-expression-size-accept#21",
       "register-tuple-expression-accept#1"
-    ],
-    "expression-register": [
-      "register-coll-expression-accept#3",
-      "register-coll-expression-eq-accept#5",
-      "register-coll-expression-zip-eq-accept#7"
     ]
   },
   "v6/authored/Tuple.binding_provenance_var.json": {

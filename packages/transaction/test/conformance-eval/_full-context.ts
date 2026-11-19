@@ -256,21 +256,6 @@ function readExtensionValueBinding(bytesHex: string): { tpe: SType; value: SValu
  * §4 defines every kind's JSON shape and the asymmetric `Long` /
  * `BigInt` encoding as decimal strings.
  */
-function hydrateExtensionValue(json: unknown, treeVersion: number): { tpe: SType; value: SValue } {
-  const j = json as { [k: string]: unknown }
-  const kind = j['kind'] as string
-  if (kind === 'Value') {
-    return readExtensionValueBinding(j['bytes_hex'] as string)
-  }
-  const value = hydrateSValue(j, treeVersion)
-  // A Tuple JSON input of any arity has an `STuple` type built from its
-  // items' JSON types (`CoreDataSerializer.scala:139-144`): the data reader
-  // hands a tuple of another arity than two back as a `Coll[Any]`, so the
-  // hydrated value's own `kind: 'Coll'` reads as `Coll[Any]` — the declared
-  // tuple type lives only in the JSON structure.
-  return { tpe: sTypeFromJson(j), value }
-}
-
 function sTypeFromJson(json: any): SType {
   switch (json.kind) {
     case 'Boolean': return { tag: 'SBoolean' }
@@ -303,6 +288,21 @@ function sTypeFromJson(json: any): SType {
     default:
       throw new Error(`sTypeFromJson: unknown kind '${json.kind}'`)
   }
+}
+
+function hydrateExtensionValue(json: unknown, treeVersion: number): { tpe: SType; value: SValue } {
+  const j = json as { [k: string]: unknown }
+  const kind = j['kind'] as string
+  if (kind === 'Value') {
+    return readExtensionValueBinding(j['bytes_hex'] as string)
+  }
+  const value = hydrateSValue(j, treeVersion)
+  // A Tuple JSON input of any arity has an `STuple` type built from its
+  // items' JSON types (`CoreDataSerializer.scala:139-144`): the data reader
+  // hands a tuple of another arity than two back as a `Coll[Any]`, so the
+  // hydrated value's own `kind: 'Coll'` reads as `Coll[Any]` — the declared
+  // tuple type lives only in the JSON structure.
+  return { tpe: sTypeFromJson(j), value }
 }
 
 function hydrateSValue(json: unknown, treeVersion: number): SValue {
@@ -644,14 +644,12 @@ export function evalFullContextEntry(e: SantaFullCtxEntry): SantaActual {
  * `row is green; remove it from the red table`.
  */
 export const RED_REASONS: Record<string, string> = {
-  'tuple-as-collection':
-    'A tuple constant of three or more items is handed where a collection is wanted.',
   comparer:
     'An item comparison across integer widths or over boxed values on a plain receiver.',
   'method-not-implemented':
     "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   'expression-register':
-    "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
+    "The entry's SELF, another box, or an extension holds a `Tuple`, a `ConcreteCollection` or another expression as a register or variable value, which ergots' readers refuse at parse before anything else is read.",
 }
 
 /** `<v5|v6>/<file>` → reason id → entry names. */

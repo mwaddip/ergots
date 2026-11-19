@@ -24,10 +24,10 @@ const RED_TABLE_PATH = path.join(__dirname, '../fixtures/conformance/red-table.j
 export const RED_REASONS: Record<string, string> = {
   'collection-length-limit':
     'ergots builds a collection of more than 100,000 items at evaluation; the JVM refuses it in the collection class\'s constructor (core/shared/src/main/scala/sigma/data/CollsOverArrays.scala:13-14, MaxArrayLength in core/shared/src/main/scala/sigma/util/package.scala:7).',
-  'tuple-as-collection':
-    'A tuple constant of three or more items is handed where a collection is wanted.',
   comparer:
     'An item comparison across integer widths or over boxed values on a plain receiver.',
+  'comparer-item-type':
+    "ergots' comparer compares two collections item by item and does not first compare their item types, so where the JVM's `equalColls` (data/shared/src/main/scala/sigma/data/DataValueComparer.scala) short-circuits on a `tItem` mismatch ergots either answers the item-by-item result or refuses at an item compare.",
   'method-not-implemented':
     "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   'method-call-type':
@@ -35,7 +35,7 @@ export const RED_REASONS: Record<string, string> = {
   'zero-width-collection':
     'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
   'expression-register':
-    "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
+    "The entry's SELF, another box, or an extension holds a `Tuple`, a `ConcreteCollection` or another expression as a register or variable value, which ergots' readers refuse at parse before anything else is read.",
 }
 
 /** The red-table JSON shape: file path → reason id → list of entry names. */

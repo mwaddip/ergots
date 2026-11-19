@@ -94,12 +94,13 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
       'storage-rent-mixed-inputs.json',
       'storage-rent-recreation.json',
     ]);
-    // 30 pre-existing + 16 generic-producers accepts ergots grades + 124 patch-array-class accepts
+    // 30 arbitrary + 16 generic-producers accepts ergots grades + 124 patch-array-class accepts
     // ergots grades + 0 generic-producers-census accepts (every one holds an expression ergots
     // refuses) + 36 group-node-static-type accepts + 5 non-pair-tuple-spend accepts + 20
-    // small-tuples accepts = 231. A tuple of another arity than two is read as a `Coll[Any]`
-    // (`CoreDataSerializer.scala:139-144`), so 12 group-node-static-type and 4
-    // non-pair-tuple-spend spends ergots previously refused at the collection op now grade.
+    // small-tuples accepts = 231. A tuple of another arity than two is a `Coll[Any]`
+    // (`CoreDataSerializer.scala:139-144`), so a spend that hands such a value where a
+    // collection is wanted grades at its collection op's cost: 12 group-node-static-type
+    // and 4 non-pair-tuple-spend entries are in that set.
     expect(graded.length).toBe(231);
     for (const [file, names] of Object.entries(REJECTED_BY_ERGOTS)) {
       const valid = TX_FILES.find((f) => f.file === file)!.entries.filter((e) => e.expected.valid).map((e) => e.name);
