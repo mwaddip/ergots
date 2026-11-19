@@ -88,7 +88,8 @@ The package exports a small consumer-facing API:
 - **Addresses**: `isP2PK`, `p2pkPublicKey`, `addressFromErgoTree`, `ergoTreeFromAddress`, `base58Encode`, `base58Decode`
 - **Evaluator**: `evaluate`, `evaluateWith`, `reduceWith`, `makeContext`
 - **Sigma-protocol verifier**: `verifySignature`
-- **Types**: `ErgoTree` (`ParsedErgoTree` | `UnparsedErgoTree`), `ParseTreeOptions`, `TreeHeader`, `SType`, `SValue` (whose `Coll` carries an optional `cls: CollClass`), `Expr`, `SigmaBoolean`, `ArrayClass`, `CollClass`, `Network`, `AddressType`, `EvalContext`, `EvalOpts`
+- **Collection builders**: `tupleColl` (the `Coll[Any]` for a tuple value of another arity than two)
+- **Types**: `ErgoTree` (`ParsedErgoTree` | `UnparsedErgoTree`), `ParseTreeOptions`, `TreeHeader`, `SType`, `SValue` (whose `Coll` carries an optional `cls: CollClass`), `Expr`, `SigmaBoolean`, `ArrayClass`, `CollClass`, `CollValue`, `Network`, `AddressType`, `EvalContext`, `EvalOpts`
 - **Errors**: `ErgoTreeParseError`, `ErgoTreeSerializeError`, `AddressDecodeError`, `ExprTpeError`, `EvalError`, `VerifyError`, and the wire codecs' parse and serialize error classes (see [API.md](./API.md))
 
 The boundary contract — what other packages may rely on, with preconditions, postconditions, invariants, and the full error taxonomy — is documented in [`facts/ergoscript.md`](../../facts/ergoscript.md) at the repo root.
