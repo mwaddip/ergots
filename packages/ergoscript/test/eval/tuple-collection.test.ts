@@ -22,8 +22,8 @@ import { Env } from '../../src/eval/env'
 import { makeContext, type EvalContext } from '../../src/eval/eval-context'
 import { tupleColl } from '../../src/coll'
 import { serializeCost } from '../../src/eval/serialize-cost'
-import type { Expr, SType, SValue } from '../../src/mir/types'
-import { captureEvalError } from '../_helpers'
+import type { Expr, MethodCall, SType, SValue } from '../../src/mir/types'
+import { captureEvalError, specColl } from '../_helpers'
 
 const SINT: SType = { tag: 'SInt' }
 const PAIR_II: SType = { tag: 'STuple', items: [SINT, SINT] }
@@ -136,6 +136,93 @@ describe('the EQ / NEQ checkType sites', () => {
     const right: Expr = { tag: 'Tuple', items: [intConst(1), intConst(2)] }
     const err = captureEvalError(() => run(neq(left, right), PAIR_II, intTupleColl([1, 2])))
     expect(err.code).toBe('checked-value-class')
+  })
+})
+
+describe('Global.serialize under a tuple-type argument', () => {
+  // `Global.serialize_eval` passes `mc.args(0).tpe` (the argument's static type)
+  // to the data writer (`data/shared/src/main/scala/sigma/ast/methods.scala:1982`).
+  // ergots derives the type from the runtime value, with two exceptions: when the
+  // static type is `SANY_JVM` the JVM's catch-all refuses it
+  // (`core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:89-91`),
+  // and when the static type holds a tuple of another arity than two at any depth
+  // the writer walks it under the tuple type through `Evaluation.fromDslTuple`
+  // (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`), with its length
+  // assertion (`CoreDataSerializer.scala:74`).
+
+  // Build a Global.serialize MethodCall over a literal arg expression.
+  function serMc(argExpr: Expr): MethodCall {
+    return {
+      tag: 'MethodCall',
+      obj: { tag: 'Global' },
+      typeId: 106,
+      methodId: 3,
+      args: [argExpr],
+      explicitTypeArgs: {},
+    }
+  }
+
+  /** `Global.serialize(getVar[T](1).get)` over a variable of static type `tpe`. */
+  function serVar(tpe: SType): MethodCall {
+    return serMc(getVarGet(tpe))
+  }
+
+  /** `Global.serialize(ByIndex(getVar[T](1).get, 0))` — ByIndex over a tuple types as SANY_JVM. */
+  function serByIndex(tpe: SType, idx: number): MethodCall {
+    return serMc(byIndexOfTupleVar(tpe, idx))
+  }
+
+  /** `Global.serialize(Slice(getVar[T](1).get, 0, 2))` — Slice typed with the input's tuple type. */
+  function serSlice(tpe: SType, from: number, until: number): MethodCall {
+    return serMc({
+      tag: 'Slice',
+      input: getVarGet(tpe),
+      from: intConst(from),
+      until: intConst(until),
+    })
+  }
+
+  function collByte(bytes: number[]): SValue {
+    const SBYTE: SType = { tag: 'SByte' }
+    return specColl(SBYTE, bytes.map((b) => ({ kind: 'Byte', value: b })))
+  }
+
+  it('W1: a tupleColl([1,2,3]) read at (Int,Int,Int) writes 020406', () => {
+    // `Global.serialize(getVar[(Int,Int,Int)](1).get)` where variable 1 holds
+    // `tupleColl([1,2,3])` under the triple type. The static type of the arg
+    // is `(Int,Int,Int)` — non-pair tuple at depth → `fromDslTuple` path.
+    const r = run(serVar(TRIPLE_III), TRIPLE_III, intTupleColl([1, 2, 3]))
+    expect(r).toEqual(collByte([0x02, 0x04, 0x06]))
+  })
+
+  it('a kind: Tuple of three items read at (Int,Int,Int) writes 020406', () => {
+    // The data reader still builds `kind: 'Tuple'` at every arity today, so the
+    // value is interchangeable with a `tupleColl` here — both write the same bytes.
+    const tup: SValue = {
+      kind: 'Tuple',
+      items: [{ kind: 'Int', value: 1 }, { kind: 'Int', value: 2 }, { kind: 'Int', value: 3 }],
+    }
+    const r = run(serVar(TRIPLE_III), TRIPLE_III, tup)
+    expect(r).toEqual(collByte([0x02, 0x04, 0x06]))
+  })
+
+  it('R2: a ByIndex over a tuple (static type SANY_JVM) refuses as global-serialize-failed', () => {
+    // `Global.serialize(ByIndex(getVar[(Int,Int,Int)](1).get, 0))`:
+    // ByIndex's type is the input's elemType (SType.scala:838-841, STuple extends
+    // SCollection[SAny]), which is the JVM's SAny. The writer's catch-all refuses
+    // (CoreDataSerializer.scala:89-91).
+    const expr = serByIndex(TRIPLE_III, 0)
+    const err = captureEvalError(() => run(expr, TRIPLE_III, intTupleColl([1, 2, 3])))
+    expect(err.code).toBe('global-serialize-failed')
+  })
+
+  it('R3: a Slice of a tuple at an arity mismatch refuses as global-serialize-failed', () => {
+    // `Global.serialize(Slice(getVar[(Int,Int,Int)](1).get, 0, 2))`:
+    // Slice's static type stays the input's (a 3-tuple) while its runtime value
+    // holds 2 items, so the length assertion at CoreDataSerializer.scala:74 fails.
+    const expr = serSlice(TRIPLE_III, 0, 2)
+    const err = captureEvalError(() => run(expr, TRIPLE_III, intTupleColl([1, 2, 3])))
+    expect(err.code).toBe('global-serialize-failed')
   })
 })
 

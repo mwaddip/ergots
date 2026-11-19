@@ -9,11 +9,24 @@
  * JVM primitive before the byte write, then serializeSValue produces the bytes.
  * This decouples cost from the byte-validated serializer (see spec §Cost).
  *
- * Type resolution: T is derived from the RUNTIME value via sValueType(args[0]),
- * NOT from exprTpe — the static type is incomplete (SAny for unresolved
- * MethodCall/PropertyCall returns) which would throw where the JVM succeeds.
- * Runtime values carry their own concrete types (Coll.elem, Option.elem, etc.).
- * See spec §"Type resolution" for the faithfulness argument.
+ * Type resolution: the JVM `serialize_eval` writes by the argument's STATIC type,
+ * `mc.args(0).tpe` (`sigma/ast/methods.scala:1982`). ergots does the same in
+ * the two cases where the type a value carries diverges from the JVM:
+ *   - the static type is the JVM's `SAny` (`SANY_JVM`, told by object
+ *     identity), which the writer's catch-all refuses
+ *     (`core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:89-91`);
+ *   - the static type holds a tuple of another arity than two at any depth —
+ *     a non-pair tuple writes through `Evaluation.fromDslTuple`
+ *     (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`) with its
+ *     length assertion (`CoreDataSerializer.scala:74`), which a `Slice` of a
+ *     3-tuple whose range gives two items fails.
+ * Every other argument stays at its value-derived type: an unresolved
+ * `MethodCall` / `PropertyCall` types as ergots' own `SAny` (a fresh object;
+ * residual 1 of `facts/ergoscript-wire.md`), which the JVM's writer catch-all
+ * would also refuse, but the value behind it is concrete (`sigma-rust-vs-jvm`
+ * memory `reference_sany_type_checks_skip_not_fail`); and a runtime `Coll`,
+ * `Option` or the runtime kinds without an on-wire encoding carry their own
+ * concrete `elem` / `value` types — `sValueType` reads them.
  *
  * Output: Coll[Byte] containing the raw data bytes (no type prefix), matching
  * the JVM DataSerializer.serialize output — confirmed by verifyCases:
@@ -31,13 +44,47 @@ import { byteColl } from './_coll'
 import { sValueType } from './svalue-type'
 import { serializeCost } from './serialize-cost'
 import { EvalError, type EvalContext } from './eval-context'
-import type { SType, SValue } from '../mir/types'
+import { exprTpe } from '../mir/expr-tpe'
+import type { Env } from './env'
+import type { MethodCall, SType, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
+
+/**
+ * The static type the writer is handed, following the JVM's `serialize_eval`
+ * (`sigma/ast/methods.scala:1982`): `mc.args(0).tpe` when it is the JVM's
+ * `SAny` or holds a tuple of another arity than two at any depth; the
+ * value-derived type otherwise.
+ */
+function serializeType(value: SValue, mc: MethodCall, treeVersion: number): SType {
+  const argExpr = mc.args[0]!
+  const staticTpe = exprTpe(argExpr, treeVersion)
+  if (staticTpe === SANY_JVM || holdsNonPairTuple(staticTpe)) {
+    return staticTpe
+  }
+  return sValueType(value)
+}
+
+/**
+ * `tpe` contains an `STuple` whose arity is not two, at any depth (through
+ * collections, options and nested tuples). The non-pair-tuple arm of the
+ * writer walks it through `fromDslTuple`.
+ */
+function holdsNonPairTuple(tpe: SType): boolean {
+  if (tpe.tag === 'STuple') {
+    if (tpe.items.length !== 2) return true
+    return tpe.items.some(holdsNonPairTuple)
+  }
+  if (tpe.tag === 'SColl') return holdsNonPairTuple(tpe.elem)
+  if (tpe.tag === 'SOption') return holdsNonPairTuple(tpe.elem)
+  return false
+}
 
 export function evalGlobalSerialize(
   obj: SValue,
   args: SValue[],
   ctx: EvalContext,
   _explicitTypeArgs: Record<string, SType>,
+  extra?: { mc: MethodCall; env: Env },
 ): SValue {
   if (obj.kind !== 'Global') {
     throw new EvalError(
@@ -54,8 +101,23 @@ export function evalGlobalSerialize(
 
   const value = args[0]!
 
-  // T derived from runtime value — NOT exprTpe (see module doc for rationale).
-  const T = sValueType(value)
+  // The writer is handed the argument's static type where that type is the
+  // JVM's SAny or holds a non-pair tuple at any depth (see module comment),
+  // the value-derived type otherwise. A caller that did not pass the MIR node
+  // (no `extra`) falls back to the value-derived type.
+  let T: SType
+  try {
+    T = extra === undefined
+      ? sValueType(value)
+      : serializeType(value, extra.mc, ctx.treeVersion ?? 0)
+  } catch (e) {
+    if (e instanceof EvalError) throw e
+    throw new EvalError(
+      `Global.serialize failed: ${(e as Error).message}`,
+      'global-serialize-failed',
+      { cause: e },
+    )
+  }
 
   // StartWriterCost(10) — charged once, before the walk (matches JVM ordering:
   // startWriterCostCounter is installed before DataSerializer.serialize runs).
