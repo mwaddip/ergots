@@ -57,9 +57,37 @@ const byIndexOfTupleVar = (tpe: SType, i: number): Expr => ({
   default: null,
 })
 
+/** The seven `ArithOp` opcodes `ArithOp.operations` registers
+ *  (`data/shared/src/main/scala/sigma/ast/trees.scala:862`): every one dispatches
+ *  through the same `companion.eval` path and the same `ArithOp.impls` lookup. */
+type ArithOpName = 'Plus' | 'Minus' | 'Multiply' | 'Divide' | 'Modulo' | 'Min' | 'Max'
+const ARITH_OPS: readonly ArithOpName[] = [
+  'Plus',
+  'Minus',
+  'Multiply',
+  'Divide',
+  'Modulo',
+  'Min',
+  'Max',
+] as const
+
 /** `BinOp.Arith.<op>(left, right)`. */
-function arith(op: 'Plus' | 'Minus' | 'Multiply' | 'Min' | 'Max', left: Expr, right: Expr): Expr {
+function arith(op: ArithOpName, left: Expr, right: Expr): Expr {
   return { tag: 'BinOp', op: { kind: 'Arith', op }, left, right }
+}
+
+/** The answer each op gives on `left <op> right` for small Int operands,
+ *  used by the accept-side table-driven cases. */
+function expectedInt(op: ArithOpName, left: number, right: number): number {
+  switch (op) {
+    case 'Plus': return left + right
+    case 'Minus': return left - right
+    case 'Multiply': return left * right
+    case 'Divide': return Math.trunc(left / right)
+    case 'Modulo': return left % right
+    case 'Min': return Math.min(left, right)
+    case 'Max': return Math.max(left, right)
+  }
 }
 
 function runWithCost(expr: Expr, varTpe: SType, varVal: SValue, treeVersion = 3) {
@@ -72,75 +100,48 @@ function runWithCost(expr: Expr, varTpe: SType, varVal: SValue, treeVersion = 3)
 }
 
 describe('ArithOp.impls lookup — static-type refusal on the LEFT operand', () => {
-  it("Plus with a ByIndex-of-tuple left operand refuses as 'bin-op-not-numeric'", () => {
-    // ByIndex over a 3-tuple types as the JVM's SAny. ArithOp.impls has no
-    // entry for code 97; the lookup throws KeyNotFoundException.
-    const expr = arith('Plus', byIndexOfTupleVar(TRIPLE_III, 0), intConst(1))
-    const err = captureEvalError(() =>
-      runWithCost(expr, TRIPLE_III, intTupleColl([1, 2, 3])),
-    )
-    expect(err).toBeInstanceOf(EvalError)
-    expect(err.code).toBe('bin-op-not-numeric')
-  })
+  // Table-driven over the seven `ArithOp` opcodes `ArithOp.operations`
+  // registers (`trees.scala:862`): each one takes the same `companion.eval`
+  // path and the same `ArithOp.impls` lookup, so each refuses a left typed
+  // as the JVM's `SAny` and answers with an Int left (the SELF index Int 3
+  // is small and positive enough for `Divide` and `Modulo` to answer too).
+  for (const op of ARITH_OPS) {
+    it(`${op} with a ByIndex-of-tuple left operand refuses as 'bin-op-not-numeric'`, () => {
+      // ByIndex over a 3-tuple types as the JVM's SAny. ArithOp.impls has no
+      // entry for code 97; the lookup throws KeyNotFoundException.
+      const expr = arith(op, byIndexOfTupleVar(TRIPLE_III, 0), intConst(3))
+      const err = captureEvalError(() =>
+        runWithCost(expr, TRIPLE_III, intTupleColl([1, 2, 3])),
+      )
+      expect(err).toBeInstanceOf(EvalError)
+      expect(err.code).toBe('bin-op-not-numeric')
+    })
 
-  it('Plus with an Int left and a ByIndex-of-tuple right answers (dispatch is on the LEFT type)', () => {
-    // Left is SInt, in the impls table — the arith runs and the Int item is
-    // added. Cost equals the twin over an ordinary Coll[Int] bound the same way.
-    const tupleRun = runWithCost(
-      arith('Plus', intConst(1), byIndexOfTupleVar(TRIPLE_III, 0)),
-      TRIPLE_III,
-      intTupleColl([1, 2, 3]),
-    )
-    expect(tupleRun.value).toEqual(intInt(2))
+    it(`${op} with an Int left and a ByIndex-of-tuple right answers (dispatch is on the LEFT type)`, () => {
+      // Left is SInt (3), in the impls table — the arith runs over the Int
+      // from ByIndex(tuple, 0) (= 1) as the right operand. The tuple
+      // collection run and a plain Coll[Int] twin pay the same cost.
+      const tupleRun = runWithCost(
+        arith(op, intConst(3), byIndexOfTupleVar(TRIPLE_III, 0)),
+        TRIPLE_III,
+        intTupleColl([1, 2, 3]),
+      )
+      expect(tupleRun.value).toEqual(intInt(expectedInt(op, 3, 1)))
 
-    const COLL_TPE: SType = COLL_INT
-    const twin = runWithCost(
-      arith('Plus', intConst(1), {
-        tag: 'ByIndex',
-        input: getVarGet(COLL_TPE),
-        index: intConst(0),
-        default: null,
-      }),
-      COLL_TPE,
-      plainColl(SINT, [1, 2, 3].map(intInt)),
-    )
-    expect(twin.value).toEqual(intInt(2))
-    expect(tupleRun.cost).toBe(twin.cost)
-  })
-
-  it("Min with a ByIndex-of-tuple left operand refuses as 'bin-op-not-numeric'", () => {
-    const expr = arith('Min', byIndexOfTupleVar(TRIPLE_III, 0), intConst(5))
-    const err = captureEvalError(() =>
-      runWithCost(expr, TRIPLE_III, intTupleColl([1, 2, 3])),
-    )
-    expect(err.code).toBe('bin-op-not-numeric')
-  })
-
-  it('Min with an Int left and a ByIndex-of-tuple right answers', () => {
-    const tupleRun = runWithCost(
-      arith('Min', intConst(5), byIndexOfTupleVar(TRIPLE_III, 0)),
-      TRIPLE_III,
-      intTupleColl([1, 2, 3]),
-    )
-    expect(tupleRun.value).toEqual(intInt(1))
-  })
-
-  it("Multiply with a ByIndex-of-tuple left operand refuses as 'bin-op-not-numeric'", () => {
-    const expr = arith('Multiply', byIndexOfTupleVar(TRIPLE_III, 0), intConst(2))
-    const err = captureEvalError(() =>
-      runWithCost(expr, TRIPLE_III, intTupleColl([1, 2, 3])),
-    )
-    expect(err.code).toBe('bin-op-not-numeric')
-  })
-
-  it('Multiply with an Int left and a ByIndex-of-tuple right answers', () => {
-    const tupleRun = runWithCost(
-      arith('Multiply', intConst(2), byIndexOfTupleVar(TRIPLE_III, 1)),
-      TRIPLE_III,
-      intTupleColl([1, 2, 3]),
-    )
-    expect(tupleRun.value).toEqual(intInt(4))
-  })
+      const twin = runWithCost(
+        arith(op, intConst(3), {
+          tag: 'ByIndex',
+          input: getVarGet(COLL_INT),
+          index: intConst(0),
+          default: null,
+        }),
+        COLL_INT,
+        plainColl(SINT, [1, 2, 3].map(intInt)),
+      )
+      expect(twin.value).toEqual(intInt(expectedInt(op, 3, 1)))
+      expect(tupleRun.cost).toBe(twin.cost)
+    })
+  }
 
   it('order pin: right operand is evaluated before the lookup — a refusing right surfaces its own refusal', () => {
     // `ByIndex(t, 0) + ByIndex(t, 999)` — the right operand's ByIndex goes
