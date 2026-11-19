@@ -84,6 +84,10 @@ describe('dataItemType (the item descriptor of CoreDataSerializer.deserializeCol
     // ergots value model this is `elem: SColl(SAny)`: a Coll of non-pair tuples
     // has SAny as its item element type, not the tuple type.
     expect(dataItemType(STUPLE([SINT, SINT, SINT]))).toEqual({ tag: 'SColl', elem: SANY_JVM })
+    // Inner elem is SANY_JVM by identity, told apart from ergots' own SAny
+    // (a fresh `{ tag: 'SAny' }`) by object identity (mir/types.ts:79).
+    const r = dataItemType(STUPLE([SINT, SINT, SINT])) as { tag: 'SColl'; elem: SType }
+    expect(r.elem).toBe(SANY_JVM)
   })
 
   it('returns SColl(SAny) for a tuple type of one item (arity not two)', () => {
@@ -185,11 +189,22 @@ describe('castArray (a consumer that needs the array of a class)', () => {
     expect(() => castArray(pairCol, 'Tuple2', 'x')).toThrow(CollClassCast)
   })
 
-  it('throws CollClassCast on an `unknown`-shape collection, whose array ergots cannot name', () => {
-    // An unknown-shape collection has no named array (only `empty` of the
-    // coll module produces it, and the caller handles the unknown case first
-    // in every reader). castArray refuses, since there is no array to cast.
+  it('returns the items of an `unknown`-shape collection unchecked', () => {
+    // An unknown-shape collection is an empty result of a map/flatMap whose
+    // mapper's static range ergots cannot name (`coll/build.ts` `empty`), and
+    // every reader takes it by the empty-receiver-of-its-own-class rule so
+    // honest scripts like `hash ++ CONTEXT.headers.flatMap(h => h.id)` with
+    // no headers answer. castArray does the same: the empty `items` passes
+    // through, whatever array class the consumer asked for, and no reader
+    // refuses it.
+    expect(castArray(empty(SINT), 'int', 'x')).toEqual([])
+    expect(castArray(empty(SINT), 'byte', 'ByteArrayToBigInt argument')).toEqual([])
+  })
+
+  it('returns the exact items array of an `unknown`-shape collection', () => {
     const u: CollValue = empty(SINT)
-    expect(() => castArray(u, 'int', 'x')).toThrow(CollClassCast)
+    // The one builder of this class carries an empty items array
+    // (`coll/build.ts` `empty`'s invariant), which castArray hands back.
+    expect(castArray(u, 'int', 'x')).toBe(u.items)
   })
 })

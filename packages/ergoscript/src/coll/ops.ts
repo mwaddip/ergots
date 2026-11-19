@@ -982,17 +982,22 @@ function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
  * toArray)`), which is not the stored array a reader is after. A consumer
  * that needs the single stored array therefore refuses on a `'pairs'`
  * receiver with `CollClassCast`. The byte-reading consumers above all need
- * a primitive array, and a pair-shape collection has no one.
+ * a primitive array, and a pair-shape collection has no one. This arm is
+ * unmeasured against the JVM, and no caller casts a `'pairs'` collection
+ * to `'Tuple2'`.
  *
- * On an `'unknown'`-shape receiver the array is unnamed (only the one
- * builder `empty` in `coll/build.ts` produces this class, and every other
- * reader branches on it first): the cast refuses with `CollClassCast` too.
+ * On an `'unknown'`-shape receiver the items pass through unchecked. The
+ * class is carried only by an empty result of a `map` / `flatMap` whose
+ * mapper's static range ergots cannot name ("A collection's class" in
+ * `facts/ergoscript-eval.md`), so `items` is `[]`; no reader refuses this
+ * value, and the honest script
+ * `hash ++ CONTEXT.headers.flatMap(h => h.id)` with no headers reaches
+ * `CalcBlake2b256`'s cast on an unknown-class collection and answers.
  *
  * `what` names the consumer, for the error message.
  *
- * @throws CollClassCast when the receiver's array is of another class, when
- *   the receiver is `'pairs'`-shape, and when the receiver is
- *   `'unknown'`-shape.
+ * @throws CollClassCast when the receiver's array is of another class, and
+ *   when the receiver is `'pairs'`-shape.
  */
 export function castArray(c: CollValue, array: ArrayClass, what: string): SValue[] {
   const cls = classOf(c)
@@ -1002,9 +1007,10 @@ export function castArray(c: CollValue, array: ArrayClass, what: string): SValue
     )
   }
   if (cls.shape === 'unknown') {
-    throw new CollClassCast(
-      `${what}: an unknown-class collection has no named array; Array[${array}] cast refused`,
-    )
+    // An empty result of an untyped mapper, by the one builder of this
+    // class (`coll/build.ts` `empty`); `items` is `[]` and every reader
+    // takes it.
+    return c.items
   }
   if (cls.array !== array) {
     throw new CollClassCast(
