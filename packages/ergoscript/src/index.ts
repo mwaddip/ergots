@@ -41,7 +41,7 @@ export { isUnparsedTree } from './mir/types'
 // its items (facts/ergoscript-eval.md, "A collection's class"). The two
 // types that describe it, `ArrayClass` and `CollClass`, are part of the
 // `SValue` surface.
-export type { ArrayClass, CollClass } from './coll/class'
+export type { ArrayClass, CollClass, CollValue } from './coll/class'
 // A caller that hands a tuple value of another arity than two at an
 // extension or register position builds it with `tupleColl(items)`: the
 // collection's `elem` is told by object identity (`CoreDataSerializer.scala:139-144`

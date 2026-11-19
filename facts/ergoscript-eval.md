@@ -18,7 +18,7 @@ makeContext(opts?: EvalOpts): EvalContext
 
 class EvalError extends Error { code: string; cause?: unknown }   // cause: the standard Error.cause, set where an arm wraps an error
 
-tupleColl(items: SValue[]): SValue                                // the Coll[Any] a tuple of another arity than two takes (see "A collection's class" and "Tuples and non-pair tuple values")
+tupleColl(items: SValue[]): CollValue                             // the Coll[Any] a tuple of another arity than two takes (see "A collection's class" and "Tuples and non-pair tuple values"); `CollValue` is `Extract<SValue, { kind: 'Coll' }>`
 ```
 
 Public function signatures are stable from v0.2.0 onward; new arms slot into central dispatch (`eval/eval.ts`) without changing `evaluate`, `evaluateWith`, `reduceWith`, `makeContext`, or `EvalError`. `Env`, `evalExpr`, and the per-arm functions (`evalConst`, `evalIf`, `evalBlockValue`, …) are intentionally NOT exported — they are internal to the evaluator and may change without notice.

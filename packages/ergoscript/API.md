@@ -48,7 +48,7 @@ import {
   type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
   type ParseTreeOptions, type SType, type SValue, type Expr, type ErgoBox,
   type AdditionalRegisters,
-  type ArrayClass, type CollClass,
+  type ArrayClass, type CollClass, type CollValue,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
   ExprParseError, ExprSerializeError, ExprTpeError,
@@ -322,10 +322,10 @@ A `Tuple` value holds exactly two items, as the JVM's `Tuple2` does. A tuple val
 ### `tupleColl(items)`
 
 ```ts
-function tupleColl(items: SValue[]): SValue /* a Coll[Any] */;
+function tupleColl(items: SValue[]): CollValue;
 ```
 
-Build the `Coll[Any]` the JVM data reader gives for a tuple of another arity than two (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). The resulting value is `{ kind: 'Coll'; elem: SANY_JVM; items; cls: { shape: 'array', specialised: false, array: 'Object' } }` — the plain class over `Object[]`, with `elem` set to the one `SANY_JVM` identity the readers recognise (told from ergots' own `SAny` by object identity).
+Build the `Coll[Any]` the JVM data reader gives for a tuple of another arity than two (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). The `CollValue` is `Extract<SValue, { kind: 'Coll' }>` — a narrowing of the `SValue` union to its `Coll` member — with `elem: SANY_JVM`, `items` as given, and `cls: { shape: 'array', specialised: false, array: 'Object' }` (the plain class over `Object[]`). `SANY_JVM` is the one `SAny` object the readers recognise by identity (told from ergots' own `SAny` by `===`).
 
 A caller that binds a tuple value of another arity than two at an extension or register position uses this builder: the collection's `elem` is identity-sensitive, and this is the one API that produces it. `items` is one `SValue` per tuple item, in order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). A pair stays `{ kind: 'Tuple', items }` — the builder is for non-pair arities.
 
