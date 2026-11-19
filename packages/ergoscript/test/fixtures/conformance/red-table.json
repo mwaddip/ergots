@@ -109,9 +109,6 @@
     ]
   },
   "v5/authored/Exponentiate.static_type.json": {
-    "own-type-check": [
-      "slot-Fold.op1-exp.ctl-v0-a2#147"
-    ],
     "tuple-as-collection": [
       "hand-Apply.const-lambda-exp.anyge-v0-a2#269",
       "hand-Apply.const-lambda==g-exp.anyge-v0-a2#270",
@@ -156,9 +153,6 @@
     ]
   },
   "v5/authored/MultiplyGroup.static_type.json": {
-    "own-type-check": [
-      "slot-Fold.op1-mul.ctl-v0-a2#147"
-    ],
     "tuple-as-collection": [
       "hand-Apply.const-lambda-mul.anyge-v0-a2#269",
       "hand-Apply.const-lambda==g-mul.anyge-v0-a2#270",
@@ -491,10 +485,6 @@
     ]
   },
   "v6/authored/Exponentiate.static_type_v6.json": {
-    "own-type-check": [
-      "slot-Fold.op1-exp.ctl-v0-a3#207",
-      "slot-Fold.op1-exp.ctl-v3-a3#208"
-    ],
     "tuple-as-collection": [
       "hand-Apply.const-lambda-exp.anyge-v0-a3#449",
       "hand-Apply.const-lambda-exp.anyge-v3-a3#450",
@@ -577,10 +567,6 @@
     ]
   },
   "v6/authored/MultiplyGroup.static_type_v6.json": {
-    "own-type-check": [
-      "slot-Fold.op1-mul.ctl-v0-a3#207",
-      "slot-Fold.op1-mul.ctl-v3-a3#208"
-    ],
     "tuple-as-collection": [
       "hand-Apply.const-lambda-mul.anyge-v0-a3#449",
       "hand-Apply.const-lambda-mul.anyge-v3-a3#450",

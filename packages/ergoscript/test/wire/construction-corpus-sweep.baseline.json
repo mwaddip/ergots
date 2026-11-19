@@ -2290,7 +2290,6 @@
   "tree:724ab53cea7c2e1c42baae8562250c00": {"lenient":"parsed","box":"parsed"},
   "tree:725b5d75066791b0492389c4531a79cf": {"lenient":"parsed","box":"parsed"},
   "tree:728c2f18c3d6d2dc96b30db1ba15f430": {"lenient":"parsed","box":"parsed","calls":["SAny(own)","SAny(own)","SAny(own)","Coll[SInt]","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)"]},
-  "tree:728c812361d67c5d59a2cebd9c74a5eb": {"lenient":"parsed","box":"ErgoTreeParseError:soft-fork-without-size-bit<-ErgoTreeParseError:root-not-sigma-prop"},
   "tree:7294c26750e9ef5b334fef856c4df257": {"lenient":"parsed","box":"parsed"},
   "tree:72ad71074bc6081ce9b866c43fc7283c": {"lenient":"parsed","box":"degraded ErgoTreeParseError:root-not-sigma-prop"},
   "tree:72c175986e0f1635dfa5f575968eea11": {"lenient":"parsed","box":"parsed","calls":["SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)","SAny(own)"]},

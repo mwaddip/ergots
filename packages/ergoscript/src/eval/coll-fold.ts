@@ -1,67 +1,72 @@
 /**
- * Fold evaluator arm — third lambda HOF (phase 2f Coll HOFs Task 8).
+ * Fold evaluator arm.
  *
- * Applies a binary function (lambda) to a start value (zero) and all elements
+ * Applies a binary function (lambda) to a start value (zero) and each element
  * of a collection, going left to right. Returns the final accumulator value.
+ * `Fold.eval` (`transformers.scala:224-231`) evaluates input, evaluates zero
+ * and runs `Value.checkType(zero, zeroV)` on it (`values.scala:251-255`,
+ * `SType.scala:187-213`), evaluates foldOp, charges the sequence cost at
+ * the input's length, and runs `inputV.foldLeft(zeroV, foldOpV)`. It makes
+ * no other check: in particular it does not compare the lambda's result
+ * kind against the zero's. The per-application `FuncValue.eval`
+ * (`values.scala:1073-1086`) then checks the argument and the body at each
+ * iteration.
  *
- * Structurally distinct from Map/Filter: the lambda takes a single argument
- * of type `STuple([acc_type, item_type])`, not the item directly. The lambda
- * body typically destructures this tuple via SelectField (1-indexed):
- *   SelectField(1, tup) → acc  (the current accumulator)
- *   SelectField(2, tup) → item (the current element)
+ * The lambda takes a single argument of type `STuple([acc_type, item_type])`,
+ * not the item directly. The lambda body typically destructures this tuple
+ * via SelectField (1-indexed):
+ *   `SelectField(1, tup)` → acc  (the current accumulator)
+ *   `SelectField(2, tup)` → item (the current element)
  *
- * This mirrors sigma-rust's `Value::Tup([acc, item].into())` at coll_fold.rs:53,61.
+ * Cost (Mixed pattern — outer + per-iter):
+ *   Outer, AFTER all three child evals (input, zero, fold_op), BEFORE the
+ *   loop:
+ *     `addPerItemCost(3, 1, 10, inputColl.length)` — JVM
+ *     `Fold.costKind = PerItemCost(3, 1, 10)`
+ *     (`transformers.scala:232-238`). The sequence cost at the input's
+ *     length.
+ *   Per-iter, inside the closure, BEFORE body eval:
+ *     `addCost(5)` — JVM `FuncValue.eval` `values.scala:1076`:
+ *     `addFixedCost(AddToEnvironmentDesc_CostKind, ...)` = 5.
  *
- * Cost: Mixed pattern — outer + per-iter.
- *   Sigma-rust ref: ergotree-interpreter/src/eval/coll_fold.rs:12-71
+ * Eval order:
+ *   1. Eval input  → must be Coll (throws `'coll-input-not-coll'`).
+ *   2. Eval zero  → the initial accumulator value. Then
+ *      `assertCheckedNode(e.zero, zeroVal, ctx)` runs the JVM's
+ *      `Value.checkType(zero, zeroV)` at `transformers.scala:227`.
+ *   3. Eval fold_op → must be Lambda (throws `'lambda-not-callable'`).
+ *   4. Outer cost: `addPerItemCost(3, 1, 10, n)` AFTER all three child
+ *      evals.
+ *   5. Per item:
+ *      a. Construct `tupArg = { kind: 'Tuple', items: [acc, item] }`.
+ *      b. `assertCheckedValue(argTpe, tupArg)` (JVM
+ *         `FuncValue.eval`'s `Value.checkType(arg0._2, vArg)` —
+ *         `values.scala:1074`, pair-shape check at `SType.scala:200-201`).
+ *      c. `addCost(5)`.
+ *      d. Bind `closure.argIds[0]` → `tupArg` in a fresh env scope.
+ *      e. `acc = evalExpr(closure.body, itemEnv, ctx)`.
+ *      f. `assertCheckedNode(closure.body, acc, ctx)` (JVM
+ *         `Value.checkType(body, res)`, `values.scala:1080`).
+ *   6. Return acc (empty Coll → returns zero unchanged, as `foldLeft`
+ *      skips the loop on an empty sequence).
  *
- *   Outer (line 48, AFTER all three child evals, BEFORE loop):
- *     ctx.add_per_item_jit_cost(3, 1, 10, n)  where n = inputColl.length
- *     NOTE: outer cost is (3, 1, 10) — DIFFERENT from Map/Filter's (20, 1, 10).
+ * Tuple construction: the arg is always a 2-item pair — the arg check at
+ * step 5b is the JVM's `Tuple2[_,_]` shape check at `SType.scala:200-201`.
+ * The arg type comparison does not recurse into the pair's components, so a
+ * body that returns a value of another kind than the zero passes through
+ * `foldLeft` and is written back as the next step's accumulator; a
+ * subsequent iteration's body check (step 5f) reads the body's static type
+ * against the runtime class, and `SType.scala:198-205` is a shape check at
+ * the top level (a `Coll[_]` passes a lambda whose body is typed as
+ * `SCollectionType`, etc.), not an item-wise recursion.
  *
- *   Per-iter (line 29, inside closure, BEFORE body eval):
- *     ctx.add_jit_cost(5)
- *
- * Eval order (sigma-rust coll_fold.rs:18-20, 48, 49-63):
- *   1. Eval input  → must be Coll  (throws 'coll-input-not-coll')
- *   2. Eval zero   → initial accumulator value
- *   3. Eval fold_op → must be Lambda (throws 'lambda-not-callable')
- *   4. Outer cost: addPerItemCost(3, 1, 10, n) — AFTER all three children
- *   5. For each item in input:
- *      a. addCost(5)
- *      b. Construct tupArg = { kind: 'Tuple', items: [acc, item] }
- *      c. Bind closure.argIds[0] → tupArg in a fresh env scope
- *      d. acc = evalExpr(closure.body, itemEnv, ctx)
- *      e. Result-type check: new acc kind must equal original zero kind
- *         (throws 'lambda-result-type-mismatch' on mismatch)
- *   6. Return acc (empty Coll → returns zero unchanged, per sigma-rust try_fold)
- *
- * Empty Coll: sigma-rust's `iter().try_fold(zero_v, ...)` returns `zero_v` for
- * empty input without entering the closure. Cost: outer only (n=0 → base=3).
- *
- * Tuple construction (sigma-rust coll_fold.rs:53, 61):
- *   NativeColl:  Value::Tup([acc, Value::Byte(*byte)].into())
- *   WrappedColl: Value::Tup([acc, item.clone()].into())
- * In TS, extractCollItems unpacks both kinds into SValue[] uniformly, so the
- * Tuple construction is always: { kind: 'Tuple', items: [acc, item] }.
- *
- * Result-type check:
- *   Sigma-rust: typed accumulator enforced by the MIR type system. In TS we
- *   check that the new acc.kind equals the original zero.kind after each iter.
- *   Throws 'lambda-result-type-mismatch' if the types diverge.
- *   This aligns with the fixture: a body returning Boolean(true) when zero is
- *   Int(0) will trigger the check on the first iteration.
- *
- * Env-extend convention (same as Map/Filter — established for Tasks 7-10):
- *   TS Env is immutable. For each item we construct tupArg and call
- *   env.extend(argId, tupArg) to create a new scope. No save/restore needed
- *   (unlike sigma-rust's mutable env insert/remove).
+ * Env-extend convention: TS Env is immutable. For each item we construct
+ *   `tupArg` and call `env.extend(argId, tupArg)` to create a new scope.
  */
 
 import type { Fold, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
-import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
@@ -83,7 +88,6 @@ const COLL_FOLD_PER_ITER = 5
  *
  * @throws EvalError `'coll-input-not-coll'` if input does not eval to a Coll.
  * @throws EvalError `'lambda-not-callable'` if fold_op does not eval to a callable Lambda.
- * @throws EvalError `'lambda-result-type-mismatch'` if a body result changes the acc type.
  * @throws EvalError `'cost-limit-exceeded'` if any cost charge exceeds the limit.
  */
 export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
@@ -114,23 +118,20 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
 
   const argId = closure.argIds[0]!
 
-  // Record the original zero's kind for per-iteration result-type checking.
-  // The acc type must not change across iterations (sigma-rust: type system enforces this
-  // statically; TS enforces it dynamically via kind comparison).
-  const zeroKind = zeroVal.kind
-
-  // 5. Loop: per-iter cost + Tuple construction + env-extend + body eval + result-type check.
-  // Sigma-rust coll_fold.rs:49-63:
-  //   - NativeColl path (CollByte): Value::Tup([acc, Value::Byte(*byte)])
-  //   - WrappedColl path:           Value::Tup([acc, item.clone()])
-  // In TS: extractCollItems unpacks both paths uniformly as SValue[].
-  // For each item, construct { kind: 'Tuple', items: [acc, item] } and bind to argId.
-  // Sigma-rust: per-iter cost at line 29 (before body eval), env insert at line 30.
+  // 5. Loop: per-iter arg checkType + cost + env-extend + body eval + body
+  // checkType. The JVM's `Fold.eval` makes no check of its own here
+  // (`transformers.scala:231`); each iteration runs the JVM's
+  // `FuncValue.eval`-returned closure (`values.scala:1073-1086`), which
+  // checks the argument's class against the declared arg type, binds the
+  // arg under `AddToEnvironmentDesc_CostKind` = 5, evaluates the body, and
+  // checks the body's result class against its static type. The arg check
+  // is the pair-shape check at `SType.scala:200-201` for a 2-item STuple;
+  // it does not recurse into the pair's components, so a body that returns
+  // a value of another kind than the zero passes into the next
+  // iteration's acc as-is and the comparison is left to the body's own
+  // checkType and to whatever consumer reads the result after the fold.
   let acc: SValue = zeroVal
   for (const item of inputColl.items) {
-    // Construct the 2-tuple argument: { kind: 'Tuple', items: [acc, item] }
-    // Mirrors sigma-rust coll_fold.rs:53: Value::Tup([acc, Value::Byte(*byte)].into())
-    // and coll_fold.rs:61: Value::Tup([acc, item.clone()].into())
     const tupArg: SValue = { kind: 'Tuple', items: [acc, item] }
 
     // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
@@ -144,29 +145,19 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
     // type (unreachable from parse, defensive for an API-built node) or a non-unary SFunc.
     // See eval/_check-type.ts.
     assertCheckedValue(closure.argTpes[0]!, tupArg)
-    // Per-iter cost (sigma-rust coll_fold.rs:29: ctx.add_jit_cost(5)?).
+    // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
     ctx.addCost(COLL_FOLD_PER_ITER)
     const itemEnv = closure.capturedEnv.extend(argId, tupArg)
 
-    // Eval body (sigma-rust coll_fold.rs:31: func_value.body.eval(env, ctx)).
     const newAcc = evalExpr(closure.body, itemEnv, ctx)
     // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
     // value's class after each application. See eval/_check-type.ts.
     assertCheckedNode(closure.body, newAcc, ctx)
 
-    // Result-type check: acc kind must remain consistent across iterations.
-    // Sigma-rust: type system prevents kind mismatch statically; TS does it dynamically.
-    if (newAcc.kind !== zeroKind) {
-      throw new EvalError(
-        `Fold: lambda body returned type '${newAcc.kind}' but accumulator type is '${zeroKind}' (from zero)`,
-        'lambda-result-type-mismatch'
-      )
-    }
-
     acc = newAcc
   }
 
-  // 6. Return acc. For empty Coll, returns zeroVal unchanged (closure never called).
-  // Sigma-rust: try_fold returns Ok(zero_v) immediately for empty iters.
+  // 6. Return acc. For empty Coll, returns zeroVal unchanged (foldLeft
+  // skips the loop on an empty sequence).
   return acc
 }

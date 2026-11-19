@@ -34,8 +34,6 @@ export const RED_REASONS: Record<string, string> = {
     "ergots builds the tree and evaluates it; the JVM refuses it at parse because the call's return type keeps a type variable (the patch method's SFunc tRange is Coll[IV]) and the EQ's Constraints$SameType2 check fails on Coll[IV] against Coll[Unit] (data/shared/src/main/scala/sigma/ast/SigmaBuilder.scala Constraints$SameType2).",
   'zero-width-collection':
     'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
-  'own-type-check':
-    "ergots refuses by a check of its own that the JVM does not make.",
   'expression-register':
     "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
 }
