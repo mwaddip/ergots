@@ -27,7 +27,7 @@ export const RED_REASONS: Record<string, string> = {
   comparer:
     'An item comparison across integer widths or over boxed values on a plain receiver.',
   'comparer-item-type':
-    "ergots' comparer compares two collections item by item and does not first compare their item types, so where the JVM's `equalColls` (data/shared/src/main/scala/sigma/data/DataValueComparer.scala) short-circuits on a `tItem` mismatch ergots either answers the item-by-item result or refuses at an item compare.",
+    "ergots' comparer compares two collections item by item and does not first compare their item types, so where the JVM's `equalDataValues` (data/shared/src/main/scala/sigma/data/DataValueComparer.scala:310, the `Coll` case at `:323` on the test `coll1.tItem != coll2.tItem`) short-circuits to `false` on a `tItem` mismatch ergots either answers the item-by-item result or refuses at an item compare.",
   'method-not-implemented':
     "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   'method-call-type':
@@ -35,7 +35,9 @@ export const RED_REASONS: Record<string, string> = {
   'zero-width-collection':
     'ergots parses a collection of a zero-width item type (SUnit, SColl of SUnit, STuple of SUnit) the JVM refuses at parse under rule 1020 CheckZeroWidthCollection (core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:166-170).',
   'expression-register':
-    "The entry's SELF, another box, or an extension holds a `Tuple`, a `ConcreteCollection` or another expression as a register or variable value, which ergots' readers refuse at parse before anything else is read.",
+    "The entry's SELF, another box, or an extension holds an expression as a register or variable value that ergots' readers refuse at parse before anything else is read (a `ConcreteCollection` or a `DeserializeContext` in a register; a `Tuple`, `ConcreteCollection` or other expression lead in an extension value, whose reader takes a Constant lead byte only).",
+  'register-tuple-expression':
+    "ergots' register reader accepts a `Tuple` expression of two to 127 items (`parse-svalue.ts:148-176`) and reads it as a `kind: 'Tuple'` value of its items (a pair for two items), where the JVM's `Tuple.value` is a `Coll[Any]` at every arity (`data/shared/src/main/scala/sigma/ast/values.scala:818-822`): a downstream read sees a pair where the JVM sees a Coll (`.get`), errors at an op that takes a Coll only (`.size`, `ByIndex`), returns an item where the JVM's `SelectField` refuses the Coll operand, or compares true/false where the JVM's EQ/NEQ `checkType` refuses the Coll operand at a pair-type site.",
 }
 
 /** The red-table JSON shape: file path → reason id → list of entry names. */

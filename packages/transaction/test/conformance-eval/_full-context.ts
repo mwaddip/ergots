@@ -250,11 +250,11 @@ function readExtensionValueBinding(bytesHex: string): { tpe: SType; value: SValu
 // ---- Hydrate a JSON-form SValue (runner contract §4) ----
 
 /**
- * Hydrate a SANTA JSON value (either an SValue by its `kind`, or a `Value`
- * binding whose bytes go through this package's extension reader) into
- * ergots' runtime `SValue` plus its declared `SType`. The runner contract
- * §4 defines every kind's JSON shape and the asymmetric `Long` /
- * `BigInt` encoding as decimal strings.
+ * Derive the declared SType of a SANTA JSON input from the JSON structure,
+ * not from the hydrated value. A Tuple JSON of any arity has an `STuple`
+ * type built from its items' JSON types — `sTypeOfSValue` on a hydrated
+ * tuple collection would answer `Coll[SAny]` for a tuple of another arity
+ * than two, since the hydrated value's `kind` is `Coll` for that case.
  */
 function sTypeFromJson(json: any): SType {
   switch (json.kind) {
@@ -290,6 +290,13 @@ function sTypeFromJson(json: any): SType {
   }
 }
 
+/**
+ * Hydrate a SANTA JSON value (either an SValue by its `kind`, or a `Value`
+ * binding whose bytes go through this package's extension reader) into
+ * ergots' runtime `SValue` plus its declared `SType`. The runner contract
+ * §4 defines every kind's JSON shape and the asymmetric `Long` /
+ * `BigInt` encoding as decimal strings.
+ */
 function hydrateExtensionValue(json: unknown, treeVersion: number): { tpe: SType; value: SValue } {
   const j = json as { [k: string]: unknown }
   const kind = j['kind'] as string
@@ -649,7 +656,7 @@ export const RED_REASONS: Record<string, string> = {
   'method-not-implemented':
     "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   'expression-register':
-    "The entry's SELF, another box, or an extension holds a `Tuple`, a `ConcreteCollection` or another expression as a register or variable value, which ergots' readers refuse at parse before anything else is read.",
+    "The entry's SELF, another box, or an extension holds an expression as a register or variable value that ergots' readers refuse at parse before anything else is read (a `ConcreteCollection` or a `DeserializeContext` in a register; a `Tuple`, `ConcreteCollection` or other expression lead in an extension value, whose reader takes a Constant lead byte only).",
 }
 
 /** `<v5|v6>/<file>` → reason id → entry names. */

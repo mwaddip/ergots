@@ -266,7 +266,9 @@
     "expression-register": [
       "register-coll-expression-accept#3",
       "register-coll-expression-eq-accept#5",
-      "register-coll-expression-zip-eq-accept#7",
+      "register-coll-expression-zip-eq-accept#7"
+    ],
+    "register-tuple-expression": [
       "register-pair-expression-byindex0-accept#23",
       "register-pair-expression-byindex1-accept#25",
       "register-pair-expression-constant-eq-errored#15",
