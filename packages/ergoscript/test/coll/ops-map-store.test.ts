@@ -354,3 +354,64 @@ describe('fromArray on a pair elem routes to fromBoxedPairs and checks each comp
     expect(() => fromArray(pairOf(SINT, SBOX), items, false)).toThrow(CollArrayStore)
   })
 })
+
+describe('fromArray on a NESTED pair elem builds a pair-typed side as pairs again (CollsOverArrays.scala:205-215: fromBoxedPairs ends in pairCollFromArrays, which builds each side with fromArray)', () => {
+  const PLAIN_INT = { shape: 'array', specialised: false, array: 'int' }
+  const PLAIN_LONG = { shape: 'array', specialised: false, array: 'long' }
+
+  it('((Int, Long), Int): the left side is pairs with plain sides', () => {
+    const items: SValue[] = [pair(pair(int(1), long(2n)), int(3))]
+    const out = fromArray(pairOf(pairOf(SINT, SLONG), SINT), items, false)
+    expect(out.cls).toEqual({
+      shape: 'pairs',
+      ls: { shape: 'pairs', ls: PLAIN_INT, rs: PLAIN_LONG },
+      rs: PLAIN_INT,
+    })
+    expect(out.items).toEqual(items)
+  })
+
+  it('(Int, (Int, Long)): the right side is pairs with plain sides', () => {
+    const items: SValue[] = [pair(int(1), pair(int(2), long(3n)))]
+    const out = fromArray(pairOf(SINT, pairOf(SINT, SLONG)), items, false)
+    expect(out.cls).toEqual({
+      shape: 'pairs',
+      ls: PLAIN_INT,
+      rs: { shape: 'pairs', ls: PLAIN_INT, rs: PLAIN_LONG },
+    })
+  })
+
+  it('((Int, Long), Int) with an Int where the inner Long belongs: CollClassCast (SANTA Coll.flatMap_length_limit flat-nestL-n3-2-v0-a2#92)', () => {
+    const items: SValue[] = [pair(pair(int(1), int(2)), int(3))]
+    expect(() => fromArray(pairOf(pairOf(SINT, SLONG), SINT), items, false)).toThrow(CollClassCast)
+  })
+
+  it('(Int, (Int, Long)) with an Int where the inner Long belongs: CollClassCast (SANTA Coll.flatMap_length_limit flat-nestR-n3-2-v0-a2#97)', () => {
+    const items: SValue[] = [pair(int(1), pair(int(2), int(3)))]
+    expect(() => fromArray(pairOf(SINT, pairOf(SINT, SLONG)), items, false)).toThrow(CollClassCast)
+  })
+
+  it('an inner component that is no pair where a pair-typed side wants one: CollArrayStore at the outer store into Tuple2[]', () => {
+    const items: SValue[] = [pair(int(1), int(3))]
+    expect(() => fromArray(pairOf(pairOf(SINT, SLONG), SINT), items, false)).toThrow(CollArrayStore)
+  })
+
+  it('the left side is built whole before the right: a wrong inner component on the LEFT of the second item is refused before a wrong one on the RIGHT of the first item', () => {
+    // item 0: right side lies (a GroupElement where a Box belongs, inside the right pair);
+    // item 1: left side lies (an Int where a Long belongs, inside the left pair).
+    // The outer loop stores both items' components (all are pairs: accepted); then
+    // fromArray(left) runs over every item and refuses item 1's inner Int with a
+    // class cast, before fromArray(right) can refuse item 0 with an array store.
+    const T = pairOf(pairOf(SINT, SLONG), pairOf(SINT, SBOX))
+    const items: SValue[] = [
+      pair(pair(int(1), long(2n)), pair(int(3), groupElem())),
+      pair(pair(int(1), int(2)), pair(int(3), makeBox())),
+    ]
+    expect(() => fromArray(T, items, false)).toThrow(CollClassCast)
+  })
+
+  it('three levels: (((Int, Long), Int), Int) with the innermost component wrong: CollClassCast', () => {
+    const T = pairOf(pairOf(pairOf(SINT, SLONG), SINT), SINT)
+    const items: SValue[] = [pair(pair(pair(int(1), int(2)), int(3)), int(4))]
+    expect(() => fromArray(T, items, false)).toThrow(CollClassCast)
+  })
+})
