@@ -172,18 +172,72 @@ describe('a box whose R4 is the Tuple(1, 2) EXPRESSION keeps its bytes and its i
   })
 
   it('serialize cost of the parsed box reads the register wire bytes', () => {
-    // The register walk in `addBoxCost` reads `opaqueBytes` (`eval/serialize-cost.ts:497-512`),
-    // not the value. The cost of the Tuple-expression register walk is pinned
-    // here against the baseline cost (`global-serialize-complex.test.ts`: a
-    // Tuple-Expr register of two SByte items costs 6; two SInt items cost the
-    // same, each item being a type byte + a 1-byte VLQ data payload). The box's
-    // full cost is the addBoxCost total: changing it means a cost path has
-    // moved — read the walk before changing the number.
+    // The register walk in `addBoxCost` reads `opaqueBytes`
+    // (`eval/serialize-cost.ts:497-512`), not the value. The expression box
+    // and a twin whose R4 is the equal constant `(1, 2)` pair differ by their
+    // register walks only, and they are pinned at distinct figures: a
+    // `value`-reading regression collapses the pin because both branches would
+    // cost the same.
+    //
+    // Hand derivation (walker rules in `eval/serialize-cost.ts`, JVM
+    // `ErgoBoxCandidate.scala:138-181` + `SigmaByteWriter.scala:45-185`):
+    //
+    //   shared box walk (`addBoxCost` outside the register loop):
+    //     putULong(value=100)                   = 3     (PUT_NUM3)
+    //     putBytes(serializeErgoTree(0008d3))   = 3+3   (3-byte reencoded tree)
+    //     putUInt(creationHeight=0)             = 0     (no-DataInfo overload)
+    //     putUByte(nTokens=0)                   = 1
+    //     putUByte(nRegs=1)                     = 1
+    //     putBytes(txId, 32)                    = 35
+    //     putUShort(index=0)                    = 3     (PUT_NUM3)
+    //     shared subtotal                       = 46
+    //
+    //   expression register `86 02 04 02 04 04` (`addRegisterExprCost`,
+    //   OP_TUPLE branch):
+    //     w.put(TupleCode)                      = 1
+    //     putUByte(count=2)                     = 1
+    //     per item (Constant, SInt lead 0x04):
+    //       putType(SInt)                       = 1
+    //       DataSerializer(Int)                 = 3     (PUT_NUM3)
+    //     2 items × 4                           = 8
+    //     register walk                         = 10
+    //     total                                 = 46 + 10 + 3 (tree hdr) = 59
+    //
+    //   constant register `58 02 04` (the `58` is the symmetric-pair-of-SInt
+    //   type code, `PAIR_SYMMETRIC (84) + SInt_prim (4)`):
+    //     putType(STuple[SInt, SInt])           = 1     (one byte, pair-sym)
+    //     DataSerializer(STuple pair):
+    //       per item SInt                       = 3     (PUT_NUM3)
+    //     register walk                         = 1 + 3 + 3 = 7
+    //     total                                 = 46 + 7 + 3 (tree hdr)  = 56
+    //
+    // The addBoxCost framework charges `3 + treeLen` where treeLen for the
+    // reencoded `00 08 d3` is 3, so each total is shared + register + 3.
     const sv = parseSValue({ tag: 'SBox' }, 3, new ByteReader(rawBytes))
     if (sv.kind !== 'Box') throw new Error(`unreachable: ${sv.kind}`)
     const ctx = makeContext({ treeVersion: 3 })
     serializeCost({ tag: 'SBox' }, sv, ctx)
-    expect(ctx.jitCost).toBeGreaterThan(0)
+    expect(ctx.jitCost).toBe(59)
+    // The constant-pair twin: R4 = `(1, 2)` as a `(SInt, SInt)` Constant, wire
+    // `58 02 04`. Everything else is the same box.
+    const CONST_TWIN_HEX =
+      '64' +
+      '0008d3' +
+      '00' +
+      '00' +
+      '01' +
+      '580204' +
+      '0000000000000000000000000000000000000000000000000000000000000000' +
+      '00'
+    const twin = parseSValue({ tag: 'SBox' }, 3, new ByteReader(hexToBytes(CONST_TWIN_HEX)))
+    if (twin.kind !== 'Box') throw new Error(`unreachable: ${twin.kind}`)
+    const twinCtx = makeContext({ treeVersion: 3 })
+    serializeCost({ tag: 'SBox' }, twin, twinCtx)
+    expect(twinCtx.jitCost).toBe(56)
+    // The two figures differ: the register walk reads a different path for
+    // each register. A walker that reads `entry.value` under `entry.tpe` for
+    // the expression register would collapse the two figures.
+    expect(ctx.jitCost).not.toBe(twinCtx.jitCost)
     // Round-trip through the writer: the same bytes come back.
     const w = new ByteWriter()
     serializeSValue({ tag: 'SBox' }, sv, 3, w)
