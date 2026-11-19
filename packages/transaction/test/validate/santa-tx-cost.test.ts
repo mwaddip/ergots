@@ -64,8 +64,6 @@ const REJECTED_BY_ERGOTS: Record<string, string[]> = {
   // non-pair-tuple-spend.json: 4 accepts over non-pair tuple scripts; ergots refuses at the
   // collection op, the JVM holds the tuple as Coll[Any].
   'non-pair-tuple-spend.json': Object.values(COLLECTION_CLASS_RED['non-pair-tuple-spend.json'] ?? {}).flat().sort(),
-  // small-tuples.json: 1 accept whose OUTPUT R4 holds a Tuple expression whose nested arity
-  // ergots' register reader refuses before anything else is read.
   'small-tuples.json': Object.values(COLLECTION_CLASS_RED['small-tuples.json'] ?? {}).flat().sort(),
 };
 
@@ -96,12 +94,12 @@ describe('validateStateful returns the JVM\'s cost (SANTA transaction tier)', ()
     ]);
     // 30 arbitrary + 16 generic-producers accepts ergots grades + 124 patch-array-class accepts
     // ergots grades + 0 generic-producers-census accepts (every one holds an expression ergots
-    // refuses) + 36 group-node-static-type accepts + 5 non-pair-tuple-spend accepts + 20
-    // small-tuples accepts = 231. A tuple of another arity than two is a `Coll[Any]`
+    // refuses) + 36 group-node-static-type accepts + 5 non-pair-tuple-spend accepts + 21
+    // small-tuples accepts = 232. A tuple of another arity than two is a `Coll[Any]`
     // (`CoreDataSerializer.scala:139-144`), so a spend that hands such a value where a
     // collection is wanted grades at its collection op's cost: 12 group-node-static-type
     // and 4 non-pair-tuple-spend entries are in that set.
-    expect(graded.length).toBe(231);
+    expect(graded.length).toBe(232);
     for (const [file, names] of Object.entries(REJECTED_BY_ERGOTS)) {
       const valid = TX_FILES.find((f) => f.file === file)!.entries.filter((e) => e.expected.valid).map((e) => e.name);
       expect(names.filter((n) => !valid.includes(n))).toEqual([]);

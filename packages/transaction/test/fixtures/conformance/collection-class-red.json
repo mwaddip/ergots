@@ -226,10 +226,5 @@
       "patch-array-class-spend-ctx-patch-B.context.self.id-ctl0-v0-a3#184",
       "patch-array-class-spend-ctx-patch-B.context.self.id-ctl0-v3-a3#185"
     ]
-  },
-  "small-tuples.json": {
-    "expression-register": [
-      "small-tuple-output-register_nested_tuple_expr#28"
-    ]
   }
 }

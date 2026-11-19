@@ -146,16 +146,12 @@ function parseRegisterExpr(
     const tpe = parseSTypeWithFirstByte(tag, r, treeVersion)
     entry = { tpe, value: parseSValue(tpe, treeVersion, r) }
   } else if (tag === OP_TUPLE) {
-    // Tuple Expr: 1-byte items count, then N nested Exprs.
+    // Tuple Expr: a signed-byte items count, then N nested Exprs. The JVM reads
+    // the count with a signed `getByte` and runs `safeNewArray`
+    // (`data/shared/src/main/scala/sigma/serialization/TupleSerializer.scala:27-36`
+    // at 6.0.7): 0..127 parses, 128 and above are a NegativeArraySizeException
+    // before any item is read. There is no lower bound on the arm.
     const itemsCount = r.readU8()
-    if (itemsCount < 2) {
-      throw new SValueParseError(
-        `SBox register Tuple Expr items count ${itemsCount} below minimum 2`,
-        'sbox-register-tuple-arity'
-      )
-    }
-    // TupleSerializer (TupleSerializer.scala:28-31) reads the arity with a signed getByte; 0x80 and
-    // above are negative and fail safeNewArray before any item is read.
     if (itemsCount > 127) {
       throw new SValueParseError(`SBox register Tuple arity ${itemsCount} is negative as a signed byte`, 'sbox-register-tuple-arity')
     }
@@ -166,9 +162,13 @@ function parseRegisterExpr(
       itemTpes.push(item.tpe)
       itemValues.push(item.value)
     }
+    // `Tuple.value` (`data/shared/src/main/scala/sigma/ast/values.scala:807-828`
+    // at 6.0.7) is `Colls.fromArray(xs.toArray)` under `sigma.AnyType` at
+    // every arity, two included: a two-item `Tuple` expression is not a pair.
+    // The type is the tuple type of the items' types (`Tuple.tpe`, `:813`).
     entry = {
       tpe: { tag: 'STuple', items: itemTpes },
-      value: { kind: 'Tuple', items: itemValues },
+      value: tupleColl(itemValues),
     }
   } else {
     // Any other lead is an opcode. `r.getValue()` looks up its serializer and runs rule 1002
@@ -213,8 +213,9 @@ export type AdditionalRegisters = Record<
  * `Expr::sigma_parse(r)`) restricted to `Const` or `Tuple`. Most mainnet
  * registers are Constants (lead byte = SType byte ≤ 112). The rare Tuple-Expr
  * form (lead byte 0x86, ~one box at h=855,650 R8) is recognized + preserved
- * via `opaqueBytes` so the wire form round-trips byte-identically even though
- * the type system stores the value as a regular STuple Constant.
+ * via `opaqueBytes` so the wire form round-trips byte-identically; its value
+ * on access is the `Coll[Any]` of `Tuple.value` (`values.scala:807-828` at
+ * 6.0.7, every arity) and its type is the `STuple` of the items' types.
  *
  * Shared by the SBox data parser (`case 'SBox'`) and `@ergots/transaction`'s
  * ErgoBoxCandidate codec — the register grammar lives in one place. The caller
