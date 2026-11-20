@@ -44,6 +44,7 @@ ergots/
 │   ├── avltree/              @ergots/avltree
 │   ├── ergoscript/           @ergots/ergoscript
 │   └── transaction/          @ergots/transaction
+├── santa/                    SANTA conformance runner (not published): `santa/grade` grades a checkout, see santa/README.md
 ├── fixture-gen/              Rust crate — generated the original fixture corpus (now frozen)
 ├── tools/                    Dev-only harnesses (not published, may use WASM as a cost oracle)
 │   ├── mainnet-validate/     Full-chain walker: validates evaluator costs vs the reference

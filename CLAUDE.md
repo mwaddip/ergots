@@ -69,7 +69,7 @@ inside a package silently scopes it to that package — a plausible-looking coun
 (a few hundred instead of several thousand) with no warning.
 
 Note the two root-level commands measure DIFFERENT scopes: `npm test` delegates
-to workspace scripts (packages/* only), while a bare `npx vitest run` at the
+to workspace scripts (packages/* and santa), while a bare `npx vitest run` at the
 repo root has no root config and default-globs the whole repo — additionally
 picking up `tools/mainnet-validate/harness/test/` (~194 tests, including the
 one standing skip). The session ledgers' gate figures (e.g. "7461 passed + 1
