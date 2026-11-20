@@ -602,9 +602,9 @@ export function serializeSValue(t: SType, v: SValue, treeVersion: number, w: Byt
  * refusing with `'type-value-mismatch'`.
  *
  * ergots' `kind: 'Tuple'` holds exactly two items by the contract
- * ([`facts/ergoscript-eval.md`](./ergoscript-eval.md), "Tuples and non-pair
- * tuple values"); a `kind: 'Tuple'` of any other arity is a value the writer
- * refuses, as the JVM's pair case refuses a non-pair.
+ * `facts/ergoscript-eval.md`, section "Tuples and non-pair tuple values"; a
+ * `kind: 'Tuple'` of any other arity is a value the writer refuses, as the
+ * JVM's pair case refuses a non-pair.
  *
  * Returns `null` for a value the writer refuses.
  */

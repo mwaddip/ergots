@@ -329,6 +329,15 @@ Build the `Coll[Any]` the JVM data reader gives for a tuple of another arity tha
 
 A caller that binds a tuple value of another arity than two at an extension or register position uses this builder: the collection's `elem` is identity-sensitive, and this is the one API that produces it. `items` is one `SValue` per tuple item, in order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). A pair stays `{ kind: 'Tuple', items }` — the builder is for non-pair arities.
 
+A tuple collection is told by the identity of its `elem` object: the one `SANY_JVM` object `tupleColl` places on it. A `kind: 'Coll'` whose `elem` is a structural `{ tag: 'SAny' }` object (not `SANY_JVM` by `===`) is not a tuple collection to the evaluator. Consequences for such a value, each pinned by a unit test in `packages/ergoscript/test/coll/structural-sany-elem.test.ts`:
+
+- The value writer (`serializeSValue` at an `STuple` type, `wire/serialize-svalue.ts`) refuses with `SValueSerializeError('type-value-mismatch')` — `tupleItems` matches by the object identity of `SANY_JVM` and returns `null` on any other `SAny` object.
+- The element-type check of the five lambda-applying Coll arms (Filter / Exists / ForAll / MapColl / SColl.flatMap) refuses with `EvalError('coll-elem-tpe-mismatch')` — the structural `SAny` equals neither the declared argument type nor `dataItemType(argTpe)`, while the identity check against `SANY_JVM` admits the tupleColl's elem.
+- `SelectField` refuses with `EvalError('select-field-input-not-tuple')` — its class check for a non-pair-value input fires first on a `kind: 'Coll'`, before the tupleColl-identity branch that gives `'select-field-non-pair'`.
+- `SizeOf` and `ByIndex` still answer — they iterate on `items` and have no `elem` identity test.
+
+`makeContext` does not normalise: a register or extension entry whose declared type is a non-pair `STuple` and whose value is a `Coll` built outside `tupleColl` with a structural `SAny` keeps that structural `elem`. A caller that builds a tuple collection for a harness binding uses `tupleColl`.
+
 ### `CollClass` / `ArrayClass`
 
 ```ts

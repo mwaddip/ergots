@@ -1137,13 +1137,15 @@ export type EvalErrorCode =
    * Adversarial-only (honest compilers never emit these). ergots' own `SAny`
    * (a fresh `{ tag: 'SAny' }` object the method typing builds for a method
    * ergots cannot type, residual 1 of `facts/ergoscript-wire.md`) is refused
-   * by no rule here — told by identity from `SANY_JVM`. The FuncValue/Apply
-   * param+body SFunc arms (P6 closure path) are not hooked and need no hook:
-   * a FuncValue of other than one parameter rejects where it is evaluated,
-   * before any site sees its value ('apply-arity-mismatch', eval/func-value.ts;
-   * values.scala:1070-1085). So the helper's SFunc branch is reached only
-   * through MIR built by the API, such as a `Const` declared with a non-unary
-   * SFunc type.
+   * by no rule here — told by identity from `SANY_JVM`. The `SFunc` branch
+   * of this helper is reached by the lambda-argument check at each application
+   * (`values.scala:1074`), by a `FuncValue` of another arity than one
+   * evaluated where no application site is reached — a non-unary FuncValue
+   * otherwise rejects at the eval site with `'apply-arity-mismatch'`
+   * (eval/func-value.ts; values.scala:1070-1085) — and by MIR built by the
+   * API, such as a `Const` declared with a non-unary `SFunc` type. A parsed
+   * `SFunc` type at tree v3 can appear as a lambda's argument type where this
+   * branch fires too.
    *
    * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the `Tuple`
    * EXPR node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
