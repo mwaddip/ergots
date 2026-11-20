@@ -1,8 +1,9 @@
-import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
+import { afterAll, describe, it, expect } from 'vitest'
+import { mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
+import { tmpdir } from 'node:os'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { runDocument, runVector, runEntry } from '../src/runner'
+import { main, runDocument, runVector, runEntry } from '../src/runner'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -42,6 +43,15 @@ describe('a vector whose schema the runner does not know: every entry is not-imp
     expect(actuals).toStrictEqual({ g: NOT_IMPLEMENTED })
   })
 
+  it('a vector with no entries array answers no entry', () => {
+    expect(runDocument({ schema: 'santa-eval/v99' } as never)).toStrictEqual({})
+  })
+
+  it('an entry named `__proto__` has its actual', () => {
+    const actuals = runDocument({ schema: 'santa-eval/v99', entries: [{ name: '__proto__' }] })
+    expect(JSON.stringify(actuals)).toBe('{"__proto__":{"error":"not-implemented"}}')
+  })
+
   it('runVector: no schema', () => {
     const doc = { entries: [evalEntry('g')] } as unknown as Parameters<typeof runVector>[0]
     expect(runVector(doc)).toStrictEqual({ g: NOT_IMPLEMENTED })
@@ -70,6 +80,26 @@ describe('a vector whose schema the runner knows runs on that schema\'s arm', ()
       expect(actuals.g.error, schema).toBe('panicked')
       expect(actuals.g.note, schema).toMatch(/^Error: missing /)
     }
+  })
+
+  it('santa-eval: an entry named `__proto__` has its actual', () => {
+    const actuals = runDocument({ schema: 'santa-eval/v1', entries: [evalEntry('__proto__')] })
+    expect(Object.keys(actuals)).toStrictEqual(['__proto__'])
+  })
+
+  it('santa-eval: a `Value` binding at an extension position is read by @ergots/transaction\'s extension reader', () => {
+    // SANTA's Box.getReg_dynamic_index `accept-r4-long#0`: SELF.getReg[Long](var 1) with R4 = Long 7; var 1 is the
+    // Int 4, given as the bytes a node carries (type 04, value 08).
+    const entry = {
+      name: 'accept-r4-long#0',
+      tree_bytes_hex: '1b0b00dc6313a701e4e3010405',
+      input: { kind: 'Value', bytes_hex: '0408' },
+      selfRegisters: { '4': { kind: 'Long', value: '7' } },
+      version: { activated: 3, ergoTree: 3 },
+    }
+    expect(runDocument({ schema: 'santa-eval/v4', entries: [entry] })).toStrictEqual({
+      'accept-r4-long#0': { value: { kind: 'Option', value: { kind: 'Long', value: '7' } }, cost: 89, error: null },
+    })
   })
 
   it('santa-wire/v1', () => {
@@ -103,5 +133,26 @@ describe('a vector whose schema the runner knows runs on that schema\'s arm', ()
     }
     const actuals = runDocument({ schema: 'santa-authds/v1', entries: [entry] })
     expect(actuals).toStrictEqual({ p: { proofs: [], digests: [], error: null } })
+  })
+})
+
+describe('the CLI writes the actuals of the vector file it is given', () => {
+  const dir = mkdtempSync(path.join(tmpdir(), 'santa-runner-'))
+  afterAll(() => rmSync(dir, { recursive: true }))
+  const run = (name: string, doc: unknown): unknown => {
+    const vec = path.join(dir, `${name}.json`)
+    const out = path.join(dir, `${name}.actuals.json`)
+    writeFileSync(vec, JSON.stringify(doc))
+    main(['node', 'runner.js', vec, out])
+    return JSON.parse(readFileSync(out, 'utf8'))
+  }
+
+  it('a schema the runner does not know: not-implemented for every entry', () => {
+    expect(run('block', { schema: 'santa-block/v1', entries: [evalEntry('g')] })).toStrictEqual({ g: NOT_IMPLEMENTED })
+  })
+
+  it('a wire vector runs on the wire arm', () => {
+    expect(run('wire', { schema: 'santa-wire/v1', entries: [wireEntry] }))
+      .toStrictEqual({ c: { bytes_hex: '090105', error: null } })
   })
 })

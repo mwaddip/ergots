@@ -89,13 +89,18 @@ type Unread = { error: 'not-implemented'; value?: never; cost?: never; note?: ne
 const UNREAD: Unread = Object.freeze({ error: 'not-implemented' })
 
 /** A vector as far as dispatch reads it: its schema and its entries' names. */
-type RawVector = { schema?: string; entries: { name: string; [field: string]: unknown }[] }
+type RawVector = { schema?: string; entries?: { name: string; [field: string]: unknown }[] }
 
-/** Every entry of a vector answered `UNREAD`, keyed by name. Reads nothing of an entry but its name. */
-function unread(doc: { entries: { name: string }[] }): Record<string, Unread> {
-  const actuals: Record<string, Unread> = {}
-  for (const e of doc.entries) actuals[e.name] = UNREAD
-  return actuals
+/** A vector's actuals: `run`'s outcome for each entry, under the entry's name as an own property (so any name,
+ *  `__proto__` included, is a key of the object and of its JSON). */
+function actualsOf<E extends { name: string }, R>(entries: E[], run: (e: E) => R): Record<string, R> {
+  return Object.fromEntries(entries.map((e) => [e.name, run(e)]))
+}
+
+/** Every entry of a vector answered `UNREAD`, keyed by name. Reads nothing of an entry but its name, and takes a
+ *  vector with no `entries` array as one with no entries. */
+function unread(doc: { entries?: { name: string }[] }): Record<string, Unread> {
+  return actualsOf(Array.isArray(doc.entries) ? doc.entries : [], () => UNREAD)
 }
 
 /** Run one entry → exactly one Result. Never-panic invariant (runner-contract §3): any
@@ -539,11 +544,7 @@ function buildFullCtxOpts(
  *  an entry, never aborts the file (runner-contract §3). No scope logic, no buckets. */
 export function runVector(doc: Vector, readExt: ExtensionReader = null): Record<string, Result | Unread> {
   if (!EVAL_SCHEMAS.has(doc.schema)) return unread(doc)
-  const actuals: Record<string, Result | Unread> = {}
-  for (const e of doc.entries) {
-    actuals[e.name] = runEntry(doc.schema, e, readExt)
-  }
-  return actuals
+  return actualsOf(doc.entries, (e) => runEntry(doc.schema, e, readExt))
 }
 
 /** One wire entry's outcome — the round-trip analog of Result: a single bytes_hex replaces
@@ -682,9 +683,7 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
 
 /** run(wire vector) → actuals: exactly one WireResult per entry, keyed by name (total). */
 export function runWireVector(doc: WireVector): Record<string, WireResult> {
-  const actuals: Record<string, WireResult> = {}
-  for (const e of doc.entries) actuals[e.name] = runWireEntry(e)
-  return actuals
+  return actualsOf(doc.entries, (e) => runWireEntry(e))
 }
 
 // ---- Transaction tier ----
@@ -768,16 +767,14 @@ function runTxEntry(e: TxEntry): TxResult {
 /** run(transaction vector) → actuals: exactly one TxResult per entry, keyed by name (total). The
  *  panic-net mirrors runEntry — any otherwise-uncaught throw becomes `panicked`. */
 export function runTransactionVector(doc: TxVector): Record<string, TxResult> {
-  const actuals: Record<string, TxResult> = {}
-  for (const e of doc.entries) {
+  return actualsOf(doc.entries, (e): TxResult => {
     try {
-      actuals[e.name] = runTxEntry(e)
+      return runTxEntry(e)
     } catch (err) {
       const note = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
-      actuals[e.name] = { valid: null, cost: null, error: 'panicked', note }
+      return { valid: null, cost: null, error: 'panicked', note }
     }
-  }
-  return actuals
+  })
 }
 
 // ---- santa-authds/v1: authenticated-AVL+ prove + verify over @ergots/avltree ----
@@ -945,9 +942,7 @@ export function runAuthdsEntry(e: AuthdsEntry): AuthdsResult {
 
 /** run(authds vector) → actuals: exactly one AuthdsResult per entry, keyed by name. */
 export function runAuthdsVector(doc: AuthdsVector): Record<string, AuthdsResult> {
-  const actuals: Record<string, AuthdsResult> = {}
-  for (const e of doc.entries) actuals[e.name] = runAuthdsEntry(e)
-  return actuals
+  return actualsOf(doc.entries, runAuthdsEntry)
 }
 
 // ---- santa-nipopow/v1: interlinks and proof construction over @ergots/nipopow ----
@@ -955,7 +950,9 @@ export function runAuthdsVector(doc: AuthdsVector): Record<string, AuthdsResult>
 // derives every header's interlinks with `updateInterlinks` from the first header's own id (the convention of §5),
 // and for a proof hands the chain, cut where the entry says, to `prove`.
 
-interface NipopowChainItem { height?: number; headerHex: string; interlinks?: string[] }
+/** A chain item as the arm reads it: the header's bytes. (A vector's item also carries the height and the blessed
+ *  interlinks, which is the answer the arm computes.) */
+interface NipopowChainItem { headerHex: string }
 interface NipopowEntry {
   name: string
   kind: string
@@ -1019,9 +1016,7 @@ export function runNipopowEntry(e: NipopowEntry, chain: NipopowChainItem[]): Nip
 
 /** run(nipopow vector) → actuals: exactly one NipopowResult per entry, keyed by name. */
 export function runNipopowVector(doc: NipopowVector): Record<string, NipopowResult> {
-  const actuals: Record<string, NipopowResult> = {}
-  for (const e of doc.entries) actuals[e.name] = runNipopowEntry(e, doc.chain)
-  return actuals
+  return actualsOf(doc.entries, (e) => runNipopowEntry(e, doc.chain))
 }
 
 /** run(vector of any tier) → actuals. The vector's schema picks the arm, by exact name and version: the six eval
@@ -1041,10 +1036,10 @@ export function runDocument(raw: RawVector): Record<string, unknown> {
 }
 
 // ---- CLI: runner <vector.json> [actuals-out.json] (mirrors Runner.scala) ----
-function main(argv: string[]): void {
+export function main(argv: string[]): void {
   const vecPath = argv[2]
   if (!vecPath) {
-    console.error('usage: runner <vector.json> [<actuals-out.json>]')
+    console.error('usage: node dist/runner.js <vector.json> [<actuals-out.json>]')
     process.exit(2)
   }
   const actuals = runDocument(JSON.parse(readFileSync(vecPath, 'utf8')) as RawVector)

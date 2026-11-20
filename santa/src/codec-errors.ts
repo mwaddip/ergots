@@ -20,7 +20,7 @@ export function isWireCodecError(err: unknown): boolean {
     || err instanceof ReaderError
     // A tx-codec rejection of the bytes is a faithful `errored`.
     || err instanceof TxParseError
-    // ExprTpeError: a node the JVM refuses to build (ergots' sized-tree work lets it propagate as a
-    // hard reject). By name too: ergots master does not export the class from the package root.
+    // ExprTpeError: a node the JVM refuses to build, which ergots' parser raises as a hard reject.
+    // Recognised by its name.
     || (err instanceof Error && err.name === 'ExprTpeError')
 }
