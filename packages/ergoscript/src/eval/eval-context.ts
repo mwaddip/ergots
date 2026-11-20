@@ -74,7 +74,7 @@ export interface EvalOpts {
    * version). Arms reading ctx.treeVersion use (ctx.treeVersion ?? 0), which
    * then only a direct arm call without a version meets.
    *
-   * Required for arms with tree-version-dependent semantics:
+   * Arms with tree-version-dependent semantics read it, for example:
    * - Upcast: BigInt → BigInt requires V3+
    * - Downcast: BigInt → any requires V3+
    *
@@ -152,7 +152,9 @@ export interface EvalContext extends EvalOpts {
    */
   addCost(amount: number): void
   /**
-   * Composite per-item charge: `base + ceil(nItems / chunkSize) * perChunk`.
+   * Composite per-item charge: `base + chunks * perChunk`, `chunks` being
+   * `trunc((nItems - 1) / chunkSize) + 1`: for no item, one chunk when
+   * `chunkSize` is 2 or more and none when it is 1.
    * Mirrors sigma-rust `Context::add_per_item_jit_cost`
    * (`ergotree-ir/src/chain/context.rs:88-99`). Used by BlockValue
    * envelope cost; will be reused by 2f's collection HOFs.

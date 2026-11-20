@@ -59,6 +59,8 @@ const OR_ANSWERED: [string, string, boolean, number][] = [
   ['OR-ladder-L100-k99-tv0-a2#35', '00970d6400000000000000000000000008', true, 20],
   // (true, 5, false)
   ['OR-tuple-dKn-Int5-tv0-a2#80', '009748010401010a00', true, 15],
+  // An empty Coll[Byte]: no item is read.
+  ['OR-coll-Coll_Byte_-empty-tv0-a2#136', '00970e00', false, 15],
 ]
 
 /** [row, tree bytes]: an item of another kind at an index the arm reads. */
@@ -68,6 +70,10 @@ const REFUSED_AT_AN_ITEM: [string, string][] = [
   ['AND-coll-Coll_Byte_-one-tv0-a2#137', '00960e0101'], // Coll[Byte](1)
   ['OR-tuple-nKd-Int5-tv0-a2#82', '009748010401000a01'], // (false, 5, true)
   ['OR-tuple-Kdn-Int5-tv0-a2#83', '0097480401010a0100'], // (5, true, false)
+  ['OR-coll-Coll_Byte_-one-tv0-a2#137', '00970e0101'], // Coll[Byte](1)
+  // A pair is no collection, whatever its first component.
+  ['AND-pair-dInt5-tv0-a2#134', '00963d04000a'], // (false, 5)
+  ['OR-pair-dInt5-tv0-a2#134', '00973d04010a'], // (true, 5)
 ]
 
 describe('And reads its collection item by item (AND.item_by_item)', () => {
@@ -86,7 +92,7 @@ describe('Or reads its collection item by item (OR.item_by_item)', () => {
   }
 })
 
-describe('And / Or refuse an item of another kind at an index they read', () => {
+describe('And / Or refuse an input that is no collection, and an item of another kind at an index they read', () => {
   for (const [row, tree] of REFUSED_AT_AN_ITEM) {
     it(`${row}: 'coll-not-boolean'`, () => {
       expect(captureEvalError(() => run(tree)).code).toBe('coll-not-boolean')
@@ -94,13 +100,9 @@ describe('And / Or refuse an item of another kind at an index they read', () => 
   }
 })
 
-describe('And refuses what is refused before an item is read', () => {
-  it('AND-pair-dInt5-tv0-a2#134: a pair (false, 5) is no collection', () => {
-    expect(() => run('00963d04000a')).toThrow()
-  })
-
-  it('AND-expr-d-divzero-tv0-a2#148: AND(Coll(false, 1 / 0 == 1)) evaluates the child behind the deciding item', () => {
-    expect(() => run('00968302010100939d040204000402')).toThrow()
+describe('And evaluates its input whole', () => {
+  it("AND-expr-d-divzero-tv0-a2#148: AND(Coll(false, 1 / 0 == 1)) evaluates the child behind the deciding item: 'arith-divide-by-zero'", () => {
+    expect(captureEvalError(() => run('00968302010100939d040204000402')).code).toBe('arith-divide-by-zero')
   })
 })
 
@@ -114,5 +116,18 @@ describe('And under a cost limit: the charge is for the items read', () => {
 
   it("a limit of 19 is 'cost-limit-exceeded'", () => {
     expect(captureEvalError(() => run(TREE, { jitCostLimit: 19 })).code).toBe('cost-limit-exceeded')
+  })
+})
+
+describe('Or under a cost limit: the charge is for the items read', () => {
+  // OR-ladder-L100-k0-tv0-a2#29: 100 items, the first true; the cost is 15.
+  const TREE = '00970d6401000000000000000000000000'
+
+  it('a limit of 15 answers true at 15', () => {
+    expect(run(TREE, { jitCostLimit: 15 })).toEqual({ value: bool(true), cost: 15 })
+  })
+
+  it("a limit of 14 is 'cost-limit-exceeded'", () => {
+    expect(captureEvalError(() => run(TREE, { jitCostLimit: 14 })).code).toBe('cost-limit-exceeded')
   })
 })

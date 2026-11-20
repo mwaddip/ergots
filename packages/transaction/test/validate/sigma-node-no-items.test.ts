@@ -5,7 +5,7 @@
  * (core/shared/src/main/scala/sigma/data/SigmaBoolean.scala:165). The transaction is invalid.
  *
  * The entry is a JVM-blessed row of SANTA `vectors/transaction/v6/authored/sized-tree-spend.json` at commit
- * 0f2fc79, `sigmaand-node-empty-reject#10`, copied field by field. Its `reason` is the oracle's first sentence.
+ * 0f2fc79, `sigmaand-node-empty-reject#10`, copied field by field.
  */
 import { describe, it, expect } from 'vitest'
 import { EvalError } from '@ergots/ergoscript'
@@ -49,7 +49,8 @@ const SIGMA_AND_WITH_NO_ITEMS: SantaTxEntry = {
   expected: {
     valid: false,
     cost: null,
-    reason: 'Scripts of all transaction inputs should pass verification',
+    reason:
+      'org.ergoplatform.validation.MalformedModifierError: Scripts of all transaction inputs should pass verification. 4445e632170d328f56cba0cf63c879fa9f3ec7905aff2f7b323511ce7887cf0f: #0 => Failure(java.lang.IllegalArgumentException: requirement failed)',
   },
 }
 

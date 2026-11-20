@@ -209,7 +209,11 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // Phase 2d-B — And / Or / XorOf (Coll[Boolean] aggregators) (1 code)
   // -------------------------------------------------------------------------
-  /** And/Or/XorOf: input evaluated to non-Coll or Coll with non-Boolean elements. */
+  /**
+   * And/Or/XorOf: the input is not a collection, or an item the arm reads is
+   * not a Boolean. And and Or read up to and including the deciding item;
+   * XorOf reads every item.
+   */
   | 'coll-not-boolean'
 
   // -------------------------------------------------------------------------

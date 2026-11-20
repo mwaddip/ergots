@@ -21,8 +21,9 @@
  *   - V<3: eager — default always evaluated (cost always charged)
  *   - V3+: lazy — default only evaluated when input is None
  *
- * The VALUE is the same at every tree version; the COST differs at the
- * version boundary.
+ * A Some input whose default refuses is refused below V3 and answers from
+ * V3. Otherwise the VALUE is the same at every tree version and the COST
+ * differs by the default's.
  *
  * Reuses 'option-input-not-option' from OptionGet (Task 3).
  */

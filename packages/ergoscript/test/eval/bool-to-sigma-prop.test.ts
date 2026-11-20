@@ -146,6 +146,17 @@ describe('BoolToSigmaProp arm — a SigmaProp operand, by the activated script v
     })
   }
 
+  it('a tree of version 3 at activated 1: the operand is returned as it is (the tree version is not read, trees.scala:39-49)', () => {
+    const { ctx } = spendContext({ tree: TREE_V0 }, 1)
+    ctx.treeVersion = 3
+    const operand: SValue = { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }
+    const expr: BoolToSigmaProp = {
+      tag: 'BoolToSigmaProp',
+      input: { tag: 'Const', tpe: { tag: 'SSigmaProp' }, value: operand },
+    }
+    expect(evalExpr(expr, Env.empty(), ctx)).toEqual(operand)
+  })
+
   // `sigmaProp(sigmaProp(true))`, the tree `10010101d1d17300` of a mainnet spend at height 680,692 (block version
   // 2, activated script version 1): the outer node's operand is the inner node's SigmaProp.
   const MAINNET_TREE = '10010101d1d17300'
