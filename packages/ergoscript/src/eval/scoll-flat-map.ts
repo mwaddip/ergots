@@ -34,6 +34,7 @@ import { assertArgTypeResolved } from './_lambda'
 import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals, hasSAny } from '../mir/stype-helpers'
+import { dataItemType } from '../coll/class'
 import { flatMapped, empty } from './_coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
@@ -99,16 +100,26 @@ export function evalSCollFlatMap(
     )
   }
 
-  // 5. Elem-type check (R3(a) divergence).
+  // 5. Elem-type check.
   //    Static check via mc.args[0] when it's a FuncValue MIR node; skipped
   //    for ValUse-source lambdas because the runtime Closure SValue does not
-  //    carry argTpes (mir/types.ts:149-156). Mirrors coll-map.ts:94-108.
+  //    carry argTpes (mir/types.ts:149-156). Mirrors coll-map.ts.
+  //    The compare target is `dataItemType(argTpe)` — the item type the data
+  //    reader gives (`CoreDataSerializer.scala:176-182`), which is
+  //    `SColl(SAny)` for a tuple argument of another arity than two
+  //    (`:179-180`): a data `Coll[(A, B, C)]` has `elem: SColl(SAny)` and is
+  //    admitted here, with the per-application check refusing non-empty
+  //    inputs through the lambda's `assertCheckedValue`.
   const lambdaExpr = mc.args[0]!
   if (lambdaExpr.tag === 'FuncValue' && lambdaExpr.args.length > 0) {
     const lambdaInputTpe = lambdaExpr.args[0]!.tpe
-    if (!sTypeEquals(inputColl.elem, lambdaInputTpe)) {
+    const dataExpected = dataItemType(lambdaInputTpe)
+    if (
+      !sTypeEquals(inputColl.elem, lambdaInputTpe)
+      && !sTypeEquals(inputColl.elem, dataExpected)
+    ) {
       throw new EvalError(
-        `SColl.flatMap: input elem type ${JSON.stringify(inputColl.elem)} does not match lambda arg type ${JSON.stringify(lambdaInputTpe)}`,
+        `SColl.flatMap: input elem type ${JSON.stringify(inputColl.elem)} does not match lambda arg type ${JSON.stringify(lambdaInputTpe)} (data reader's item type ${JSON.stringify(dataExpected)})`,
         'coll-elem-tpe-mismatch'
       )
     }

@@ -56,6 +56,7 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
+import { dataItemType } from '../coll/class'
 import { filtered } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
@@ -94,22 +95,28 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
   // the condition's declared argument type; the JVM hands each item to the
   // closure, whose `FuncValue.eval` returns a function that checks the
   // argument's class against `isValueOfType` at the declared type on each
-  // application (`values.scala:1073-1074`, `SType.scala:187-213`). A tuple of
-  // another arity than two takes a `Coll[Any]` value
-  // (`CoreDataSerializer.scala:139-144`), and the JVM accepts it here. When
-  // the input is the tuple collection (`elem === SANY_JVM` by identity, the
-  // JVM's `Any`, the fresh object at `mir/types.ts:79`), the check is
-  // skipped: the per-application class check takes it from here. For every
-  // other input the check stays as it was.
+  // application (`values.scala:1073-1074`, `SType.scala:187-213`). The compare
+  // target is `dataItemType(argTpe)` — the item type the data reader gives
+  // (`CoreDataSerializer.scala:176-182`), which is `SColl(SAny)` for a tuple
+  // argument of another arity than two (`:179-180`): a data `Coll[(A, B, C)]`
+  // has `elem: SColl(SAny)` and is admitted here, the per-application check
+  // (step 5) refuses the non-pair declared type through `assertCheckedType`
+  // on every application. A tuple value of another arity (`tupleColl`,
+  // `elem === SANY_JVM` by identity) is also admitted — the per-application
+  // check takes it from there.
   if (
     inputColl.elem !== SANY_JVM
     && e.condition.tag === 'FuncValue'
     && e.condition.args.length > 0
   ) {
     const conditionInputTpe = e.condition.args[0]!.tpe
-    if (!sTypeEquals(inputColl.elem, conditionInputTpe)) {
+    const dataExpected = dataItemType(conditionInputTpe)
+    if (
+      !sTypeEquals(inputColl.elem, conditionInputTpe)
+      && !sTypeEquals(inputColl.elem, dataExpected)
+    ) {
       throw new EvalError(
-        `Filter: input elem type ${JSON.stringify(inputColl.elem)} does not match condition declared arg type ${JSON.stringify(conditionInputTpe)}`,
+        `Filter: input elem type ${JSON.stringify(inputColl.elem)} does not match condition declared arg type ${JSON.stringify(conditionInputTpe)} (data reader's item type ${JSON.stringify(dataExpected)})`,
         'coll-elem-tpe-mismatch'
       )
     }
