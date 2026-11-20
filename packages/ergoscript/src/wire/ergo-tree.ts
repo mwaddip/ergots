@@ -518,12 +518,12 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
  *     `safeNewArray` bound (100000) `'too-many-constants'`.
  *
  * @param scriptBytes   serialized template ErgoTree
- * @param positions     constant indices to replace (`newValues[i]` ↔ `positions[i]`)
- * @param newValues     replacement values
- * @param newValueTypes the type of each value, `newValueTypes[i]` for `newValues[i]`. A constant that a position
- *        names has the type of the value its first position names, by `sTypeEquals`
- *        (JVM `require(c.tpe == newConst.tpe)`, `ErgoTreeSerializer.scala:356`), and that value is written by
- *        that type (`:358`). A value that no position names is neither compared nor written.
+ * @param positions     constant indices to replace (`newConstants[i]` ↔ `positions[i]`)
+ * @param newConstants  the replacement constants, each a value with its type (the JVM's
+ *        `newVals: Array[Constant[SType]]`, `ErgoTreeSerializer.scala:320-322`). A template constant that a
+ *        position names has the type of the replacement its first position names, by `sTypeEquals`
+ *        (`require(c.tpe == newConst.tpe)`, `:356`), and that replacement is written by its type (`:358`). A
+ *        replacement that no position names is neither compared nor written.
  * @param treeVersion   the evaluation's ErgoTree version: the version the template's constants are read
  *        under, types and data (rules 1017 and 1018 included), and the size-prefix gate
  * @returns the substituted bytes and the template's constant count (the
@@ -532,14 +532,13 @@ export function serializeTree(tree: ErgoTree): Uint8Array {
 export function substituteConstantsBytes(
   scriptBytes: Uint8Array,
   positions: number[],
-  newValues: SValue[],
-  newValueTypes: SType[],
+  newConstants: readonly { tpe: SType; value: SValue }[],
   treeVersion: number,
 ): { bytes: Uint8Array; numConstants: number } {
   // JVM `require(positions.length == newVals.length)` (ErgoTreeSerializer.scala:323).
-  if (positions.length !== newValues.length) {
+  if (positions.length !== newConstants.length) {
     throw new ErgoTreeParseError(
-      `substituteConstantsBytes: positions length ${positions.length} !== new_values length ${newValues.length}`,
+      `substituteConstantsBytes: positions length ${positions.length} !== new_values length ${newConstants.length}`,
       'subst-length-mismatch',
     )
   }
@@ -634,18 +633,18 @@ export function substituteConstantsBytes(
       serializeSValue(constantTypes[i]!, constants[i]!, treeVersion, constW)
     } else {
       // JVM `require(c.tpe == newConst.tpe)` (ErgoTreeSerializer.scala:356): structural equality of the
-      // constant's type and the type of the value its first position names.
-      const newTpe = newValueTypes[iPos]!
-      if (!sTypeEquals(newTpe, constantTypes[i]!)) {
+      // constant's type and the type of the replacement its first position names.
+      const newConst = newConstants[iPos]!
+      if (!sTypeEquals(newConst.tpe, constantTypes[i]!)) {
         throw new ErgoTreeParseError(
-          `substituteConstantsBytes: type mismatch at constant ${i} (the type of newValues[${iPos}] vs the constant's)`,
+          `substituteConstantsBytes: type mismatch at constant ${i} (the type of newConstants[${iPos}] vs the constant's)`,
           'subst-type-mismatch',
         )
       }
-      // `constantSerializer.serialize(newConst, constW)` (:358): the value by its own type.
-      serializeSType(newTpe, constW)
+      // `constantSerializer.serialize(newConst, constW)` (:358): the replacement by its own type.
+      serializeSType(newConst.tpe, constW)
       // Same rationale: use eval-ambient treeVersion, not template's version byte.
-      serializeSValue(newTpe, newValues[iPos]!, treeVersion, constW)
+      serializeSValue(newConst.tpe, newConst.value, treeVersion, constW)
     }
   }
   const constBytes = constW.toBytes()

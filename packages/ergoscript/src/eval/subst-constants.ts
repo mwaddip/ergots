@@ -25,11 +25,11 @@
  *      call adds nothing.
  *   5. The bytes are a specialised `Coll[Byte]` (`Colls.fromArray(newBytes)`, trees.scala:646).
  *
- * Every refusal is `EvalError('subst-constants-error')`; a refusal of step 3 carries the wire error as its
- * `cause`.
+ * A refusal of the inputs is `EvalError('subst-constants-error')`; a refusal of step 3 carries the wire error as
+ * its `cause`. A refused item's message names the version that decided it.
  *
  * The activated script version decides the lift of a Box alone (Platform.scala:50-54) and is read only for one:
- * a context without a pre-header evaluates every other call.
+ * a context without a pre-header evaluates every other call, and a Box there is `'context-field-missing'`.
  */
 
 import type { SubstConstants, SType, SValue } from '../mir/types'
@@ -73,16 +73,18 @@ export function evalSubstConstants(
   // 4. The lift of every item, in order, before anything of the template is read (trees.scala:634-639).
   const treeVersion = ctx.treeVersion ?? 0
   const activated = (): number => activatedScriptVersion(ctx, 'SubstConstants')
-  const newValueTypes: SType[] = []
+  const newConstants: { tpe: SType; value: SValue }[] = []
   for (const item of newValuesV.items) {
     const tpe = liftToConstantType(item, treeVersion, activated)
     if (tpe === null) {
+      // The version that decides: the activated one for a Box, the tree's for every other kind.
+      const at = item.kind === 'Box' ? `activated version ${activated()}` : `tree version ${treeVersion}`
       throw new EvalError(
-        `SubstConstants: an item of newValues of kind '${item.kind}' has no lift to a constant at tree version ${treeVersion}`,
+        `SubstConstants: an item of newValues of kind '${item.kind}' has no lift to a constant at ${at}`,
         'subst-constants-error',
       )
     }
-    newValueTypes.push(tpe)
+    newConstants.push({ tpe, value: item })
   }
 
   // 5. The substitution over the template's bytes: the length comparison, the template's read, the type of each
@@ -93,8 +95,7 @@ export function evalSubstConstants(
     result = substituteConstantsBytes(
       scriptBytes,
       positions,
-      newValuesV.items,
-      newValueTypes,
+      newConstants,
       treeVersion,
     )
   } catch (cause) {

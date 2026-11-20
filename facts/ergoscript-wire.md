@@ -173,8 +173,7 @@ serializeSValue(tpe: SType, v: SValue, treeVersion: number, w: ByteWriter): void
 substituteConstantsBytes(
   scriptBytes: Uint8Array,
   positions: number[],
-  newValues: SValue[],
-  newValueTypes: SType[],
+  newConstants: readonly { tpe: SType; value: SValue }[],
   treeVersion: number,
 ): { bytes: Uint8Array; numConstants: number }
 
@@ -469,7 +468,7 @@ The `getUShort` over-long-VLQ quirk is a follow-up: the JVM reads `getULong().to
 **`substituteConstantsBytes(...)`** is the byte-surgery behind the `SubstConstants` eval arm. It mirrors JVM `ErgoTreeSerializer.substituteConstants` (`ErgoTreeSerializer.scala:320-411`): the header + constants segment are re-parsed and re-serialized, but the tree BODY is copied **verbatim** — never parsed as an `Expr`. This is the consensus-faithful behavior: a crafted template whose body is not valid Expr bytes is returned unchanged (0 constants ⇒ no substitution) where a full `parseTree` throws. ergots **leads** this fix — sigma-rust still uses the parse-based `with_constant` and shares the divergence (routed to sigma-rust); JVM is canonical. JVM-parity details encoded in the fn (`ErgoTreeSerializer.scala:286-411`):
 
 - Out-of-range positions (negative or `>= numConstants`) are a silent no-op; duplicate positions are FIRST-wins (`getPositionsBackref:286-299`).
-- `newValueTypes[i]` is the type of `newValues[i]` (the caller's: the eval arm passes each item's lifted type). A template constant that a position names is compared with the type of the `newValues` item its first position names, by `sTypeEquals` (`require(c.tpe == newConst.tpe)`, `:356`; a difference is `'subst-type-mismatch'`), and that item is written by that type (`:358`). An item that no position names is neither compared nor written.
+- `newConstants` holds the replacements, each a value with its type, as the JVM passes `newVals: Array[Constant[SType]]` (`:320-322`); the eval arm gives each `newValues` item its lifted type. `positions[i]` goes with `newConstants[i]`, and the two lengths are compared first (`:323`, `'subst-length-mismatch'`). A template constant that a position names is compared with the type of the replacement its first position names, by `sTypeEquals` (`require(c.tpe == newConst.tpe)`, `:356`; a difference is `'subst-type-mismatch'`), and that replacement is written by its type (`:358`). A replacement that no position names is neither compared nor written.
 - Every constant (substituted or not) is re-serialized via `serializeSType`/`serializeSValue` (matching JVM's `constantSerializer`), so the constants segment is NOT a verbatim copy — only the body is.
 - The size prefix is re-emitted only when `treeVersion >= 3` (`isV3OrLaterErgoTreeVersion`, the V6 soft-fork; `:369-375`); for the v≤2 range ergots evaluates it is dropped, so a `hasSize` template's output omits the size slot — exactly as JVM does. `treeVersion` is the evaluation's ErgoTree version, NOT the template header's.
 - The template's header and size are read as `deserializeHeaderWithTreeBytes` reads them (`:269-274`, through `deserializeHeaderAndSize`): rule 1012, then, for a size-flagged header, the declared size with `readVlqU32` (above 2^32−1 `ReaderError('vlq-overflow')`), otherwise unused. The constants count follows `deserializeConstants` (`:245-266`), as in the tree parse: `readVlqU32 | 0`, constants read only when it is `> 0` (a count that wraps negative gives none), above 100000 `'too-many-constants'`.

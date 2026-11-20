@@ -114,7 +114,7 @@ describe('a spend whose substConstants lifts a Header', () => {
 
   it('tree version 3: the Header lifts and the box spends at the blessed cost', () => {
     const { tx, deps } = santaTxInputs(HEADER_AT_TREE_V3)
-    expect(validateStateful(tx, deps)).toBe(HEADER_AT_TREE_V3.expected.cost)
     expect(HEADER_AT_TREE_V3.expected.cost).toBe(12133)
+    expect(validateStateful(tx, deps)).toBe(12133)
   })
 })

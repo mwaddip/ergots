@@ -12,13 +12,16 @@
  */
 import { describe, it, expect } from 'vitest'
 import { parseTree } from '../../src/wire/ergo-tree'
-import { evaluateWith } from '../../src/eval/evaluate'
+import { evaluateWith, reduceWith } from '../../src/eval/evaluate'
 import { evalExpr } from '../../src/eval/eval'
 import { Env } from '../../src/eval/env'
 import { makeContext } from '../../src/eval/eval-context'
 import { byteColl, fromArray } from '../../src/coll/build'
+import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteWriter } from '@ergots/scorex'
 import type { Expr, SubstConstants as SubstConstantsExpr, SType, SValue } from '../../src/mir/types'
-import { captureEvalError, hexToBytes } from '../_helpers'
+import { captureEvalError, hexToBytes, synthesizeStubBox } from '../_helpers'
+import { spendContext } from './_substitution-spends'
 
 const toHex = (v: SValue): string => {
   if (v.kind !== 'Coll') throw new Error(`expected a Coll[Byte], got ${v.kind}`)
@@ -153,5 +156,61 @@ describe('SubstConstants: the lift comes first (trees.scala:634-644)', () => {
     const ctx = makeContext()
     captureEvalError(() => evalExpr(subst(scriptBytes, positions, newValues), Env.empty(), ctx))
     expect(ctx.jitCost).toBe(operands.jitCost)
+  })
+
+  it('a call refused after the lift adds nothing to the cost of its three operands', () => {
+    const scriptBytes = bytes(ONE)
+    const positions = ints([0, 0])
+    const newValues = ints([5])
+    const operands = makeContext()
+    evalExpr(scriptBytes, Env.empty(), operands)
+    evalExpr(positions, Env.empty(), operands)
+    evalExpr(newValues, Env.empty(), operands)
+
+    const ctx = makeContext()
+    const err = captureEvalError(() => evalExpr(subst(scriptBytes, positions, newValues), Env.empty(), ctx))
+    expect(err.message).toMatch(/length/)
+    expect(ctx.jitCost).toBe(operands.jitCost)
+  })
+})
+
+/**
+ * A Box lifts when the block's activated script version is 2 or above (`isJitActivated`, Platform.scala:50-54).
+ * The tree is `sigmaProp(substConstants(T, Coll(7), Coll(SELF)).size > 0)`, version 0, the position naming
+ * nothing. Verdicts and costs are a local sigma-state 6.0.7 probe's (spend mode: the tree put in SELF and reduced
+ * by `fullReduction`): at activated 1 `Cannot liftToConstant(Box(...))`, at 2 and at 3 TrueProp at block cost 29.
+ */
+describe('SubstConstants: a Box among newValues, by the activated version', () => {
+  const SELF_AT_POS7 = `00d191b1740e29${TEMPLATE_BYTES}10010e830163a70400`
+  const TRUE_PROP = 'd3'
+  const sigmaHex = (value: SValue): string => {
+    if (value.kind !== 'SigmaProp') throw new Error(`expected a SigmaProp, got ${value.kind}`)
+    const w = new ByteWriter()
+    serializeSigmaBoolean(value.value, w)
+    return Array.from(w.toBytes(), (b) => b.toString(16).padStart(2, '0')).join('')
+  }
+
+  it('activated 1: refused, the refusal naming the activated version', () => {
+    const { tree, ctx } = spendContext({ tree: SELF_AT_POS7 }, 1)
+    const err = captureEvalError(() => reduceWith(tree, ctx))
+    expect(err.code).toBe('subst-constants-error')
+    expect(err.message).toMatch(/kind 'Box' has no lift to a constant at activated version 1/)
+  })
+
+  for (const activated of [2, 3]) {
+    it(`activated ${activated}: lifted, TrueProp at block cost 29`, () => {
+      const { tree, ctx } = spendContext({ tree: SELF_AT_POS7 }, activated)
+      expect(sigmaHex(reduceWith(tree, ctx))).toBe(TRUE_PROP)
+      expect(Math.floor(ctx.jitCost / 10)).toBe(29)
+    })
+  }
+
+  it("a context without a pre-header: the activated version is asked for and is 'context-field-missing'", () => {
+    const tree = parseTree(hexToBytes(SELF_AT_POS7))
+    if (!('constants' in tree)) throw new Error('the tree is parsed')
+    const selfBox = { ...synthesizeStubBox(), ergoTreeBytes: hexToBytes(SELF_AT_POS7) }
+    const ctx = makeContext({ treeVersion: 0, constants: tree.constants, selfBox, inputs: [selfBox] })
+    const err = captureEvalError(() => evaluateWith(tree, ctx))
+    expect(err.code).toBe('context-field-missing')
   })
 })
