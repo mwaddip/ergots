@@ -252,7 +252,9 @@ export type EvalErrorCode =
    *   - the bare `0xa6` LastBlockUtxoRootHash op-form arm
    *     (`eval/last-block-utxo-root-hash.ts`, F5 batch 4 — reads the same
    *     `ctx.lastBlockUtxoRootHash` field as the 101:9 handler; only the cost
-   *     differs by wire shape, 15 op-form vs 20 PropertyCall).
+   *     differs by wire shape, 15 op-form vs 20 PropertyCall);
+   *   - SubstConstants with a Box among its `newValues` on absent `ctx.preHeader`
+   *     (`eval/subst-constants.ts`: the Box's lift reads the activated version).
    */
   | 'context-field-missing'
   /** Self context extension carries a key outside [0,127]: the JVM keys the extension
@@ -602,30 +604,22 @@ export type EvalErrorCode =
    */
   | 'decode-point-invalid'
   /**
-   * `SubstConstants` (CONSENSUS-CRITICAL — output bytes go on-chain): any of
-   * the 6 throw paths in the substitute-constants arm collapse to this single
-   * compact code per the 2g.5 compact-taxonomy decision. The throw paths are:
-   *   - `script_bytes` evaluated to non-`Coll[Byte]` (defensive — build-time
-   *     guard `SubstConstants::new` enforces `SColl(SByte)`).
-   *   - `positions` evaluated to non-`Coll[Int]` (defensive — build-time guard
-   *     enforces `SColl(SInt)`).
-   *   - `new_values` evaluated to non-`Coll[_]` (defensive — build-time guard
-   *     enforces `SColl(_)`).
-   *   - `positions.length !== new_values.items.length`.
-   *   - Bad template bytes (any wire-layer error from `parseTree`).
-   *   - Type mismatch: `new_values.elem` differs from `template.constantTypes[i]`.
-   * Out-of-range `positions[ix]` (negative OR >= constants.length) is NOT a
-   * throw — it is a silent no-op (JVM `getPositionsBackref` parity), so the
-   * template bytes pass through unchanged. See subst-constants.ts step 7.
-   *
-   * Distinguished by `error.message` text. Mirrors sigma-rust's mix of
-   * `EvalError::Misc` (subst_const.rs:36-87) and `SetConstantError`
-   * (ergo_tree.rs:51-66) cases — EXCEPT the out-of-range position path, where
-   * sigma-rust still errors and we (like the JVM) no-op. See santa
-   * prompts/ergots-v5-divergences.md §A2.
-   *
-   * Source: ergotree-interpreter/src/eval/subst_const.rs:18-89
-   *         ergotree-ir/src/ergo_tree.rs:45-70 (with_constant)
+   * `SubstConstants` (CONSENSUS-CRITICAL: the output bytes go on-chain): the refusals the arm makes of its
+   * inputs, told apart by `error.message`, in the order of the JVM's `SubstConstants.eval`
+   * (data/shared/src/main/scala/sigma/ast/trees.scala:628-651, sigma-state 6.0.7):
+   *   - `scriptBytes` is no `Coll[Byte]`, `positions` no `Coll[Int]`, `newValues` no collection.
+   *   - An item of `newValues` has no lift to a constant (`Platform.liftToConstant`,
+   *     data/jvm/src/main/scala/sigma/Platform.scala:16-63) at the tree's version or, for a Box, at the block's
+   *     activated version: the call is refused whatever `positions` holds.
+   *   - `positions` and `newValues` differ in length (ErgoTreeSerializer.scala:323).
+   *   - The template's bytes fail their read (:326): the header's rule 1012, the constants' count, a
+   *     constant's type or data.
+   *   - A constant that a position names has another type than the lifted type of its item (:356).
+   *   - The write of a named item by its lifted type fails (:358).
+   * The last four carry the wire error as `cause`. Two refusals of the node carry another code:
+   * `'context-field-missing'` for a Box among `newValues` when `ctx.preHeader` is unset, and
+   * `'cost-limit-exceeded'` for the node's own cost. An out-of-range position (negative, or at or above the
+   * template's constant count) names nothing and refuses nothing (`getPositionsBackref`, :286-299).
    */
   | 'subst-constants-error'
 

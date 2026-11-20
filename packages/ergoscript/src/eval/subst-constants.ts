@@ -1,60 +1,38 @@
 /**
- * SubstConstants arm — substitute constants in a serialized ErgoTree
- * (CONSENSUS-CRITICAL: output bytes go on-chain; a 1-byte divergence from the
- * JVM `sigma-state` reference is a consensus failure).
+ * SubstConstants: the bytes of a template ErgoTree with some of its constants replaced
+ * (CONSENSUS-CRITICAL: the output bytes go on-chain).
  *
- * The byte surgery lives in the wire layer: `substituteConstantsBytes`
- * (`wire/ergo-tree.ts`), mirroring JVM `ErgoTreeSerializer.substituteConstants`
- * (`sigma-state-6.0.3`). This arm evals the three children, extracts/guards
- * their shapes, then delegates and charges cost.
+ * JVM (sigma-state 6.0.7): `SubstConstants.eval`, data/shared/src/main/scala/sigma/ast/trees.scala:628-651.
+ * The arm follows its order:
  *
- * ⚠ The template BODY is copied VERBATIM, never parsed — matching JVM. A crafted
- * template whose body is not valid Expr bytes (SANTA substConstants `#1`) is
- * returned unchanged (0 constants ⇒ no substitution) where the old
- * `parseTree`/`serializeTree` path threw. The wire fn documents the full
- * JVM-parity contract (out-of-range no-op, first-wins duplicate positions, the
- * v3-gated size prefix, the unbounded body read).
+ *   1. `scriptBytes`, `positions` and `newValues` are evaluated (:629-631): a `Coll[Byte]`, a `Coll[Int]` and a
+ *      collection.
+ *   2. Every item of `newValues`, in order, is lifted to a constant by its runtime class
+ *      (`toArrayOfConstants`, data/shared/src/main/scala/sigma/eval/Extensions.scala:53-64, called at
+ *      trees.scala:634-639; `Platform.liftToConstant`, data/jvm/src/main/scala/sigma/Platform.scala:16-63).
+ *      An item with no lift refuses the call, whatever `positions` holds. `liftToConstantType`
+ *      (`_lift-constant.ts`) gives each item's type.
+ *   3. `ErgoTreeSerializer.substituteConstants`
+ *      (data/shared/src/main/scala/sigma/serialization/ErgoTreeSerializer.scala:320-379), here
+ *      `substituteConstantsBytes` (`wire/ergo-tree.ts`): the lengths of `positions` and `newValues` are compared
+ *      (:323); the template's header and constants are read (:326); each constant a position names is compared
+ *      with its item's lifted type (:356) and the item is written by that type (:358); the template's body is
+ *      copied as it is. An out-of-range position names nothing, and of two positions naming one constant the
+ *      first is taken (`getPositionsBackref`, :286-299).
+ *   4. The cost, `PerItemCost(100, 100, 1)` over the template's constant count (trees.scala:655-656), is added
+ *      after steps 2 and 3 have returned: `addSeqCost` runs its block and then adds
+ *      (interpreter/shared/src/main/scala/sigmastate/interpreter/CErgoTreeEvaluator.scala:399-415). A refused
+ *      call adds nothing.
+ *   5. The bytes are a specialised `Coll[Byte]` (`Colls.fromArray(newBytes)`, trees.scala:646).
  *
- * Sigma-rust ref (the historical parse-based approach — still its current impl):
- *   ergotree-interpreter/src/eval/subst_const.rs:18-89
- *   ergotree-ir/src/ergo_tree.rs:45-70  (ParsedErgoTree::with_constant)
- * sigma-rust full-parses the body too, so it shares the `#1` divergence; ergots
- * leads the serializer-level fix (JVM is canonical). Routed for sigma-rust in
- * `~/projects/santa/prompts/ergots-v5-divergences.md` §A2.
+ * A refusal of the inputs is `EvalError('subst-constants-error')`; a refusal of step 3 carries the wire error as
+ * its `cause`. A refused item's message names the version that decided it.
  *
- * Pseudocode:
- *     script_bytes = scriptBytes.eval(...)             // Coll[Byte] guard
- *     positions    = positions.eval(...)               // Coll[Int]  guard
- *     new_values   = newValues.eval(...)               // Coll[_]    guard
- *     {bytes, n}   = substituteConstantsBytes(script_bytes, positions,
- *                       new_values.items, new_values.elem, ctx.treeVersion)
- *     ctx.addPerItemCost(100, 100, 1, n)               // Pattern B; template-sized
- *     return Coll[Byte] of bytes
- *
- * Cost-charging order: Pattern B, sized by the TEMPLATE's constant count `n`
- * (returned by the wire fn), NOT the caller-supplied `positions.length`. The
- * bug-3 regression (sigma-rust subst_const.rs:221-283 + the byte-equality
- * suite) fixes this: substituting 1 vs 3 positions on a 3-const template must
- * yield identical SubstConstants cost. The final jitCost is independent of
- * whether the charge lands before or after the byte surgery — the op is atomic
- * w.r.t. cost, and errored runs (the only paths affected by ordering) do not
- * assert cost.
- *
- * Single compact error code: `'subst-constants-error'` wraps every throw path
- * from the wire fn (bad template bytes, length mismatch, structural type
- * mismatch) per the 2g.5 compact-taxonomy decision; the out-of-range position
- * path is a no-op (JVM parity), not a throw. Callers distinguish the throws via
- * `error.message`.
- *
- * Build-time type guards: `SubstConstants::new` in sigma-rust validates
- * `script_bytes : SColl(SByte)`, `positions : SColl(SInt)`, and
- * `new_values : SColl(_)` at MIR construction, so parser-produced trees cannot
- * reach the shape-guards here. The TS-side guards remain for defense against
- * `ConstantPlaceholder` injection / hand-crafted MIR (calc_blake2b256 /
- * byte_array_to_long precedent).
+ * The activated script version decides the lift of a Box alone (Platform.scala:50-54) and is read only for one:
+ * a context without a pre-header evaluates every other call, and a Box there is `'context-field-missing'`.
  */
 
-import type { SubstConstants, SValue } from '../mir/types'
+import type { SubstConstants, SType, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
@@ -63,6 +41,8 @@ import { collByteToUint8Array } from './_byte-coll'
 import { byteColl } from './_coll'
 import { extractCollInt } from './_coll-helpers'
 import { substituteConstantsBytes } from '../wire/ergo-tree'
+import { liftToConstantType } from './_lift-constant'
+import { activatedScriptVersion } from './_activated-version'
 
 export function evalSubstConstants(
   e: SubstConstants,
@@ -81,8 +61,7 @@ export function evalSubstConstants(
   const positionsV = evalExpr(e.positions, env, ctx)
   const positions = extractCollInt(positionsV, 'SubstConstants positions', 'subst-constants-error')
 
-  // 3. Eval newValues child — must be a Coll[T] (heterogeneous content rejected
-  //    by the parser's Coll[T] type-tagging).
+  // 3. Eval newValues child: a collection (`evalTo[Coll[...]]`, trees.scala:631). A pair is none.
   const newValuesV = evalExpr(e.newValues, env, ctx)
   if (newValuesV.kind !== 'Coll') {
     throw new EvalError(
@@ -91,18 +70,33 @@ export function evalSubstConstants(
     )
   }
 
-  // 4. Serializer-level substitution: header + constants re-serialized, body
-  //    copied verbatim. The length check, out-of-range no-op, first-wins
-  //    duplicate handling, and structural type-equality all live in the wire
-  //    fn (JVM parity). Any wire-layer error → compact 'subst-constants-error'.
+  // 4. The lift of every item, in order, before anything of the template is read (trees.scala:634-639).
+  const treeVersion = ctx.treeVersion ?? 0
+  const activated = (): number => activatedScriptVersion(ctx, 'SubstConstants')
+  const newConstants: { tpe: SType; value: SValue }[] = []
+  for (const item of newValuesV.items) {
+    const tpe = liftToConstantType(item, treeVersion, activated)
+    if (tpe === null) {
+      // The version that decides: the activated one for a Box, the tree's for every other kind.
+      const at = item.kind === 'Box' ? `activated version ${activated()}` : `tree version ${treeVersion}`
+      throw new EvalError(
+        `SubstConstants: an item of newValues of kind '${item.kind}' has no lift to a constant at ${at}`,
+        'subst-constants-error',
+      )
+    }
+    newConstants.push({ tpe, value: item })
+  }
+
+  // 5. The substitution over the template's bytes: the length comparison, the template's read, the type of each
+  //    named constant against its item's lifted type, the write (ErgoTreeSerializer.scala:320-379). A wire error
+  //    is the refusal's cause.
   let result: { bytes: Uint8Array; numConstants: number }
   try {
     result = substituteConstantsBytes(
       scriptBytes,
       positions,
-      newValuesV.items,
-      newValuesV.elem,
-      ctx.treeVersion ?? 0,
+      newConstants,
+      treeVersion,
     )
   } catch (cause) {
     // The wire error, a template type read's rule 1017 or 1018 included, is the cause.
@@ -113,11 +107,11 @@ export function evalSubstConstants(
     )
   }
 
-  // 5. Pattern B cost: sized by the TEMPLATE's constant count (returned by the
-  //    wire fn), NOT positions.length (sigma-rust subst_const.rs:65; bug-3).
+  // 6. The cost, by the TEMPLATE's constant count and after the lift and the substitution
+  //    (CErgoTreeEvaluator.scala:399-415): a refused call has returned above without it.
   ctx.addPerItemCost(100, 100, 1, result.numConstants)
 
-  // 6. Wrap the substituted bytes as Coll[Byte]. JVM `SubstConstants.eval`
+  // 7. Wrap the substituted bytes as Coll[Byte]. JVM `SubstConstants.eval`
   // (`data/shared/src/main/scala/sigma/ast/trees.scala:633-647`) ends
   // `res = Colls.fromArray(newBytes)` (`:646`) on an `Array[Byte]` — the
   // specialised `fromArray` branch
