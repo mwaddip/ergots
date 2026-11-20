@@ -3,10 +3,9 @@
  * `isValueOfType` does (`SType.scala:187-213`: the `case _` throw at `:212`
  * fires for `SString`, which has no arm).
  *
- * The 6.0.7 probe at
- * `.superpowers/sdd/2026-11-19-collection-value-model-stage-2/final-review-probe/batch2.out`
- * line 1 rejects `sigmaProp("a" == "a")` (`0b08d193660161660161`) at reduce
- * with `java.lang.RuntimeException: Unknown type SString`: the EQ node's
+ * sigma-state 6.0.7 rejects `sigmaProp("a" == "a")` (tree hex
+ * `0b08d193660161660161`) at reduce with
+ * `java.lang.RuntimeException: Unknown type SString`: the EQ node's
  * operand type check is one of the `Value.checkType` sites
  * (`trees.scala:1204-1210`), and the operand's `exprTpe` is `SString`.
  *
@@ -23,7 +22,7 @@ import type { Expr } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, parseParsedTree } from '../_helpers'
 
 describe("assertCheckedType on SString (SType.scala:212, case _ throws 'Unknown type SString')", () => {
-  it("sigmaProp(\"a\" == \"a\") refuses at reduce with 'unsupported-value-type' (6.0.7 probe batch2.out line 1)", () => {
+  it("sigmaProp(\"a\" == \"a\") refuses at reduce with 'unsupported-value-type' (sigma-state 6.0.7 rejects `Unknown type SString`)", () => {
     // 0b08d193660161660161 — v3, SSigmaProp, EQ of two SString constants.
     // The EQ's operand is a Value.checkType site (trees.scala:1204-1210),
     // whose isValueOfType call throws on SString (SType.scala:212).

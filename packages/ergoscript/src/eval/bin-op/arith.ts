@@ -139,9 +139,11 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // included). See `assertArithImplForLeftType` above.
   assertArithImplForLeftType(e, ctx.treeVersion ?? 0)
 
-  // Step 4a: UBI is not in `isNumeric` (P2b Critical 1), so it routes
-  // locally. Both operands must be UBI; cost is the non-BigInt tier
-  // (spec §3; `trees.scala:734-736` charges on the impl's `argTpe`).
+  // Step 4a: UBI is not in `isNumeric` (`eval/bin-op/_numeric.ts`), so an
+  // UBI left value routes locally. Both operands must be UBI; the cost is
+  // the non-BigInt tier (`trees.scala:734-736` charges on the impl's
+  // `argTpe`, and `UnsignedBigInt` sits at `impls(9)` with the Byte/Short/
+  // Int/Long cost).
   if (lv.kind === 'UnsignedBigInt') {
     ctx.addCost(arithCost(op, /*isBigInt*/ false)) // 15 / 15 / 5 by op
     if (rv.kind !== 'UnsignedBigInt') {

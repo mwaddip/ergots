@@ -365,20 +365,31 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  * @param ctx Optional EvalContext for JIT cost accumulation; omitted = cost-free
  */
 function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
-  // Different kinds. The JVM's `DataValueComparer.equalDataValues` charges
-  // by the LEFT value's kind BEFORE the inner match that detects the type
-  // mismatch (`DataValueComparer.scala:316-337`):
-  //   - left Coll: `MatchType` (1) before the second match
-  //     (`:317-327`, `COLL_MATCH_TYPE_COST`);
-  //   - left Tuple2: `EQ_Tuple` (4) before the second match (`:329-337`);
-  //   - otherwise: the arm's own fixed cost runs (every primitive arm charges
-  //     `EQ_Prim` (3) and then `l == r` returns false across kinds).
-  // The three other cross-kind costs the JVM may charge (`EQ_BigInt` 5,
-  // `EQ_GroupElement` 172, `EQ_AvlTree`/`EQ_PreHeader`/`EQ_Header`/`EQ_Box`
-  // 6/4/6/6) are not reachable at tree v3 because the parse-time `SameType`
-  // check refuses an `EQ(x, y)` whose operands' static types differ
-  // (`SigmaBuilder.scala:686-704`, `check-build.ts`); they stay on the
-  // primitive default until a tree makes one reachable.
+  // Different kinds. The JVM's `DataValueComparer.equalDataValues`
+  // (`data/shared/src/main/scala/sigma/data/DataValueComparer.scala:310-398`)
+  // dispatches on the LEFT value's kind and charges that arm's cost before
+  // the inner match detects the type mismatch. ergots covers two of the
+  // thirteen left kinds the JVM dispatches on and keeps the rest at
+  // `EQ_PRIM_COST` (3); the remaining kinds (BigInt, UnsignedBigInt,
+  // GroupElement, SigmaProp, AvlTree, Option, Box, PreHeader, Header,
+  // String, Unit) are not reachable through an `EQ(l, r)` at tree v3,
+  // where `SigmaBuilder.equalityOp` (`:686-693`) calls
+  // `check2(l, r, SameTypeConstrain)` at parse (`check-build.ts` runs the
+  // same constraint): cross-kind operands reject at parse. A Deserialize
+  // substitution of a value of another type past the parse check would
+  // expose the primitive default here. The full cost table is stated as a
+  // residual in `facts/ergoscript-eval.md` under "The comparer's cost
+  // table and the cross-kind residual".
+  //
+  // Implemented (match the JVM):
+  //   - left `Coll` on a non-`Coll` right → `MatchType` (1), before the
+  //     inner match (`DataValueComparer.scala:317-327`).
+  //   - left `Tuple2` on a non-`Tuple2` right → `EQ_Tuple` (4)
+  //     (`:329-337`).
+  // Default (primitive kinds: Boolean/Byte/Short/Int/Long) → `EQ_Prim`
+  //     (3), as the JVM charges (`:313-315`).
+  // Default for every other left kind on a different right → `EQ_Prim`
+  //     (3), an ergots residual.
   if (a.kind !== b.kind) {
     if (a.kind === 'Coll') ctx?.addCost(COLL_MATCH_TYPE_COST)
     else if (a.kind === 'Tuple') ctx?.addCost(EQ_TUPLE_COST)

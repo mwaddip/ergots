@@ -13,11 +13,17 @@
  *   4. Dispatch on the left value's kind (UBI through `evalUBIArith`, others
  *      through the native-numeric path) and charge the cost.
  *
- * The three probe-measured trees from
- * `.superpowers/sdd/2026-11-19-collection-value-model-stage-2/final-review-probe/batch1.out`
- * lines 1-3 pin the behaviour on 6.0.7, and the unit grid pins each left-value
- * kind (Byte/Short/Int/Long/BigInt/UnsignedBigInt): refuses when the left's
- * static type is the JVM's `SAny`, answers when it is the kind itself.
+ * Three measured trees pin the behaviour on sigma-state 6.0.7: an arith
+ * node whose left operand is `ByIndex` over a `(UBI, UBI, UBI)` tuple
+ * constant rejects with `debox.KeyNotFoundException: key 97 was not
+ * found`; the same shape with an Int tuple rejects the same way (the
+ * `ByIndex.tpe` is `SAny` whichever tuple type the input has,
+ * `SType.scala:838-841`); and `Apply(x: UBI => x == x, 1u + 2u)` reduces
+ * to `TrueProp` at block cost 9 (the JIT cost divided by 10, as
+ * `ReductionResult` reports it). The unit grid pins each left-value kind
+ * (Byte/Short/Int/Long/BigInt/UnsignedBigInt): the arith refuses when the
+ * left's static type is the JVM's `SAny`, and answers when it is the
+ * kind itself.
  */
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
@@ -38,8 +44,8 @@ const SUBI: SType = { tag: 'SUnsignedBigInt' }
 const plus = (l: Expr, r: Expr): Expr => ({ tag: 'BinOp', op: { kind: 'Arith', op: 'Plus' }, left: l, right: r })
 const constOf = (tpe: SType, value: SValue): Expr => ({ tag: 'Const', tpe, value })
 
-describe('ArithOp A1/A2/A3 (6.0.7 probe batch1.out lines 1-3)', () => {
-  it("A1 sigmaProp(Apply(x:UBI => x==x, t(0)+t(1))), t:(UBI,UBI,UBI) refuses 'bin-op-not-numeric'", () => {
+describe('ArithOp.impls lookup — three measured trees on sigma-state 6.0.7', () => {
+  it("sigmaProp(Apply(x:UBI => x==x, t(0)+t(1))), t:(UBI,UBI,UBI) refuses 'bin-op-not-numeric'", () => {
     // 0b29d1dad90101099372017201019ab248090909010101020103040000b248090909010101020103040200
     // `t(0) + t(1)` with t typed `(UBI,UBI,UBI)`: ByIndex over a non-pair
     // tuple types as the JVM's SAny; the impls lookup has no entry for 97.
@@ -55,7 +61,7 @@ describe('ArithOp A1/A2/A3 (6.0.7 probe batch1.out lines 1-3)', () => {
     expect(err.code).toBe('bin-op-not-numeric')
   })
 
-  it("A2 (control) sigmaProp(Apply(x:Int => x==x, t(0)+t(1))), t:(Int,Int,Int) refuses 'bin-op-not-numeric'", () => {
+  it("control: sigmaProp(Apply(x:Int => x==x, t(0)+t(1))), t:(Int,Int,Int) refuses 'bin-op-not-numeric'", () => {
     // 0b23d1dad90101049372017201019ab248040404020406040000b248040404020406040200
     // The same shape with Int tuple and Int lambda: the ByIndex over a tuple
     // types as SAny, so the lookup still refuses.
@@ -69,11 +75,12 @@ describe('ArithOp A1/A2/A3 (6.0.7 probe batch1.out lines 1-3)', () => {
     expect(err.code).toBe('bin-op-not-numeric')
   })
 
-  it('A3 (control) sigmaProp(Apply(x:UBI => x==x, 1u + 2u)) reduces to TrueProp at block cost 9', () => {
+  it('control: sigmaProp(Apply(x:UBI => x==x, 1u + 2u)) reduces to TrueProp at block cost 9', () => {
     // 0b13d1dad90101099372017201019a090101090102
     // Left is typed UBI (a Const of SUnsignedBigInt), so the lookup finds the
     // UBI entry; the arith runs and the Apply evaluates the body `x == x`.
-    // The 6.0.7 probe reports cost=9 (block-cost units = floor(JIT/10)).
+    // sigma-state 6.0.7 reduces this tree to `TrueProp` at block cost 9
+    // (block-cost units = floor(JIT/10)).
     const bytes = hexToBytes('0b13d1dad90101099372017201019a090101090102')
     const tree = parseParsedTree(bytes)
     const ctx = makeContext({ treeVersion: tree.header.version })

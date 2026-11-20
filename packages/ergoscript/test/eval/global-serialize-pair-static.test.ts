@@ -5,16 +5,17 @@
  * (`methods.scala:1982`), and `fromDslTuple`'s pair case takes a `Coll[Any]`
  * whose `tItem == AnyType` (`Evaluation.scala:91-96`): a `Tuple` expression in
  * a register reads as `Coll[Any]` (`values.scala:818-822`; the register's
- * value is the `Coll[Any]` at every arity, two included, per the spec's
- * corrections point 1), and under a pair-typed read the value writes by its
- * static type.
+ * value is the `Coll[Any]` at every arity, two included), and under a
+ * pair-typed read the value writes by its static type.
  *
  * ergots falls back to the value-derived type only where the static type
  * holds ergots' own `SAny` (residual 1 of `facts/ergoscript-wire.md`); for
- * every other static type the writer is handed the static type. (Read from
- * `methods.scala:1982` and `Evaluation.scala:91-96`; the probe binds R4 as a
- * constant only, so the register-expression path is not measured — a SANTA
- * row is listed in the final-fix report.)
+ * every other static type the writer is handed the static type. The two
+ * routes (a `Tuple` expression and a `tupleColl([1, 2])` constant bound at a
+ * pair-typed register) each write `0204` and the cost walker charges the
+ * same for both — read directly from `methods.scala:1982` and
+ * `Evaluation.scala:91-96`, with no spend that measures a register-held
+ * `Tuple` expression.
  */
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
