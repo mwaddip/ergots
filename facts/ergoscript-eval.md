@@ -499,8 +499,8 @@ The JVM 6.0.6 parses some nodes that have no `eval` of their own, and its defaul
      | Boolean, Byte, Short, Int, Long, BigInt, GroupElement, SigmaProp, AvlTree | at every version | its own |
      | a collection (a tuple of another arity than two is one) | at every version | `Coll` of the collection's `elem` |
      | Box | from activated version 2 (`Platform.scala:50-54`) | `SBox` |
-     | Header, PreHeader, UnsignedBigInt | from tree version 3 (`:35-37`) | its own |
-     | String | below tree version 3 (`:39`) | `SString` |
+     | Header, PreHeader, UnsignedBigInt | from tree version 3 (`:34-36`) | its own |
+     | String | below tree version 3 (`:38`) | `SString` |
      | Unit, a pair, an Option, `CONTEXT`, `Global`, a function | at no version | |
 
      The activated version is the block's (`activatedScriptVersion`, `eval/_activated-version.ts`), read only when an item is a Box: a context without a pre-header evaluates every other call. The cases of the JVM's match over host classes (`Array[...]`, `java.math.BigInteger`, `ErgoBox`, `AvlTreeData`, `SigmaBoolean`) have no ergots value.
