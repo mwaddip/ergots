@@ -29,6 +29,9 @@ import { makeContext } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import type { BoolToSigmaProp, SValue } from '../../src/mir/types'
 import { captureEvalError, hexToBytes, hydrateSValue } from '../_helpers'
+import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteWriter } from '@ergots/scorex'
+import { spendContext } from './_substitution-spends'
 
 const __filename = fileURLToPath(import.meta.url)
 const __dirname = path.dirname(__filename)
@@ -88,56 +91,102 @@ describe('BoolToSigmaProp arm — non-Boolean operand', () => {
   })
 })
 
-describe('BoolToSigmaProp arm — pre-v2 ErgoTree SigmaProp pass-through (iter-13)', () => {
-  // Sigma-rust ref: bool_to_sigma.rs:32-36 — JVM v4.x compat.
-  // Mainnet h=680,692 tx 5fe235558... spent a v0 tree `10010101d1d17300` =
-  // BoolToSigmaProp(BoolToSigmaProp(Const(SBoolean, true))). The outer
-  // BoolToSigmaProp receives a SigmaProp from the inner one; pre-v2 trees
-  // pass it through, v2+ trees reject.
+/**
+ * A SigmaProp operand is returned as it is when the block's activated script version is below 2, and is refused
+ * from 2 (`BoolToSigmaProp.eval`, data/shared/src/main/scala/sigma/ast/trees.scala:36-51, sigma-state 6.0.7;
+ * `isJitActivated` is activated version >= 2, core/shared/src/main/scala/sigma/VersionContext.scala:25). The tree's
+ * version is not read.
+ *
+ * The rows are JVM-blessed (SANTA `vectors/eval/` at commit 0f2fc79), each a `sigmaProp(<the SigmaProp constant
+ * ProveDlog(G)>)`:
+ *  - `v4/authored/BoolToSigmaProp.activated_version_gate_v4.json` (activated 0 and 1),
+ *  - `v5/authored/BoolToSigmaProp.activated_version_gate.json` (activated 2),
+ *  - `v6/authored/BoolToSigmaProp.activated_version_gate_v6.json` (activated 3).
+ */
+describe('BoolToSigmaProp arm — a SigmaProp operand, by the activated script version', () => {
+  const G = '0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798'
+  const TREE_V0 = `00d108cd${G}`
+  const TREE_V1 = `0924d108cd${G}`
+  const TREE_V3 = `0b24d108cd${G}`
 
-  const trueSigmaProp: SValue = {
-    kind: 'SigmaProp',
-    value: { tag: 'TrivialProp', value: true },
+  const sigmaHex = (value: SValue): string => {
+    if (value.kind !== 'SigmaProp') throw new Error(`expected a SigmaProp, got ${value.kind}`)
+    const w = new ByteWriter()
+    serializeSigmaBoolean(value.value, w)
+    return Array.from(w.toBytes(), (b) => b.toString(16).padStart(2, '0')).join('')
   }
-  const falseSigmaProp: SValue = {
-    kind: 'SigmaProp',
-    value: { tag: 'TrivialProp', value: false },
-  }
 
-  function buildExpr(value: SValue) {
-    return {
-      tag: 'BoolToSigmaProp' as const,
-      input: { tag: 'Const' as const, tpe: { tag: 'SSigmaProp' as const }, value },
-    }
-  }
-
-  for (const treeVersion of [0, 1] as const) {
-    it(`v${treeVersion} tree: SigmaProp(true) input passes through unchanged with cost 15`, () => {
-      const ctx = makeContext({ treeVersion })
-      const result = evalExpr(buildExpr(trueSigmaProp), Env.empty(), ctx)
-      expect(result).toEqual(trueSigmaProp)
-      expect(ctx.jitCost).toBe(20) // Const(5) + BoolToSigmaProp(15)
-    })
-
-    it(`v${treeVersion} tree: SigmaProp(false) input passes through unchanged with cost 15`, () => {
-      const ctx = makeContext({ treeVersion })
-      const result = evalExpr(buildExpr(falseSigmaProp), Env.empty(), ctx)
-      expect(result).toEqual(falseSigmaProp)
+  /** [row, tree bytes, activated script version] */
+  const PASSED_THROUGH: [string, string, number][] = [
+    ['booltosigmaprop-sp-const-accept-a0-t0#1', TREE_V0, 0],
+    ['booltosigmaprop-sp-const-accept-a1-t0#7', TREE_V0, 1],
+    ['booltosigmaprop-sp-const-accept-a1-t1#13', TREE_V1, 1],
+  ]
+  for (const [row, treeHex, activated] of PASSED_THROUGH) {
+    it(`${row}: activated ${activated}, the operand is returned as it is at cost 20`, () => {
+      const { tree, ctx } = spendContext({ tree: treeHex }, activated)
+      expect(sigmaHex(evaluateWith(tree, ctx))).toBe(`cd${G}`)
       expect(ctx.jitCost).toBe(20)
     })
   }
 
-  for (const treeVersion of [2, 3] as const) {
-    it(`v${treeVersion} tree: SigmaProp input is rejected (strict bool extraction)`, () => {
-      const ctx = makeContext({ treeVersion })
-      const err = captureEvalError(() =>
-        evalExpr(buildExpr(trueSigmaProp), Env.empty(), ctx)
-      )
-      expect(err.code).toBe('bin-op-not-boolean')
+  /** [row, tree bytes, activated script version] */
+  const REFUSED: [string, string, number][] = [
+    ['booltosigmaprop-sp-const-reject-t0#1 (activated 2)', TREE_V0, 2],
+    ['booltosigmaprop-sp-const-reject-t1#7 (activated 2)', TREE_V1, 2],
+    ['booltosigmaprop-sp-const-reject-t0#1 (activated 3)', TREE_V0, 3],
+    ['booltosigmaprop-sp-const-reject-t1#7 (activated 3)', TREE_V1, 3],
+    // No blessed row: the cast to Boolean at trees.scala:39-40 does not read the tree's version.
+    ['a tree of version 3 (activated 3)', TREE_V3, 3],
+  ]
+  for (const [row, treeHex, activated] of REFUSED) {
+    it(`${row}: 'bin-op-not-boolean'`, () => {
+      const { tree, ctx } = spendContext({ tree: treeHex }, activated)
+      expect(captureEvalError(() => evaluateWith(tree, ctx)).code).toBe('bin-op-not-boolean')
     })
   }
 
-  it('v0 tree: Boolean(true) input still produces TrivialProp(true) (compat path is opt-in)', () => {
+  it('a tree of version 3 at activated 1: the operand is returned as it is (the tree version is not read, trees.scala:39-49)', () => {
+    const { ctx } = spendContext({ tree: TREE_V0 }, 1)
+    ctx.treeVersion = 3
+    const operand: SValue = { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }
+    const expr: BoolToSigmaProp = {
+      tag: 'BoolToSigmaProp',
+      input: { tag: 'Const', tpe: { tag: 'SSigmaProp' }, value: operand },
+    }
+    expect(evalExpr(expr, Env.empty(), ctx)).toEqual(operand)
+  })
+
+  // `sigmaProp(sigmaProp(true))`, the tree `10010101d1d17300` of a mainnet spend at height 680,692 (block version
+  // 2, activated script version 1): the outer node's operand is the inner node's SigmaProp.
+  const MAINNET_TREE = '10010101d1d17300'
+
+  it('sigmaProp(sigmaProp(true)) at activated 1 is TrivialProp(true)', () => {
+    const { tree, ctx } = spendContext({ tree: MAINNET_TREE }, 1)
+    expect(evaluateWith(tree, ctx)).toEqual({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } })
+  })
+
+  it("sigmaProp(sigmaProp(true)) at activated 2 is 'bin-op-not-boolean'", () => {
+    const { tree, ctx } = spendContext({ tree: MAINNET_TREE }, 2)
+    expect(captureEvalError(() => evaluateWith(tree, ctx)).code).toBe('bin-op-not-boolean')
+  })
+})
+
+describe('BoolToSigmaProp arm — a context without a pre-header', () => {
+  const trueSigmaProp: SValue = { kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }
+
+  for (const treeVersion of [0, 3] as const) {
+    it(`a SigmaProp operand on a tree of version ${treeVersion}: the activated version is asked for and is 'context-field-missing'`, () => {
+      const expr: BoolToSigmaProp = {
+        tag: 'BoolToSigmaProp',
+        input: { tag: 'Const', tpe: { tag: 'SSigmaProp' }, value: trueSigmaProp },
+      }
+      const err = captureEvalError(() => evalExpr(expr, Env.empty(), makeContext({ treeVersion })))
+      expect(err.code).toBe('context-field-missing')
+    })
+  }
+
+  it('a Boolean operand is TrivialProp of it at cost 20: the activated version is not read', () => {
     const ctx = makeContext({ treeVersion: 0 })
     const result = evalExpr(
       {

@@ -16,12 +16,16 @@
  *
  * Error codes:
  *   'sigma-prop-coll-elem-not-sigma-prop' — any item eval didn't return SigmaProp
+ *   'sigma-node-no-items'                 — the node holds no items (`CAND.normalized` requires a
+ *                                           non-empty list, core/shared/src/main/scala/sigma/data/SigmaBoolean.scala:165,
+ *                                           sigma-state 6.0.7)
  *   'cost-limit-exceeded'                 — cost exceeds jitCostLimit
  */
 
 import type { SigmaAnd, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { candNormalized } from '../mir/sigma-boolean-normalize'
 import { expectSigmaProp } from './_sigma-helpers'
@@ -34,6 +38,12 @@ export function evalSigmaAnd(e: SigmaAnd, env: Env, ctx: EvalContext): SValue {
   // Step 2: eval each item → extract SigmaBoolean via expectSigmaProp.
   // Source: sigma_and.rs:20-25 — try_mapped_ref (sequential) then try_extract_into::<SigmaProp>
   const items = e.items.map((item) => expectSigmaProp(evalExpr(item, env, ctx), 'SigmaAnd'))
+
+  // A node with no items is refused: `CAND.normalized` begins with `require(items.nonEmpty)`
+  // (SigmaBoolean.scala:165, sigma-state 6.0.7).
+  if (items.length === 0) {
+    throw new EvalError('SigmaAnd: the node holds no items', 'sigma-node-no-items')
+  }
 
   // Step 3: reduce via Cand::normalized — TrivialProp(true) absorbed (identity),
   // TrivialProp(false) absorbing, single item unwrapped, empty → TrivialProp(true).

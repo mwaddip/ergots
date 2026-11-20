@@ -37,8 +37,10 @@
  *       'coll-array-store'; see the history chain below) → 87
  *     + 1 code added for the pair-class check at every `checkType` site
  *       ('checked-value-class': `assertCheckedValue` in `eval/_check-type.ts`;
- *       `SType.scala:200-201`) → 88 —
- *       current total: 88, as the union below counts
+ *       `SType.scala:200-201`) → 88
+ *     + 1 code for a `SigmaAnd` / `SigmaOr` node with no items
+ *       ('sigma-node-no-items'; `SigmaBoolean.scala:165`, `:201`) → 89 —
+ *       current total: 89, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -131,6 +133,8 @@
  *        ('checked-value-class': a value that is not a `Tuple` of two items at a
  *        declared `STuple` of two items, `SType.scala:200-201`, raised by
  *        `assertCheckedValue` in `eval/_check-type.ts`) → 88.
+ *    + 1 code for a `SigmaAnd` / `SigmaOr` node with no items ('sigma-node-no-items', raised
+ *        by `eval/sigma-and.ts` and `eval/sigma-or.ts`; `SigmaBoolean.scala:165`, `:201`) → 89.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -205,7 +209,11 @@ export type EvalErrorCode =
   // -------------------------------------------------------------------------
   // Phase 2d-B — And / Or / XorOf (Coll[Boolean] aggregators) (1 code)
   // -------------------------------------------------------------------------
-  /** And/Or/XorOf: input evaluated to non-Coll or Coll with non-Boolean elements. */
+  /**
+   * And/Or/XorOf: the input is not a collection, or an item the arm reads is
+   * not a Boolean. And and Or read up to and including the deciding item;
+   * XorOf reads every item.
+   */
   | 'coll-not-boolean'
 
   // -------------------------------------------------------------------------
@@ -1286,3 +1294,19 @@ export type EvalErrorCode =
    * "The Deserialize substitution" in `facts/ergoscript-eval.md`.
    */
   | 'checked-value-class'
+
+  // -------------------------------------------------------------------------
+  // A sigma node with no items (1 code; 88 → 89)
+  // -------------------------------------------------------------------------
+  /**
+   * `SigmaAnd` / `SigmaOr`: the node holds no items. Such a node parses; its
+   * evaluation is refused. The JVM's `SigmaAnd.eval` / `SigmaOr.eval`
+   * (`data/shared/src/main/scala/sigma/ast/trees.scala:131-140`, `:162-171`
+   * at 6.0.7) hand their items to `allZK` / `anyZK`, which end in
+   * `CAND.normalized` / `COR.normalized`, and both begin with
+   * `require(items.nonEmpty)`
+   * (`core/shared/src/main/scala/sigma/data/SigmaBoolean.scala:165`, `:201`).
+   * Raised by `eval/sigma-and.ts` and `eval/sigma-or.ts` after the node's
+   * cost is charged.
+   */
+  | 'sigma-node-no-items'

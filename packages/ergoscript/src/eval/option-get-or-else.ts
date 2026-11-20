@@ -21,8 +21,9 @@
  *   - V<3: eager — default always evaluated (cost always charged)
  *   - V3+: lazy — default only evaluated when input is None
  *
- * Mirrors phase 2e's XorOf V0/V1-vs-V2+ pattern: same VALUE produced
- * but different COST at version boundary.
+ * A Some input whose default refuses is refused below V3 and answers from
+ * V3. Otherwise the VALUE is the same at every tree version and the COST
+ * differs by the default's.
  *
  * Reuses 'option-input-not-option' from OptionGet (Task 3).
  */

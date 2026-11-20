@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator.** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **88 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented, first-class functions included (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator.** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **89 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented, first-class functions included (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -500,7 +500,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 88 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
+- **Postcondition (failure):** Throws `EvalError` with one of the 89 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
 - **Behaviour changes (2026-09-30; `docs/specs/2026-09-30-jvm-node-construction-design.md`):**
   - **No pre-eval pass.** `evaluate` no longer runs `validateBinOpTypes`, `validateMethodCallArity` or `validateV6Types` over the tree before evaluating it. The JVM makes those checks only at parse, and so does `parseTree` now (see "`ExprParseError` codes"): a relation's operand types (`'relation-operand-not-numeric'`, `'relation-operand-type-mismatch'`, which were `EvalError`s `'bin-op-not-numeric'` and `'bin-op-kind-mismatch'` from the pass), a v3 `MethodCall` without arguments (`'method-call-empty-args'`, retired as an `EvalError` code) and a v6 type below v3 (see `parseSType`). So a relation rebuilt around a substituted script is not checked by `check2` again, as in the JVM. `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired: a parsed tree below v3 cannot carry one (a size-flagged tree degrades, and its spend fails `'unparsed-ergotree'`; an unsized one rejects). Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written, as it evaluates a relation or a method call it builds.
   - **Nodes the JVM does not evaluate.** Every raw `BitOp` (`BitOr`, `BitAnd`, `BitXor` and the three shifts) and `BitInversion` rejects when evaluated, with `'unsupported-eval-node'`, charging nothing and evaluating no operand, as `TreeLookup` and `CreateAvlTree` already did. Before, `BitOr`, `BitAnd`, `BitXor` and `BitInversion` evaluated and the shifts threw `'not-implemented-yet'`. A tree that holds one only in a branch never evaluated still evaluates. The v6 methods (`bitwiseOr`, `shiftLeft` and the rest) are unchanged. `ModQ` (`0xe7`), `ModQArith` (`0xe8` `PlusModQ`, `0xe9` `MinusModQ`) and `TaggedVariable` (`0x71`) reject the same way: `'unsupported-eval-node'`, nothing charged, no operand evaluated.
@@ -590,8 +590,9 @@ interface EvalContext extends EvalOpts {
 }
 ```
 
+- **`preHeader`** — read by `CONTEXT.preHeader`, `CONTEXT.minerPubKey` and the `MinerPubKey` global, and, for the block's activated script version (`max(0, preHeader.version − 1)`), by `CONTEXT.selfBoxIndex`, by `reduceWith` for a tree with a Deserialize node, by `SubstConstants` for a Box among its `newValues`, and by `sigmaProp(<SigmaProp>)`. Each throws `EvalError 'context-field-missing'` without one. `sigmaProp(<SigmaProp>)` returns its operand as it is below activated version 2; from 2 it is `'bin-op-not-boolean'`.
 - `addCost` — saturating add; throws `EvalError 'cost-limit-exceeded'` if `jitCostLimit` is set and exceeded.
-- `addPerItemCost` — composite charge: `addCost(base + ceil(nItems / chunkSize) * perChunk)`.
+- `addPerItemCost` — composite charge: `addCost(base + chunks * perChunk)`, `chunks = trunc((nItems − 1) / chunkSize) + 1` (for no item: one chunk when `chunkSize` is 2 or more, none when it is 1).
 - **`extension` / `inputExtensions` input shape** — both accept either a `ContextExtension` (`values` a `Map`) or the plain-object/`Record` form `{ values: { <varId>: { tpe, value } } }` that node-API JSON ingestion produces (the `ContextExtensionInput` type); `makeContext` normalizes a `Record` to a `Map`. Eval reads vars by key, so a `Record`'s lost key-order is irrelevant here; on-chain wire order matters only for the `@ergots/transaction` signing-message codec, which passes a `Map`.
 - **`inputExtensions`** — per-input context extensions for `Context.getVarFromInput` (101:12, v6 P7a). Indexed by spending-transaction input position (mirrors JVM `spendingTransaction.inputs(i).extension`). May legitimately differ in length from `inputs` — the JVM's own blessed `getVarFromInput` vector has `tx.inputs.length = 0` while `ctx.inputs.length = 1`; never validate length equality. Absent field ⟹ every `getVarFromInput` lookup → `None`. Key domain is unsigned 0–255 (ContextExtension byte keys); JVM JSON ingestion normalizes signed `-1` to `255` — supply `255`, not `-1`, when constructing extensions from JVM JSON output.
 
@@ -599,13 +600,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 88 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 89 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 88 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 89 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|

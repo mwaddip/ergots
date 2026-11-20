@@ -1,35 +1,23 @@
 /**
- * Or arm — reduces a Coll[Boolean] to Boolean via any-true (`some`).
+ * Or arm — the disjunction of a collection of Booleans, read item by item.
  *
- * Empty-Coll returns `false` (identity of Or — matches Rust `iter().any`
- * and JS `Array.prototype.some`).
+ * The input is evaluated whole. The arm then reads its items from index 0 and stops after the first `true`; the
+ * result is `true` when it found one and `false` when it read every item (an empty collection is `false`). The
+ * cost is charged once, after the read, by the count of items read.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/or.rs:11-22
- *   let input_v = self.input.eval(env, ctx)?;
- *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
- *   ctx.add_per_item_jit_cost(5, 5, 64, input_v_bools.len() as u32)?;
- *   Ok(input_v_bools.iter().any(|b| *b).into())
+ * JVM (sigma-state 6.0.7): `OR.eval` (data/shared/src/main/scala/sigma/ast/trees.scala:199-214). The loop is
+ * `while (i < len && !res) { res ||= inputV(i); i += 1 }` and its result is `i`; the cost block adds the cost after
+ * the loop returns
+ * (interpreter/shared/src/main/scala/sigmastate/interpreter/CErgoTreeEvaluator.scala:399-417). The cost kind is
+ * `PerItemCost(5, 5, 64)` (trees.scala:222-223): its base and its chunk size differ from `AND`'s.
  *
- * Cost-charging order: envelope charged AFTER eval-child (sigma-rust
- * line 17 → 19). The cost depends on the runtime length of the
- * resulting collection (Cast pattern from 2d-A).
+ * An item is tested for its kind where the arm reads it: the JVM casts `inputV(i)` to Boolean at the read. An item
+ * of another kind behind the deciding item is not read and refuses nothing. A tuple of another arity than two is a
+ * collection here; a pair is not.
  *
- * Cost values differ from And: base 5 (not 10), chunkSize 64 (not 32).
- * Don't refactor toward shared constants — the values are arm-specific.
- *
- * Non-Coll[Boolean] input: parser enforces `post_eval_tpe ==
- * Coll[Boolean]` at parse time (`mir/or.rs:22-24`); the defensive
- * kind-check here mirrors `and.ts` and matches the 2c LogicalNot /
- * BoolToSigmaProp posture. Throws `'coll-not-boolean'` (the code added
- * in Task 1).
- *
- * Note: the kind-check is duplicated with `and.ts` (~5 LOC each).
- * Intentional per slice A's `sTypeToNumericKind` YAGNI precedent.
- * As of phase 2e, `xor-of.ts` is the third caller and ALSO kept its
- * kind-check inline (the marginal extraction value didn't justify a
- * refactor when only `ForAll` / `Exists` remain as plausible future
- * callers). The shared `_coll.ts` helper remains deferred — revisit
- * at phase 2f if `ForAll` or `Exists` lands.
+ * Error codes:
+ *   'coll-not-boolean'    — the input is no collection, or the item read is no Boolean
+ *   'cost-limit-exceeded' — the cost exceeds jitCostLimit
  */
 
 import type { Or, SValue } from '../mir/types'
@@ -38,8 +26,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 
-// Cost source: ergotree-interpreter/src/eval/or.rs:19
-//   ctx.add_per_item_jit_cost(5, 5, 64, n)?;
+// `PerItemCost(baseCost = JitCost(5), perChunkCost = JitCost(5), chunkSize = 64)`, trees.scala:222-223.
 const OR_BASE_COST = 5
 const OR_PER_CHUNK_COST = 5
 const OR_CHUNK_SIZE = 64
@@ -53,16 +40,19 @@ export function evalOr(e: Or, env: Env, ctx: EvalContext): SValue {
     )
   }
   const items = input.items
-  for (let i = 0; i < items.length; i++) {
-    if (items[i]!.kind !== 'Boolean') {
+  let result = false
+  let read = 0
+  while (read < items.length && !result) {
+    const item = items[read]!
+    if (item.kind !== 'Boolean') {
       throw new EvalError(
-        `Or: Coll item ${i} has kind '${items[i]!.kind}', expected 'Boolean'`,
+        `Or: Coll item ${read} has kind '${item.kind}', expected 'Boolean'`,
         'coll-not-boolean'
       )
     }
+    result = item.value
+    read++
   }
-  ctx.addPerItemCost(OR_BASE_COST, OR_PER_CHUNK_COST, OR_CHUNK_SIZE, items.length)
-  // Items all asserted to be Boolean above; cast is safe.
-  const result = items.some((it) => (it as { kind: 'Boolean'; value: boolean }).value)
+  ctx.addPerItemCost(OR_BASE_COST, OR_PER_CHUNK_COST, OR_CHUNK_SIZE, read)
   return { kind: 'Boolean', value: result }
 }
