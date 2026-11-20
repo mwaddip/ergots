@@ -365,11 +365,24 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  * @param ctx Optional EvalContext for JIT cost accumulation; omitted = cost-free
  */
 function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
-  // Different kinds → catch-all arm in sigma-rust (lines 131-135): charges
-  // EQ_PRIM_COST and then `Ok(lv == rv)` where PartialEq returns false for
-  // cross-variant pairs. So: charge EQ_PRIM_COST, return false.
+  // Different kinds. The JVM's `DataValueComparer.equalDataValues` charges
+  // by the LEFT value's kind BEFORE the inner match that detects the type
+  // mismatch (`DataValueComparer.scala:316-337`):
+  //   - left Coll: `MatchType` (1) before the second match
+  //     (`:317-327`, `COLL_MATCH_TYPE_COST`);
+  //   - left Tuple2: `EQ_Tuple` (4) before the second match (`:329-337`);
+  //   - otherwise: the arm's own fixed cost runs (every primitive arm charges
+  //     `EQ_Prim` (3) and then `l == r` returns false across kinds).
+  // The three other cross-kind costs the JVM may charge (`EQ_BigInt` 5,
+  // `EQ_GroupElement` 172, `EQ_AvlTree`/`EQ_PreHeader`/`EQ_Header`/`EQ_Box`
+  // 6/4/6/6) are not reachable at tree v3 because the parse-time `SameType`
+  // check refuses an `EQ(x, y)` whose operands' static types differ
+  // (`SigmaBuilder.scala:686-704`, `check-build.ts`); they stay on the
+  // primitive default until a tree makes one reachable.
   if (a.kind !== b.kind) {
-    ctx?.addCost(EQ_PRIM_COST)
+    if (a.kind === 'Coll') ctx?.addCost(COLL_MATCH_TYPE_COST)
+    else if (a.kind === 'Tuple') ctx?.addCost(EQ_TUPLE_COST)
+    else ctx?.addCost(EQ_PRIM_COST)
     return false
   }
 
