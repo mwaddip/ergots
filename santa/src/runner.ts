@@ -72,6 +72,26 @@ type Result = {
 // singleton (returned by reference, not copied, on every gap hit).
 const NOT_IMPL: Result = Object.freeze({ value: null, cost: null, error: 'not-implemented' })
 
+/** The eval schemas the runner reads, each by its exact name and version. */
+const EVAL_SCHEMAS: ReadonlySet<string> = new Set([
+  'santa-eval/v1', 'santa-eval/v2', 'santa-eval/v3', 'santa-eval/v4', 'santa-eval/v5', 'santa-eval/v6-fullctx',
+])
+
+/** The actual of an entry whose vector carries a schema the runner does not read (runner-integration §3): the
+ *  tier-neutral form, which every tier's actuals schema admits, with no other key. */
+type Unread = { error: 'not-implemented'; value?: never; cost?: never; note?: never }
+const UNREAD: Unread = Object.freeze({ error: 'not-implemented' })
+
+/** A vector as far as dispatch reads it: its schema and its entries' names. */
+type RawVector = { schema?: string; entries: { name: string; [field: string]: unknown }[] }
+
+/** Every entry of a vector answered `UNREAD`, keyed by name. Reads nothing of an entry but its name. */
+function unread(doc: { entries: { name: string }[] }): Record<string, Unread> {
+  const actuals: Record<string, Unread> = {}
+  for (const e of doc.entries) actuals[e.name] = UNREAD
+  return actuals
+}
+
 /** Run one entry → exactly one Result. Never-panic invariant (runner-contract §3): any
  *  otherwise-uncaught throw — a malformed entry, an unexpected codec or internal error — is
  *  caught here and surfaced as the `panicked` outcome (coal, message in `note`) so the run
@@ -81,7 +101,8 @@ const NOT_IMPL: Result = Object.freeze({ value: null, cost: null, error: 'not-im
  *  `jitCostLimit` as unlimited, so every context the runner builds passes this one. */
 export const EVAL_JIT_COST_LIMIT = 10_000_000
 
-export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = null): Result {
+export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = null): Result | Unread {
+  if (!EVAL_SCHEMAS.has(schema)) return UNREAD
   try {
     return runEntryInner(schema, e, readExt)
   } catch (err) {
@@ -510,10 +531,11 @@ function buildFullCtxOpts(
 
 /** run(vector) → actuals: exactly one Result per entry, keyed by name. Total — never omits
  *  an entry, never aborts the file (runner-contract §3). No scope logic, no buckets. */
-export function runVector(doc: Vector, readExt: ExtensionReader = null): Record<string, Result> {
-  const actuals: Record<string, Result> = {}
+export function runVector(doc: Vector, readExt: ExtensionReader = null): Record<string, Result | Unread> {
+  if (!EVAL_SCHEMAS.has(doc.schema)) return unread(doc)
+  const actuals: Record<string, Result | Unread> = {}
   for (const e of doc.entries) {
-    actuals[e.name] = runEntry(doc.schema ?? 'santa-eval/v1', e, readExt)
+    actuals[e.name] = runEntry(doc.schema, e, readExt)
   }
   return actuals
 }
@@ -956,6 +978,21 @@ export function runAuthdsVector(doc: AuthdsVector): Record<string, AuthdsResult>
   return actuals
 }
 
+/** run(vector of any tier) → actuals. The vector's schema picks the arm, by exact name and version: the six eval
+ *  schemas, `santa-wire/v1`, `santa-transaction/v1` and `santa-authds/v1`. Under any other schema (a later
+ *  version, a tier the runner does not mount, none) every entry answers `{"error": "not-implemented"}`, decided
+ *  on the schema alone, before an entry is read (runner-integration §3). */
+export async function runDocument(raw: RawVector): Promise<Record<string, unknown>> {
+  const { schema } = raw
+  if (schema === 'santa-wire/v1') return runWireVector(raw as unknown as WireVector)
+  if (schema === 'santa-transaction/v1') return runTransactionVector(raw as unknown as TxVector)
+  if (schema === 'santa-authds/v1') return runAuthdsVector(raw as unknown as AuthdsVector)
+  if (schema !== undefined && EVAL_SCHEMAS.has(schema)) {
+    return runVector(raw as unknown as Vector, (await loadTxModule())?.parseContextExtension ?? null)
+  }
+  return unread(raw)
+}
+
 // ---- CLI: runner <vector.json> [actuals-out.json] (mirrors Runner.scala) ----
 async function main(argv: string[]): Promise<void> {
   const vecPath = argv[2]
@@ -963,15 +1000,7 @@ async function main(argv: string[]): Promise<void> {
     console.error('usage: runner <vector.json> [<actuals-out.json>]')
     process.exit(2)
   }
-  const raw = JSON.parse(readFileSync(vecPath, 'utf8')) as { schema?: string }
-  const schema = raw.schema ?? ''
-  const actuals = schema.startsWith('santa-wire/')
-    ? await runWireVector(raw as WireVector)
-    : schema.startsWith('santa-transaction/')
-    ? await runTransactionVector(raw as TxVector)
-    : schema.startsWith('santa-authds/')
-    ? runAuthdsVector(raw as unknown as AuthdsVector)
-    : runVector(raw as Vector, (await loadTxModule())?.parseContextExtension ?? null)
+  const actuals = await runDocument(JSON.parse(readFileSync(vecPath, 'utf8')) as RawVector)
   const json = JSON.stringify(actuals, null, 2)
   const outPath = argv[3]
   if (outPath) {
