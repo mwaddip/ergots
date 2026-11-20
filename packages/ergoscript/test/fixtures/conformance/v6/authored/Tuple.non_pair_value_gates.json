@@ -318,6 +318,558 @@
         "cost" : 84,
         "error" : null
       }
+    },
+    {
+      "name" : "plus_left_any_ubi_apply-errored#16",
+      "script" : "[G11] `sigmaProp(Apply((x: UnsignedBigInt) => x == x, t(0) + t(1)))` with `t` the CONSTANT `(1u, 2u, 3u)` (UnsignedBigInt items; ergots' tree, byte for byte) — **`KeyNotFoundException: key 97`**: `ByIndex` over a tuple types its result `Any`, and `ArithOp.eval` looks its implementation up by the LEFT operand's type code (97, `SAny`) whatever the item holds — G3's gate with UnsignedBigInt items. The lambda is never reached. **SEPARATING:** an implementation that dispatches on the runtime value (an UnsignedBigInt) answers.",
+      "tree_bytes_hex" : "0b29d1dad90101099372017201019ab248090909010101020103040000b248090909010101020103040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_ubi_apply_control-accept#17",
+      "script" : "[C7] **CONTROL for G11** — the same over `Coll[UnsignedBigInt](1u, 2u, 3u)`: a `SigmaProp` (true) at cost 165.",
+      "tree_bytes_hex" : "0b25d1dad90101099372017201019ab21503010101020103040000b21503010101020103040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 165,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_left_any_ubi_both-errored#18",
+      "script" : "[G12] `t(0) + t(1)` over the same UnsignedBigInt tuple, as the root — **`KeyNotFoundException: key 97`**, both operands `Any`. **SEPARATING.**",
+      "tree_bytes_hex" : "0b1d9ab248090909010101020103040000b248090909010101020103040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_left_any_ubi_right_ubi-errored#19",
+      "script" : "[G13] `t(0) + 1u` — **`KeyNotFoundException: key 97`**: a real `UnsignedBigInt` on the right does not help, the LEFT operand picks the implementation. **SEPARATING.**",
+      "tree_bytes_hex" : "0b129ab248090909010101020103040000090101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "plus_ubi_control-accept#20",
+      "script" : "[C8] **CONTROL for G12/G13** — `c(0) + c(1)` over `Coll[UnsignedBigInt](1u, 2u, 3u)`: `3` at cost 95.",
+      "tree_bytes_hex" : "0b199ab21503010101020103040000b21503010101020103040200",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "3"
+        },
+        "cost" : 95,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_right_any_ubi-accept#21",
+      "script" : "[G14] `1u + t(0)` — **`2` at cost 60: THE ASYMMETRY with UnsignedBigInt items.** The left operand is an `UnsignedBigInt` constant, so its implementation is found, and the `Any`-typed right operand holds an UnsignedBigInt it can add; identical to C9. **SEPARATING:** an implementation that refuses an `Any` operand on either side is red.",
+      "tree_bytes_hex" : "0b129a090101b248090909010101020103040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2"
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "plus_right_ubi_control-accept#22",
+      "script" : "[C9] **CONTROL for G14** — `1u + c(0)`: `2` at cost 60.",
+      "tree_bytes_hex" : "0b109a090101b21503010101020103040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "2"
+        },
+        "cost" : 60,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall_empty_data_tuples-accept#23",
+      "script" : "[G15] `sigmaProp(ForAll(c, (x: (Int, Int, Int)) => true))` with `c` an EMPTY data `Coll[(Int, Int, Int)]` (ergots' tree, byte for byte) — **a `SigmaProp` (true) at cost 29**, as its control: the lambda is never applied, so its argument is never checked. **SEPARATING:** an implementation that refuses a tuple-typed lambda over an empty collection of tuples is red. G16 is the same call over ONE item.",
+      "tree_bytes_hex" : "0b11d1af0c4804040400d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 29,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall_empty_coll_control-accept#24",
+      "script" : "[C10] **CONTROL for G15** — the same over an empty `Coll[Coll[Int]]` with a `Coll[Int]`-typed lambda: true at 29.",
+      "tree_bytes_hex" : "0b0ad1af1c00d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 29,
+        "error" : null
+      }
+    },
+    {
+      "name" : "forall_one_data_tuple-errored#25",
+      "script" : "[G16] the same call over ONE item, `Coll((1, 2, 3))` — **throws `Unsupported tuple type`**: applying the lambda checks its argument against its declared type (`FuncValue`, `values.scala:1074`: `Value.checkType` → `SType.isValueOfType`, which refuses any arity but 2) — the third `checkType` site after G9 (an accumulator) and G10 (a collection's items). So no lambda over a data collection of non-pair tuples is ever applied. **SEPARATING.**",
+      "tree_bytes_hex" : "0b14d1af0c4804040401020406d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "forall_one_coll_control-accept#26",
+      "script" : "[C11] **CONTROL for G16** — over `Coll(Coll[Int](1, 2, 3))`: true at 39.",
+      "tree_bytes_hex" : "0b0ed1af1c0103020406d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists_empty_data_tuples-accept#27",
+      "script" : "[G17] `sigmaProp(Exists(c, (x: (Int, Int, Int)) => true))` over the EMPTY data `Coll[(Int, Int, Int)]` — **a `SigmaProp` (false) at cost 29**, as its control. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11d1ae0c4804040400d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 29,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists_empty_coll_control-accept#28",
+      "script" : "[C12] **CONTROL for G17** — over an empty `Coll[Coll[Int]]`: false at 29.",
+      "tree_bytes_hex" : "0b0ad1ae1c00d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d2"
+        },
+        "cost" : 29,
+        "error" : null
+      }
+    },
+    {
+      "name" : "exists_one_data_tuple-errored#29",
+      "script" : "[G18] `Exists` over ONE item — **throws `Unsupported tuple type`**, the lambda's argument check as in G16. **SEPARATING.**",
+      "tree_bytes_hex" : "0b14d1ae0c4804040401020406d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "exists_one_coll_control-accept#30",
+      "script" : "[C13] **CONTROL for G18** — over `Coll(Coll[Int](1, 2, 3))`: true at 39.",
+      "tree_bytes_hex" : "0b0ed1ae1c0103020406d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 39,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map_empty_data_tuples-accept#31",
+      "script" : "[G19] `Map(c, (x: (Int, Int, Int)) => x)` as the root over the EMPTY data collection — **an empty collection at cost 31 whose `elem` is the TUPLE type `(Int, Int, Int)`**: `Map` builds its result at the LAMBDA's result type (`stypeToRType` of the tuple, a `TupleType`), not at the input's `Coll[Any]` (compare G21). **SEPARATING:** the value, not only the verdict.",
+      "tree_bytes_hex" : "0b10ad0c4804040400d90101480404047201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "STuple",
+            "items" : [
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SInt"
+              },
+              {
+                "tag" : "SInt"
+              }
+            ]
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 31,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map_empty_coll_control-accept#32",
+      "script" : "[C14] **CONTROL for G19** — over an empty `Coll[Coll[Int]]`: an empty `Coll[Coll[Int]]` at 31.",
+      "tree_bytes_hex" : "0b09ad1c00d90101107201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SInt"
+            }
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 31,
+        "error" : null
+      }
+    },
+    {
+      "name" : "map_one_data_tuple-errored#33",
+      "script" : "[G20] `Map` over ONE item — **throws `Unsupported tuple type`**, the lambda's argument check as in G16. **SEPARATING.**",
+      "tree_bytes_hex" : "0b13ad0c4804040401020406d90101480404047201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "map_one_coll_control-accept#34",
+      "script" : "[C15] **CONTROL for G20** — over `Coll(Coll[Int](1, 2, 3))`: the same collection at 41.",
+      "tree_bytes_hex" : "0b0dad1c0103020406d90101107201",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SInt"
+            }
+          },
+          "items" : [
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SInt"
+              },
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 3
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 41,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_empty_data_tuples-accept#35",
+      "script" : "[G21] `Filter(c, (x: (Int, Int, Int)) => true)` as the root over the EMPTY data collection — **an empty collection at cost 31 whose `elem` is `Coll[Any]`**: `Filter` keeps the input's own item type, which for a data collection of non-pair tuples is `Coll[Any]` (`Tuple.non_pair_value_producers` P5). G19 and G21 differ in nothing but the item type of their empty results. **SEPARATING.**",
+      "tree_bytes_hex" : "0b10b50c4804040400d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SAny"
+            }
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 31,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_empty_coll_control-accept#36",
+      "script" : "[C16] **CONTROL for G21** — over an empty `Coll[Coll[Int]]`: an empty `Coll[Coll[Int]]` at 31.",
+      "tree_bytes_hex" : "0b09b51c00d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SInt"
+            }
+          },
+          "items" : [
+          ]
+        },
+        "cost" : 31,
+        "error" : null
+      }
+    },
+    {
+      "name" : "filter_one_data_tuple-errored#37",
+      "script" : "[G22] `Filter` over ONE item — **throws `Unsupported tuple type`**, the lambda's argument check as in G16. **SEPARATING.**",
+      "tree_bytes_hex" : "0b13b50c4804040401020406d90101480404040101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "filter_one_coll_control-accept#38",
+      "script" : "[C17] **CONTROL for G22** — over `Coll(Coll[Int](1, 2, 3))`: the same collection at 41.",
+      "tree_bytes_hex" : "0b0db51c0103020406d90101100101",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SColl",
+            "elem" : {
+              "tag" : "SInt"
+            }
+          },
+          "items" : [
+            {
+              "kind" : "Coll",
+              "elem" : {
+                "tag" : "SInt"
+              },
+              "items" : [
+                {
+                  "kind" : "Int",
+                  "value" : 1
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 2
+                },
+                {
+                  "kind" : "Int",
+                  "value" : 3
+                }
+              ]
+            }
+          ]
+        },
+        "cost" : 41,
+        "error" : null
+      }
     }
   ]
 }

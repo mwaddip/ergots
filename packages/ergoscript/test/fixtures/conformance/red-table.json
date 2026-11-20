@@ -275,6 +275,7 @@
       "getvar-pair-expression-byindex1-accept#19",
       "getvar-pair-expression-get-accept#5",
       "getvar-pair-expression-isdefined-accept#3",
+      "getvar-pair-expression-serialize-accept#27",
       "getvar-pair-expression-size-accept#15",
       "getvar-tuple-expression-accept#1"
     ]
