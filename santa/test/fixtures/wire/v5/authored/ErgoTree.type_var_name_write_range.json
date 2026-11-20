@@ -1,0 +1,646 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "ErgoTree.type_var_name_write_range",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "type-var-name-write-range-cc-elem-a255-v0#0",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-a255-v0#1",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283000c67ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-a255-v0#2",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283002467ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-a255-v0#3",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283004c67ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-a255-v0#4",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602e30167ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-a255-v0#5",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602c6a70467ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-a255-v0#6",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d9010167ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161617201010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-a255-v0#7",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d801d7010167ff61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616104020402010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-a255-v0#8",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|a255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d467ff61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616101010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-elem-ff85-v0#9",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c8602830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-ff85-v0#10",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283000c6755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c860283000c67ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-ff85-v0#11",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c86028300246755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c860283002467ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-ff85-v0#12",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283004c6755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c860283004c67ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-ff85-v0#13",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602e3016755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c8602e30167ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-ff85-v0#14",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602c6a7046755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "expected_bytes_hex" : "00d18c8602c6a70467ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-ff85-v0#15",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d901016755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7201010102",
+      "expected_bytes_hex" : "00d18c8602d9010167ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd7201010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-ff85-v0#16",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d801d701016755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04020402010102",
+      "expected_bytes_hex" : "00d18c8602d801d7010167ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd04020402010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-ff85-v0#17",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|ff85|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d46755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01010102",
+      "expected_bytes_hex" : "00d18c8602d467ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd01010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-elem-mix255-v0#18",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c8602830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-mix255-v0#19",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283000c67fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c860283000c67ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-mix255-v0#20",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283002467fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c860283002467ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-mix255-v0#21",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c860283004c67fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c860283004c67ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-mix255-v0#22",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602e30167fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c8602e30167ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-mix255-v0#23",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602c6a70467fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "expected_bytes_hex" : "00d18c8602c6a70467ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-mix255-v0#24",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d9010167fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff7201010102",
+      "expected_bytes_hex" : "00d18c8602d9010167ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd7201010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-mix255-v0#25",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d801d7010167fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff04020402010102",
+      "expected_bytes_hex" : "00d18c8602d801d7010167ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd04020402010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-mix255-v0#26",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|mix255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`.",
+      "bytes_hex" : "00d18c8602d467fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff01010102",
+      "expected_bytes_hex" : "00d18c8602d467ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd01010102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-elem-mix256-v0#27",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-mix256-v0#28",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283000c67fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-mix256-v0#29",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283002467fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-mix256-v0#30",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283004c67fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-mix256-v0#31",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602e30167fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-mix256-v0#32",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602c6a70467fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-mix256-v0#33",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d9010167fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff7201010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-mix256-v0#34",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d801d7010167fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff04020402010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-mix256-v0#35",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|mix256|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 253 `a` and one FF (a text of 256 bytes). Read, and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d467fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff01010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-elem-ff86-v0#36",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-ff86-v0#37",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283000c6756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-ff86-v0#38",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c86028300246756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-ff86-v0#39",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283004c6756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-ff86-v0#40",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602e3016756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-ff86-v0#41",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602c6a7046756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-ff86-v0#42",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d901016756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7201010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-ff86-v0#43",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d801d701016756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04020402010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-ff86-v0#44",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|ff86|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 86 bytes of FF (a text of 258 bytes). Read, and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d46756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-elem-ff255-v0#45",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-elem|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node `Coll[<name>]()` (its item type), the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-coll-ff255-v0#46",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-coll|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Coll[<name>]`, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283000c67ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-opt-ff255-v0#47",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-opt|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is `Option[<name>]`, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283002467ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-cc-pair-ff255-v0#48",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|cc-pair|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a collection node whose item type is a pair holding the name, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c860283004c67ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-getvar-ff255-v0#49",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|getvar|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `getVar[<name>](1)`, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602e30167ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-regas-ff255-v0#50",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|regas|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a register read `R4[<name>]` (ExtractRegisterAs), the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602c6a70467ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-funcvalue-ff255-v0#51",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|funcvalue|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a lambda whose argument is of the name's type, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d9010167ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff7201010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-fundef-ff255-v0#52",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|fundef|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e a `FunDef` whose type argument is the name, the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d801d7010167ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04020402010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-dctx-ff255-v0#53",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[rt|dctx|ff255|v0] `sigmaProp((e, true)._2)` in a tree (unsized, v0), e `executeFromVar[<name>]` (DeserializeContext), the name 255 bytes of FF (a text of 765 bytes). Read, and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "00d18c8602d467ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff01010102",
+      "error" : "errored",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      }
+    }
+  ]
+}

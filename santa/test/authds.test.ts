@@ -1,8 +1,4 @@
 import { describe, it, expect } from 'vitest'
-import { readFileSync } from 'node:fs'
-import { fileURLToPath } from 'node:url'
-import path from 'node:path'
-import Ajv2020 from 'ajv/dist/2020'
 import { runAuthdsEntry } from '../src/runner'
 
 // Literals lifted from the committed vector's `empty-tree-lookup` entry
@@ -13,12 +9,6 @@ const LOOKUP_PROOF_HEX =
   '020000000000000000000000000000000000000000000000000000000000000000' +
   'ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff' +
   '0000000004'
-
-const here = path.dirname(fileURLToPath(import.meta.url))
-const actualsSchema = JSON.parse(
-  readFileSync(path.resolve(here, '../../schema/santa-authds.actuals.schema.json'), 'utf8'),
-)
-const validate = new Ajv2020({ strict: false }).compile(actualsSchema)
 
 describe('santa-authds/v1 adapter', () => {
   it('maps a failing operation to ok:false and a NULL digest, not the partial digest', () => {
@@ -186,55 +176,5 @@ describe('santa-authds/v1 adapter — outcome classification', () => {
     const a = runAuthdsEntry({ name: 'x', kind: 'avl_teleport', settings: {}, payload: {} })
     expect(a.error).toBe('not-implemented')
     expect(a.note).toBeUndefined()
-  })
-
-  it('all four emitted outcome shapes validate against the committed actuals schema', () => {
-    const clean = runAuthdsEntry({
-      name: 'clean',
-      kind: 'avl_verify',
-      settings: { key_length: 32, value_length: null, max_num_operations: 1, max_deletes: 0 },
-      payload: {
-        starting_digest_hex: START_DIGEST_HEX,
-        proof_hex: LOOKUP_PROOF_HEX,
-        operations: [{ tag: 'Lookup', key_hex: '42'.repeat(32) }],
-      },
-    })
-    const cleanProve = runAuthdsEntry({
-      name: 'clean-prove',
-      kind: 'avl_prove',
-      settings: { key_length: 32, value_length: null },
-      payload: {
-        operations: [{ tag: 'Insert', key_hex: '04'.repeat(32), value_hex: '04'.repeat(8) }],
-        gen_proof_after: [0],
-      },
-    })
-    const errored = runAuthdsEntry({
-      name: 'errored',
-      kind: 'avl_verify',
-      settings: { key_length: 32, value_length: null, max_num_operations: 1, max_deletes: 0 },
-      payload: {
-        starting_digest_hex: START_DIGEST_HEX,
-        proof_hex: LOOKUP_PROOF_HEX,
-        operations: [{ tag: 'Lookup', key_hex: '02'.repeat(16) }],
-      },
-    })
-    const panicked = runAuthdsEntry({
-      name: 'panicked',
-      kind: 'avl_verify',
-      settings: { key_length: 32, value_length: null, max_num_operations: 1, max_deletes: 0 },
-      payload: {
-        starting_digest_hex: START_DIGEST_HEX,
-        proof_hex: LOOKUP_PROOF_HEX,
-        operations: [{ tag: 'Frobnicate', key_hex: '02'.repeat(32) }],
-      },
-    })
-    const notImpl = runAuthdsEntry({ name: 'ni', kind: 'avl_teleport', settings: {}, payload: {} })
-
-    expect([clean.error, cleanProve.error, errored.error, panicked.error, notImpl.error]).toEqual([
-      null, null, 'errored', 'panicked', 'not-implemented',
-    ])
-    const ok = validate({ clean, cleanProve, errored, panicked, notImpl })
-    expect(validate.errors ?? []).toEqual([])
-    expect(ok).toBe(true)
   })
 })

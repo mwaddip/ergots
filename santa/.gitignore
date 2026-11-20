@@ -1,6 +1,0 @@
-node_modules/
-dist/
-
-# santa-run symlinks the SANTA-managed ergots checkout here ($1/ergots) so the
-# file: deps resolve against the fetched impl; regenerated each ./conform run.
-ergots-impl

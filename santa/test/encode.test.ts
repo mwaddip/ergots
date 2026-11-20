@@ -90,7 +90,7 @@ describe('encode — a Box is the bytes it was read from', () => {
   // texts cannot be written at all. So an encoder that WRITES the box gives other bytes, or throws.
   const here = path.dirname(fileURLToPath(import.meta.url))
   const vec = JSON.parse(readFileSync(path.resolve(here,
-    '../../vectors/eval/v6/authored/Global.deserializeTo_Box_type_var_name_range.json'), 'utf8')) as
+    'fixtures/eval/v6/authored/Global.deserializeTo_Box_type_var_name_range.json'), 'utf8')) as
     { entries: { name: string; expected: { value?: { kind: string; bytes_hex: string } } }[] }
   const boxes = vec.entries.filter((e) => /-just-/.test(e.name))
   it('the six `just` rows: parsed, then encoded, give back their bytes', () => {

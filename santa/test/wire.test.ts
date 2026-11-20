@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 const loadVector = (
   rel: string,
 ): { schema: string; entries: { name: string; kind: string; bytes_hex: string; expected_bytes_hex?: string; error?: string; version: { activated: number; ergoTree: number } }[] } =>
-  JSON.parse(readFileSync(path.resolve(here, '../../vectors/wire', rel), 'utf8'))
+  JSON.parse(readFileSync(path.resolve(here, 'fixtures/wire', rel), 'utf8'))
 
 describe('runWireVector — wire round-trip (santa-wire/v1)', () => {
   it('Box: every entry round-trips to its own canonical bytes (public parseSValue/serializeSValue(SBox))', async () => {

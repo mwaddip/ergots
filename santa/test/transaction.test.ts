@@ -8,7 +8,7 @@ const here = path.dirname(fileURLToPath(import.meta.url))
 // Typed as runTransactionVector's own parameter (TxVector) so the bytes-anchored TxEntry shape
 // (tx_bytes_hex + box/header hex) is enforced — the test loads a real captured vector.
 const loadVector = (rel: string): Parameters<typeof runTransactionVector>[0] =>
-  JSON.parse(readFileSync(path.resolve(here, '../../vectors/transaction', rel), 'utf8'))
+  JSON.parse(readFileSync(path.resolve(here, 'fixtures/transaction', rel), 'utf8'))
 
 describe('runTransactionVector — santa-transaction/v1 (bytes-anchored tx arm)', () => {
   it('keystone seed bigint-downcast-2666: the tx arm accepts it at the JVM-blessed cost (a JVM-accepted captured tx)', async () => {

@@ -48,7 +48,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // value AND cost — against the JVM-blessed expected. ergots' eval side landed in v6 P7a
     // (eval/exponentiate.ts via method-call.ts); the bridge was the last not-impl cause.
     const raw = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v6/spec/GroupElement.expUnsigned.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v6/spec/GroupElement.expUnsigned.json'), 'utf8'),
     ) as { entries: Array<{ name: string; expected: unknown }> }
     const actuals = runVector(raw as unknown as Parameters<typeof runVector>[0])
     expect(Object.keys(actuals)).toEqual(raw.entries.map((e) => e.name)) // totality: no entry omitted
@@ -61,7 +61,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // The result-direction twin of the expUnsigned input test: BigInt.toUnsigned produces an
     // UnsignedBigInt SValue, exercising encode.ts' UBI arm (decimal string, decode-consistent).
     const raw = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v6/spec/BigInt.toUnsigned.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v6/spec/BigInt.toUnsigned.json'), 'utf8'),
     ) as { entries: Array<{ name: string; expected: unknown }> }
     const actuals = runVector(raw as unknown as Parameters<typeof runVector>[0])
     expect(Object.keys(actuals)).toEqual(raw.entries.map((e) => e.name))
@@ -80,7 +80,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // speaks for itself and self-heals when ergots widens the type." Pin the green outcome.
     type FixtureEntry = { name: string; tree_bytes_hex: string; input?: { kind: string; bytes_hex: string }; version: { activated: number; ergoTree: number }; expected: unknown }
     const fixture = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v6/spec/Header_new_methods.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v6/spec/Header_new_methods.json'), 'utf8'),
     ) as { schema: string; op: string; blessed_by: string; source: string; entries: FixtureEntry[] }
     const overflowEntry = fixture.entries[0]
     const vec = {
@@ -106,7 +106,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // UNDERCHARGES the cost (126 vs JVM 127, Δ−1) — a new divergence surfaced by closing the gap,
     // recorded in docs/findings/eval-jvm-vs-ergots.md, never pinned green here.
     const fixture = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v6/authored/Global.serialize_AvlTree.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v6/authored/Global.serialize_AvlTree.json'), 'utf8'),
     ) as Parameters<typeof runVector>[0]
     const actuals = runVector(fixture)
     expect(Object.keys(actuals)).toEqual(fixture.entries.map((e) => e.name)) // totality: no abort
@@ -126,7 +126,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // EACH carrying its own ContextExtension (SELF = input 0) — EvalCore.evalWithInputExtensions.
     for (const file of ['Context.getVarFromInput.json', 'Context.getVarFromInput_multi_input.json']) {
       const fixture = JSON.parse(
-        readFileSync(path.resolve(here, `../../vectors/eval/v6/authored/${file}`), 'utf8'),
+        readFileSync(path.resolve(here, `fixtures/eval/v6/authored/${file}`), 'utf8'),
       ) as Parameters<typeof runVector>[0] & {
         entries: { name: string; expected: { value: unknown; cost: number | null; error: string | null } }[]
       }
@@ -145,7 +145,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // selfBox, so SELF threw context-field-missing → 'errored' for all four entries (the
     // reject-wrong-type#1 entry passed by accident; the three value entries graded coal).
     const fixture = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v6/authored/Box.getReg_dynamic_index.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v6/authored/Box.getReg_dynamic_index.json'), 'utf8'),
     ) as Parameters<typeof runVector>[0] & {
       entries: { name: string; expected: { value: unknown; cost: number | null; error: string | null } }[]
     }
@@ -165,7 +165,7 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     // (even empty) via decodeExtension is the fix — symmetric to the v3/v4 bare-arm gaps above.
     // (ergots verified this isolation arm is THEIR-correct via core; the errored was our adapter.)
     const fixture = JSON.parse(
-      readFileSync(path.resolve(here, '../../vectors/eval/v5/authored/Context.extension_key_domain.json'), 'utf8'),
+      readFileSync(path.resolve(here, 'fixtures/eval/v5/authored/Context.extension_key_domain.json'), 'utf8'),
     ) as Parameters<typeof runVector>[0] & {
       entries: { name: string; expected: { value: unknown; cost: number | null; error: string | null } }[]
     }

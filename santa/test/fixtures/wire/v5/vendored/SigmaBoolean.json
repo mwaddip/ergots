@@ -1,0 +1,84 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "SigmaBoolean",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "trivial-true",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "d3",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "trivial-false",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "d2",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "prove-dlog-basic",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "cd000000000000000000000000000000000000000000000000000000000000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "prove-dh-tuple-basic",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "ce0000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798000000000000000000000000000000000000000000000000000000000000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "cand-two-leaves",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "9602cd000000000000000000000000000000000000000000000000000000000000000000cd000000000000000000000000000000000000000000000000000000000000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "cor-two-leaves",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "9702cd000000000000000000000000000000000000000000000000000000000000000000cd000000000000000000000000000000000000000000000000000000000000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "cthreshold-2-of-3",
+      "kind" : "SigmaBoolean",
+      "source" : "ergots:fixture-gen/wire",
+      "description" : "",
+      "bytes_hex" : "980203cd000000000000000000000000000000000000000000000000000000000000000000cd000000000000000000000000000000000000000000000000000000000000000000cd0279be667ef9dcbbac55a06295ce870b07029bfcdb2dce28d959f2815b16f81798",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    }
+  ]
+}

@@ -5,7 +5,7 @@ import path from 'node:path'
 import { runVector } from '../src/runner'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
-const evalDir = path.resolve(here, '../../vectors/eval')
+const evalDir = path.resolve(here, 'fixtures/eval')
 
 // The eval arm's parse stage: ergots' reader running out of bytes (or refusing them) is the library's verdict on the
 // tree, as the wire arm counts it (codec-errors.ts isWireCodecError), so a tree the JVM refuses at parse and ergots'

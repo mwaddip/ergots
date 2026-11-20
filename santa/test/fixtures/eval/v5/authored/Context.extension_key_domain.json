@@ -1,0 +1,71 @@
+{
+  "schema" : "santa-eval/v5",
+  "op" : "Context.extension_key_domain",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-ctx-extension-key",
+  "entries" : [
+    {
+      "name" : "key-0x80-present-errored#0",
+      "script" : "{ true }  // SELF ContextExtension carries key 0x80 (128): the signed-negative Byte makes toSigmaContext's `new Array(maxKey+1)` throw BEFORE any bytecode -> the spend FAILS. ergots/sigma-rust treat keys as unsigned 0..255 and ACCEPT — the consensus-fork divergence (the extension is attacker-supplied, so mainnet-reachable).",
+      "tree_bytes_hex" : "10010101d17300",
+      "extension" : {
+        "128" : {
+          "kind" : "Int",
+          "value" : 42
+        }
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "key-0x7f-present-accept#1",
+      "script" : "{ true }  // SELF ContextExtension carries key 0x7f (127), the inclusive max: the context builds and the tree evals normally — the accept boundary, contrast to 0x80.",
+      "tree_bytes_hex" : "10010101d17300",
+      "extension" : {
+        "127" : {
+          "kind" : "Int",
+          "value" : 42
+        }
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 16,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvar-0x80-absent-none#2",
+      "script" : "{ getVar[Int](0x80) }  // GetVar of id 0x80 with the key ABSENT (empty extension) -> None, no crash: the divergence is PURELY at context construction (key PRESENT), not at the read — clean None both sides.",
+      "tree_bytes_hex" : "1000e38004",
+      "extension" : {
+        
+      },
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 0
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 10,
+        "error" : null
+      }
+    }
+  ]
+}

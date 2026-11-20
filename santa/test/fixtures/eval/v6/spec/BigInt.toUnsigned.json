@@ -1,0 +1,68 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "BigInt.toUnsigned",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "sigma-state:LanguageSpecificationV6",
+  "entries" : [
+    {
+      "name" : "CBigInt(5)#0",
+      "script" : "{(x: BigInt) => x.toUnsigned }",
+      "tree_bytes_hex" : "1b1000dad9010106db060e720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "5"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "5"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    },
+    {
+      "name" : "CBigInt(-5)#1",
+      "script" : "{(x: BigInt) => x.toUnsigned }",
+      "tree_bytes_hex" : "1b1000dad9010106db060e720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "-5"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "CBigInt(0)#2",
+      "script" : "{(x: BigInt) => x.toUnsigned }",
+      "tree_bytes_hex" : "1b1000dad9010106db060e720101e4e30106",
+      "input" : {
+        "kind" : "BigInt",
+        "value" : "0"
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "UnsignedBigInt",
+          "value" : "0"
+        },
+        "cost" : 79,
+        "error" : null
+      }
+    }
+  ]
+}

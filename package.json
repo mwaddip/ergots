@@ -6,7 +6,8 @@
   "license": "MIT",
   "type": "module",
   "workspaces": [
-    "packages/*"
+    "packages/*",
+    "santa"
   ],
   "scripts": {
     "build": "npm run build -w @ergots/scorex && npm run build -w @ergots/avltree && npm run build -w @ergots/nipopow && npm run build -w @ergots/ergoscript && npm run build -w @ergots/transaction",

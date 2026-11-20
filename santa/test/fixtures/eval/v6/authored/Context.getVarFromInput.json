@@ -1,0 +1,119 @@
+{
+  "schema" : "santa-eval/v3",
+  "op" : "Context.getVarFromInput",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "source" : "santa:authored-getvarfrominput",
+  "entries" : [
+    {
+      "name" : "present-true#0",
+      "script" : "{ getVarFromInput[Boolean](0, 11) }",
+      "tree_bytes_hex" : "1b0f020300020bdc650cfe027300730101",
+      "inputs" : [
+        {
+          "extension" : {
+            "11" : {
+              "kind" : "Boolean",
+              "value" : true
+            }
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Boolean",
+            "value" : true
+          }
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "present-false#1",
+      "script" : "{ getVarFromInput[Boolean](0, 11) }",
+      "tree_bytes_hex" : "1b0f020300020bdc650cfe027300730101",
+      "inputs" : [
+        {
+          "extension" : {
+            "11" : {
+              "kind" : "Boolean",
+              "value" : false
+            }
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : {
+            "kind" : "Boolean",
+            "value" : false
+          }
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "absent#2",
+      "script" : "{ getVarFromInput[Boolean](0, 11) }",
+      "tree_bytes_hex" : "1b0f020300020bdc650cfe027300730101",
+      "inputs" : [
+        {
+          "extension" : {
+            
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    },
+    {
+      "name" : "wrong-type#3",
+      "script" : "{ getVarFromInput[Boolean](0, 11) }",
+      "tree_bytes_hex" : "1b0f020300020bdc650cfe027300730101",
+      "inputs" : [
+        {
+          "extension" : {
+            "11" : {
+              "kind" : "Int",
+              "value" : 5
+            }
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Option",
+          "value" : null
+        },
+        "cost" : 17,
+        "error" : null
+      }
+    }
+  ]
+}

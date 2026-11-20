@@ -8,7 +8,7 @@ import { runEntry, EVAL_JIT_COST_LIMIT } from '../src/runner'
 // `jitCostLimit` as "unlimited", so a runner that does not pass one answers a write past the limit as a value.
 const here = path.dirname(fileURLToPath(import.meta.url))
 const vector = JSON.parse(readFileSync(
-  path.resolve(here, '../../vectors/eval/v6/authored/Global.serialize_shared_nested.json'), 'utf8'))
+  path.resolve(here, 'fixtures/eval/v6/authored/Global.serialize_shared_nested.json'), 'utf8'))
 const entry = (name: string) => {
   const e = vector.entries.find((x: { name: string }) => x.name === name)
   if (!e) throw new Error(`no entry ${name}`)
