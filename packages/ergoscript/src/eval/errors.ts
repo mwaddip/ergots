@@ -1147,10 +1147,10 @@ export type EvalErrorCode =
    * `SFunc` type at tree v3 can appear as a lambda's argument type where this
    * branch fires too.
    *
-   * Distinct from `'tuple-invalid-arity'` (F5 batch 1): that is the `Tuple`
-   * EXPR node's own arity≠2 gate (values.scala:797); this is the DECLARED-type
-   * check on a value flowing through a site (W1's outer `Tuple` is a valid
-   * pair — the violation is item0's TYPE, a different mechanism).
+   * Distinct from `'tuple-invalid-arity'`: that is the `Tuple` EXPR node's
+   * own arity≠2 gate (values.scala:797); this is the DECLARED-type check on
+   * a value flowing through a site (W1's outer `Tuple` is a valid pair — the
+   * violation is item0's TYPE, a different mechanism).
    *
    * Source: JVM `SType.scala:187-213`, `values.scala:251-255`;
    *         `eval/_check-type.ts`.

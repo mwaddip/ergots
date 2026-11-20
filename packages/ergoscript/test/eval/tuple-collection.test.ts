@@ -11,10 +11,9 @@
  * The pair-class comparison bites on a `kind: 'Coll'` value of the JVM's
  * `Any` ("Tuples and non-pair tuple values" in `facts/ergoscript-eval.md`):
  * such a value is the one a tuple of another arity than two takes, and the
- * one a `Tuple` expression in a context variable reads as. Earlier tasks
- * built `tupleColl(items)` for the value; the data reader does not build it
- * yet, so the tests bind a hand-built `tupleColl(...)` to context variable 1
- * under its tuple type and read it with `GetVar`.
+ * one a `Tuple` expression in a context variable reads as. The tests build
+ * one through `tupleColl(items)` and bind it to context variable 1 under its
+ * tuple type, read with `GetVar`.
  */
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
@@ -62,7 +61,7 @@ function neq(left: Expr, right: Expr): Expr {
   return { tag: 'BinOp', op: { kind: 'Relation', op: 'NEq' }, left, right }
 }
 
-/** A hand-built `tupleColl` of ints, as the data reader will build it. */
+/** A `tupleColl` of ints, as the data reader builds it. */
 function intTupleColl(values: number[]): SValue {
   return tupleColl(values.map((v) => ({ kind: 'Int', value: v }) as SValue))
 }
@@ -96,13 +95,13 @@ describe('the EQ / NEQ checkType sites', () => {
     expect(err.code).toBe('unsupported-value-type')
   })
 
-  it('EQ: a pair of two triples — the type check is the root pair, and it passes', () => {
+  it('EQ: a pair of two triples — the Tuple arm reads the item types and refuses first', () => {
     // `(getVar[(Int,Int,Int)](1).get, getVar[(Int,Int,Int)](1).get)` types as a PAIR of two triples.
     // EQ reads the root type of each operand only (SType.scala:174): a pair of two triples, which
     // passes `isValueOfType`. The two operands' runtime kind is Tuple of two items (Tuple.eval).
     // The equality is between two identical pair values; the Tuple arm's own checkType reads its item
-    // types (STuple of 3), and that is where `unsupported-value-type` fires — before the outer EQ sees
-    // the root pair. So this row is NOT green today; check both paths.
+    // types (STuple of 3), and that is where `unsupported-value-type` fires — before the outer EQ
+    // sees the root pair. The test asserts the refusal.
     const pair: Expr = {
       tag: 'Tuple',
       items: [getVarGet(TRIPLE_III), getVarGet(TRIPLE_III)],

@@ -56,8 +56,7 @@ import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
 import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { sTypeEquals } from '../mir/stype-helpers'
-import { dataItemType } from '../coll/class'
-import { filtered } from './_coll'
+import { dataItemType, filtered } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_filter.rs:61
@@ -140,8 +139,9 @@ export function evalFilter(e: Filter, env: Env, ctx: EvalContext): SValue {
   // No short-circuit: all items are visited regardless of intermediate results.
   const kept: SValue[] = []
   for (const item of inputColl.items) {
-    // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    // Reject applying a lambda whose arg type is an unresolved type var (the JVM's
+    // "Unknown type T" throw at stypeToRType, Evaluation.scala:54-55). Per-element,
+    // so an empty input never binds and never throws.
     assertArgTypeResolved(closure.argTpes[0]!)
     // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
     // value's class against the item, before the AddToEnvironmentDesc 5 is charged and before

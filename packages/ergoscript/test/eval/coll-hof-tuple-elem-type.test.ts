@@ -17,7 +17,7 @@
  * reduce to `TrueProp` on 6.0.7 at block costs 2, 4, 6, 6. The non-empty
  * twins reject at the lambda's own `Value.checkType` (`values.scala:1074`
  * → `SType.scala:200-202`, `sys.error("Unsupported tuple type")`), probed
- * at `final-fix-probe/c2-nonempty.out`.
+ * at `final-fix-probe/c2-nonempty.out`; those rows read as N1-N4 here.
  */
 import { describe, it, expect } from 'vitest'
 import { evalExpr } from '../../src/eval/eval'
@@ -42,10 +42,10 @@ const B_TREES: B[] = [
 ]
 
 const NON_EMPTY: Array<{ name: string; hex: string }> = [
-  { name: 'C1 ForAll over a non-empty Coll[(I,I,I)]',  hex: '0b14d1af0c4804040401020406d90101480404040101' },
-  { name: 'C2 !Exists over a non-empty Coll[(I,I,I)]', hex: '0b15d1efae0c4804040401020406d90101480404040101' },
-  { name: 'C3 SizeOf(Map(non-empty, _ => 1)) == 1',    hex: '0b18d193b1ad0c4804040401020406d901014804040404020402' },
-  { name: 'C4 SizeOf(Filter(non-empty, _ => true)) == 1', hex: '0b18d193b1b50c4804040401020406d901014804040401010402' },
+  { name: 'N1 ForAll over a non-empty Coll[(I,I,I)]',  hex: '0b14d1af0c4804040401020406d90101480404040101' },
+  { name: 'N2 !Exists over a non-empty Coll[(I,I,I)]', hex: '0b15d1efae0c4804040401020406d90101480404040101' },
+  { name: 'N3 SizeOf(Map(non-empty, _ => 1)) == 1',    hex: '0b18d193b1ad0c4804040401020406d901014804040404020402' },
+  { name: 'N4 SizeOf(Filter(non-empty, _ => true)) == 1', hex: '0b18d193b1b50c4804040401020406d901014804040401010402' },
 ]
 
 describe('HOF arm on an empty data Coll of a non-pair tuple type reduces (6.0.7 probe batch1.out B1-B4)', () => {
@@ -60,7 +60,7 @@ describe('HOF arm on an empty data Coll of a non-pair tuple type reduces (6.0.7 
   }
 })
 
-describe('HOF arm on a non-empty data Coll of a non-pair tuple type refuses at the lambda check (6.0.7 probe c2-nonempty.out C1-C4)', () => {
+describe('HOF arm on a non-empty data Coll of a non-pair tuple type refuses at the lambda check (6.0.7 probe c2-nonempty.out N1-N4)', () => {
   // The JVM's `FuncValue.eval` returns a closure that runs `Value.checkType
   // (arg0._2, vArg)` on each application (`values.scala:1073-1074`), and
   // `isValueOfType` throws `sys.error("Unsupported tuple type (...)")` for

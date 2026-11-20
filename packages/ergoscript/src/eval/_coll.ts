@@ -32,6 +32,7 @@ import {
   castArray as _castArray,
   classOf as _classOf,
   collOverArray as _collOverArray,
+  dataItemType as _dataItemType,
   empty as _empty,
   endsWith as _endsWith,
   filtered as _filtered,
@@ -118,6 +119,14 @@ export function empty(elem: SType): CollValue {
 /** The collection the data reader builds (`CoreDataSerializer.deserializeColl` :166-191). */
 export function fromData(elem: SType, items: SValue[]): CollValue {
   return guard(() => _fromData(elem, items))
+}
+
+/** The item type the data reader gives a collection whose declared element type
+ *  is `elem` (`CoreDataSerializer.deserializeColl`, `:176-182`; `SColl(SAny)`
+ *  for a tuple of another arity than two, `:179-180`). A pure read of the
+ *  module's `dataItemType` — no refusals are raised. */
+export function dataItemType(elem: SType): SType {
+  return _dataItemType(elem)
 }
 
 /** `Coll.slice` (`CollsOverArrays.scala:40`, `:377`). */

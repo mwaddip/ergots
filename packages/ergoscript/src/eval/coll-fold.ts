@@ -134,8 +134,9 @@ export function evalFold(e: Fold, env: Env, ctx: EvalContext): SValue {
   for (const item of inputColl.items) {
     const tupArg: SValue = { kind: 'Tuple', items: [acc, item] }
 
-    // v6 P6: reject applying a lambda whose arg type is an unresolved type var (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
+    // Reject applying a lambda whose arg type is an unresolved type var (the JVM's
+    // "Unknown type T" throw at stypeToRType, Evaluation.scala:54-55). Per-element,
+    // so an empty input never binds and never throws.
     assertArgTypeResolved(closure.argTpes[0]!)
     // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
     // value's class against the (acc, item) tuple, before the AddToEnvironmentDesc 5 is charged
