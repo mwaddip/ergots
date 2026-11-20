@@ -1,24 +1,13 @@
 /**
- * XorOf arm — fixture-driven + inline defensive tests.
+ * XorOf arm — the exclusive or of a collection of Booleans, at every tree version.
  *
- * Sigma-rust ref: ergotree-interpreter/src/eval/xor_of.rs:12-36
- *   let input_v = self.input.eval(env, ctx)?;
- *   let input_v_bools = input_v.try_extract_into::<Vec<bool>>()?;
- *   ctx.add_per_item_jit_cost(20, 5, 32, input_v_bools.len() as u32)?;
- *   if ctx.tree_version() < V2 {
- *       // JVM v4.x bug: hasTrue && hasFalse (count-independent)
- *   } else {
- *       // Correct left-fold XOR: true iff odd count of trues
- *   }
+ * JVM (sigma-state 6.0.7): `XorOf.eval` (data/shared/src/main/scala/sigma/ast/trees.scala:238-245) charges
+ * `PerItemCost(20, 5, 32)` (:253-254) by the collection's length, then calls `xorOf`
+ * (data/shared/src/main/scala/sigma/data/CSigmaDslBuilder.scala:116-127): `false` for no item, the item for one,
+ * the exclusive or of all of them otherwise. Every item is read.
  *
- * Reads ctx.treeVersion ?? 0 to discriminate V0/V1 (JVM v4.x bug) vs
- * V2+ (correct XOR). Cost identical at both branches.
- *
- * Smoking-gun case: xorOf([true, true, false]) → true at V0/V1 (bug),
- * → false at V2+ (correct XOR; 2 trues = even count).
- *
- * Cost-charging order: AFTER eval-child (Cast pattern matching slice B's
- * And/Or arms per sigma-rust xor_of.rs:20).
+ * The fixture rows give a value and a cost per tree; the rows named by a SANTA row are JVM-blessed
+ * (`vectors/eval/{v5,v6}/authored/` at commit 0f2fc79).
  */
 import { describe, it, expect } from 'vitest'
 import fs from 'node:fs'
@@ -67,6 +56,36 @@ describe('XorOf arm — fixture-driven', () => {
       }
     })
   }
+})
+
+/** [row, SANTA file, tree bytes, tree version, the value answered, the cost] */
+const BLESSED: [string, string, string, number, boolean, number][] = [
+  ['xorof-t-separating-t0#6', 'v5/authored/XorOf.activated_version_gate.json', '00ff0d0101', 0, true, 30],
+  ['xorof-ttf-separating-t0#3', 'v5/authored/XorOf.activated_version_gate.json', '00ff0d0303', 0, false, 30],
+  ['xorof-ttt-separating-t0#4', 'v5/authored/XorOf.activated_version_gate.json', '00ff0d0307', 0, true, 30],
+  ['xorof-tft-separating-t1#9', 'v5/authored/XorOf.activated_version_gate.json', '0904ff0d0305', 1, false, 30],
+  ['XorOf-const-L33-none-v0-a2#22', 'v5/authored/XorOf.item_by_item.json', '00ff0d21ffffffff01', 0, true, 35],
+  // A tuple of three Booleans, (false, true, true).
+  ['XorOf-tuple-L3-k0-v0-a2#9', 'v5/authored/XorOf.item_by_item.json', '00ff48010101000101', 0, false, 30],
+  ['XorOf-tuple-L3-k0-v3-a3#19', 'v6/authored/XorOf.item_by_item_v6.json', '0b08ff48010101000101', 3, false, 30],
+  ['XorOf-const-L0-none-v0-a2#0', 'v5/authored/XorOf.item_by_item.json', '00ff0d00', 0, false, 30],
+]
+
+describe('XorOf is the exclusive or at every tree version (JVM-blessed rows)', () => {
+  for (const [row, file, treeHex, treeVersion, value, cost] of BLESSED) {
+    it(`${row} (${file}): ${value} at ${cost}`, () => {
+      const tree = parseTree(hexToBytes(treeHex))
+      const ctx = makeContext({ treeVersion })
+      expect(evaluateWith(tree, ctx)).toEqual({ kind: 'Boolean', value })
+      expect(ctx.jitCost).toBe(cost)
+    })
+  }
+
+  it("XorOf-direct-dKn-Int5-v0-a2#110 (v5/authored/XorOf.item_by_item.json): (false, 5, true) is 'coll-not-boolean'", () => {
+    const tree = parseTree(hexToBytes('00ff48010401000a01'))
+    const err = captureEvalError(() => evaluateWith(tree, makeContext({ treeVersion: 0 })))
+    expect(err.code).toBe('coll-not-boolean')
+  })
 })
 
 describe('XorOf arm — defensive', () => {

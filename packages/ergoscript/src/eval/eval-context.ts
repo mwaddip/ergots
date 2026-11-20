@@ -77,7 +77,6 @@ export interface EvalOpts {
    * Required for arms with tree-version-dependent semantics:
    * - Upcast: BigInt → BigInt requires V3+
    * - Downcast: BigInt → any requires V3+
-   * - XorOf: V0/V1 uses JVM v4.x bug; V2+ uses correct left-fold XOR
    *
    * Sigma-rust ref: chain/context.rs:44 `tree_version: Cell<ErgoTreeVersion>`
    */

@@ -61,7 +61,7 @@
       },
       "expected_value_json": {
         "kind": "Boolean",
-        "value": false
+        "value": true
       },
       "expected_cost": 30,
       "expected_error_code": null
@@ -100,7 +100,7 @@
       },
       "expected_value_json": {
         "kind": "Boolean",
-        "value": true
+        "value": false
       },
       "expected_cost": 30,
       "expected_error_code": null
@@ -126,7 +126,7 @@
       },
       "expected_value_json": {
         "kind": "Boolean",
-        "value": false
+        "value": true
       },
       "expected_cost": 30,
       "expected_error_code": null
@@ -178,7 +178,7 @@
       },
       "expected_value_json": {
         "kind": "Boolean",
-        "value": false
+        "value": true
       },
       "expected_cost": 35,
       "expected_error_code": null
