@@ -101,7 +101,7 @@ export function evalSubstConstants(
       scriptBytes,
       positions,
       newValuesV.items,
-      newValuesV.elem,
+      newValuesV.items.map(() => newValuesV.elem),
       ctx.treeVersion ?? 0,
     )
   } catch (cause) {
