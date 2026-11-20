@@ -13,6 +13,7 @@
   "dependencies": {
     "@ergots/avltree": "*",
     "@ergots/ergoscript": "*",
+    "@ergots/nipopow": "*",
     "@ergots/scorex": "*",
     "@ergots/transaction": "*"
   },

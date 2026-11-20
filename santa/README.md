@@ -50,6 +50,7 @@ The runner picks its arm by the vector's `schema`, by exact name and version:
 | `santa-wire/v1` | `runWireVector` | the parse and serialize pair of each kind (`@ergots/ergoscript`, `@ergots/transaction`) |
 | `santa-transaction/v1` | `runTransactionVector` | `parseTransaction`, `validateStateful` (`@ergots/transaction`) |
 | `santa-authds/v1` | `runAuthdsVector` | `BatchAVLProver`, `verifyAvlBatchPartial` (`@ergots/avltree`) |
+| `santa-nipopow/v1` | `runNipopowVector` | `updateInterlinks`, `prove`, `serializeProof` (`@ergots/nipopow`) |
 
 Under any other schema every entry answers `{"error": "not-implemented"}`.
 
@@ -68,6 +69,7 @@ typed errors, `not-implemented` when ergots has no handler for the operation, an
 | | `wire` | `@ergots/ergoscript` and `@ergots/transaction` parse and write back constants, boxes, sigma propositions, trees and transactions. |
 | | `transaction` | `@ergots/transaction` validates a transaction against its input boxes and block context (`validateStateful`). |
 | | `authds` | `@ergots/avltree` builds and verifies batch AVL+ proofs. |
+| | `nipopow` | `@ergots/nipopow` derives a header's interlinks and builds NiPoPoW proofs. |
 | `cost` | `true` | An evaluation reports its JIT cost and `validateStateful` returns the transaction's block cost. |
 
 `kinds` and `activation` are left at SANTA's defaults: every wire kind is staged, and vectors that turn on a rule of

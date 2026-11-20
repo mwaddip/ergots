@@ -15,6 +15,8 @@ import {
   parseTransaction, serializeTransaction, validateStateful, parseContextExtension,
   type ErgoLikeTransaction, type StatefulDeps,
 } from '@ergots/transaction'
+import { serializeProof } from '@ergots/nipopow'
+import { prove, updateInterlinks, makePopowHeader, ProofBuildError } from '@ergots/nipopow/prover'
 import { decodeSValue } from './decode'
 import { extensionBinding, registerBinding, BindingRefused, NoExtensionReader, type ExtensionReader } from './binding'
 import { isWireCodecError } from './codec-errors'
@@ -948,8 +950,82 @@ export function runAuthdsVector(doc: AuthdsVector): Record<string, AuthdsResult>
   return actuals
 }
 
+// ---- santa-nipopow/v1: interlinks and proof construction over @ergots/nipopow ----
+// A vector carries one header chain for all its entries (runner-contract-nipopow §2). The arm reads the headers,
+// derives every header's interlinks with `updateInterlinks` from the first header's own id (the convention of §5),
+// and for a proof hands the chain, cut where the entry says, to `prove`.
+
+interface NipopowChainItem { height?: number; headerHex: string; interlinks?: string[] }
+interface NipopowEntry {
+  name: string
+  kind: string
+  payload?: { m: number; k: number; headerId: string | null }
+}
+interface NipopowVector { schema: string; chain: NipopowChainItem[]; entries: NipopowEntry[] }
+
+/** One nipopow entry's outcome. The kind picks the verdict field (the actuals carry no kind tag):
+ *    - nipopow_interlinks → interlinks, one vector of header ids per chain header
+ *    - nipopow_prove      → proofHex, the serialized proof
+ *  `errored` and `panicked` carry the kind's field as null; `note` is present iff error === 'panicked'. */
+type NipopowResult = {
+  interlinks?: string[][] | null
+  proofHex?: string | null
+  error: null | 'errored' | 'not-implemented' | 'panicked'
+  note?: string
+}
+
+/** The chain's headers, each with the interlinks ergots derives for it: the first header's is its own id, every
+ *  later one's is `updateInterlinks` over the header before it. */
+function nipopowChain(chain: NipopowChainItem[]): { header: ReturnType<typeof parseHeader>; interlinks: Uint8Array[] }[] {
+  const out: { header: ReturnType<typeof parseHeader>; interlinks: Uint8Array[] }[] = []
+  for (const item of chain) {
+    const header = parseHeader(new ByteReader(hexToBytes(item.headerHex)))
+    const prev = out[out.length - 1]
+    out.push({ header, interlinks: prev ? updateInterlinks(prev.header, prev.interlinks) : [header.id] })
+  }
+  return out
+}
+
+/** Run one nipopow entry over its vector's chain → exactly one NipopowResult (total, never-panic).
+ *
+ *  A refusal by ergots' own typed errors is `errored`: `ReaderError` (the header reader refuses a header's bytes)
+ *  and `ProofBuildError` (the prover refuses the chain or the parameters, e.g. a chain shorter than m + k). Any
+ *  other throw, a malformed vector included, is `panicked` with the message in `note`. */
+export function runNipopowEntry(e: NipopowEntry, chain: NipopowChainItem[]): NipopowResult {
+  if (e.kind !== 'nipopow_interlinks' && e.kind !== 'nipopow_prove') return { error: 'not-implemented' }
+  const field = e.kind === 'nipopow_interlinks' ? 'interlinks' : 'proofHex'
+  try {
+    const built = nipopowChain(chain)
+    if (e.kind === 'nipopow_interlinks') {
+      return { interlinks: built.map((b) => b.interlinks.map(bytesToHex)), error: null }
+    }
+    if (!e.payload) throw new Error(`nipopow: missing payload in entry '${e.name}'`)
+    const { m, k, headerId } = e.payload
+    // An anchored proof is the proof over the chain cut k headers past the anchor (runner-contract-nipopow §5).
+    let end = built.length
+    if (headerId !== null) {
+      const idx = built.findIndex((b) => bytesToHex(b.header.id) === headerId)
+      if (idx < 0) throw new Error(`nipopow: the chain holds no header ${headerId}`)
+      end = idx + k + 1
+    }
+    const popow = built.slice(0, end).map((b) => makePopowHeader(b.header, b.interlinks))
+    return { proofHex: bytesToHex(serializeProof(prove(popow, { m, k }))), error: null }
+  } catch (err) {
+    if (err instanceof ReaderError || err instanceof ProofBuildError) return { [field]: null, error: 'errored' }
+    const note = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
+    return { [field]: null, error: 'panicked', note }
+  }
+}
+
+/** run(nipopow vector) → actuals: exactly one NipopowResult per entry, keyed by name. */
+export function runNipopowVector(doc: NipopowVector): Record<string, NipopowResult> {
+  const actuals: Record<string, NipopowResult> = {}
+  for (const e of doc.entries) actuals[e.name] = runNipopowEntry(e, doc.chain)
+  return actuals
+}
+
 /** run(vector of any tier) → actuals. The vector's schema picks the arm, by exact name and version: the six eval
- *  schemas, `santa-wire/v1`, `santa-transaction/v1` and `santa-authds/v1`. Under any other schema (a later
+ *  schemas, `santa-wire/v1`, `santa-transaction/v1`, `santa-authds/v1` and `santa-nipopow/v1`. Under any other schema (a later
  *  version, a tier the runner does not mount, none) every entry answers `{"error": "not-implemented"}`, decided
  *  on the schema alone, before an entry is read (runner-integration §3). */
 export function runDocument(raw: RawVector): Record<string, unknown> {
@@ -957,6 +1033,7 @@ export function runDocument(raw: RawVector): Record<string, unknown> {
   if (schema === 'santa-wire/v1') return runWireVector(raw as unknown as WireVector)
   if (schema === 'santa-transaction/v1') return runTransactionVector(raw as unknown as TxVector)
   if (schema === 'santa-authds/v1') return runAuthdsVector(raw as unknown as AuthdsVector)
+  if (schema === 'santa-nipopow/v1') return runNipopowVector(raw as unknown as NipopowVector)
   if (schema !== undefined && EVAL_SCHEMAS.has(schema)) {
     return runVector(raw as unknown as Vector, parseContextExtension)
   }

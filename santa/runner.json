@@ -1,5 +1,5 @@
 {
   "version": "v6",
-  "tiers": ["eval", "wire", "transaction", "authds"],
+  "tiers": ["eval", "wire", "transaction", "authds", "nipopow"],
   "cost": true
 }

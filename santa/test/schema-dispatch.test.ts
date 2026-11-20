@@ -86,6 +86,14 @@ describe('a vector whose schema the runner knows runs on that schema\'s arm', ()
       Object.fromEntries(entries.map((e) => [e.name, { valid: true, cost: e.expected.cost, error: null }])))
   })
 
+  it('santa-nipopow/v1', () => {
+    const doc = JSON.parse(readFileSync(
+      path.resolve(here, 'fixtures/nipopow/any/authored/NipopowProve.jvm-chain-32.json'), 'utf8'))
+    const chain = doc.chain as { interlinks: string[] }[]
+    const actuals = runDocument(doc) as Record<string, unknown>
+    expect(actuals.interlinks).toStrictEqual({ interlinks: chain.map((c) => c.interlinks), error: null })
+  })
+
   it('santa-authds/v1', () => {
     const entry = {
       name: 'p',

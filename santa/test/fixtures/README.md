@@ -3,8 +3,7 @@
 Entries of SANTA's vectors (`mwaddip/santa` at `ac93bd9`, under `vectors/`), at the path each has there. The runner's
 unit tests read them, so `npm test` needs no SANTA checkout.
 
-Eighteen files, and `eval/v6/spec/Header_new_methods.json`, are whole and byte-identical to SANTA's. Four hold the
-entries their test reads:
+Twenty files are whole and byte-identical to SANTA's. Four hold the entries their test reads:
 
 | File | Entries |
 |---|---|
