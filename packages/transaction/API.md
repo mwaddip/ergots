@@ -25,6 +25,7 @@ import {
   type ErgoBoxCandidate,
   type ArrayClass,
   type CollClass,
+  type CollValue,
   // Phase 2 — validation
   validateStateless,
   validateStateful,
@@ -65,7 +66,7 @@ import {
 | `SpendingProof` | interface | Sigma proof bytes + context extension |
 | `DataInput` | interface | Read-only input (boxId only) |
 | `ErgoBoxCandidate` | interface | Output box before assignment of txId/index |
-| `ArrayClass` / `CollClass` | types | The class the JVM's `Coll[A]` object carries beyond its items (re-exported from `@ergots/ergoscript`); carried by an `SValue` of kind `Coll` through the `cls?` field, read by the evaluator wherever the JVM reads the class. See `@ergots/ergoscript`'s API.md |
+| `ArrayClass` / `CollClass` / `CollValue` | types | The class the JVM's `Coll[A]` object carries beyond its items (`ArrayClass` / `CollClass`) and the narrowed `SValue` of `kind: 'Coll'` (`CollValue`), re-exported from `@ergots/ergoscript`. `cls?` on `CollValue` is read by the evaluator wherever the JVM reads the class. See `@ergots/ergoscript`'s API.md |
 
 ---
 
