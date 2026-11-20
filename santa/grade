@@ -1,0 +1,55 @@
+#!/usr/bin/env bash
+# grade [--santa <ref>] [--delta <base-ref>]: grade this checkout against SANTA's vectors.
+#
+# Fetches SANTA (`mwaddip/santa`, `main` unless --santa names another branch, tag or commit) into a clone of its own,
+# then runs that clone's `./conform --hosted` on this checkout: the working tree in place, uncommitted edits included,
+# with this checkout's santa-run. conform prints one line per slice (tier/version/provenance); this script then
+# prints the number of red entries and where the full results are:
+#   results.json  conform's results, every red entry with its dimension, what SANTA expects and what ergots answered
+#   reds.tsv      one line per red entry: slice, op, entry, dimension, expected, got, note
+#
+# --delta <base-ref> runs `./santa-pr` in place of `./conform`, as the pull request check does: it grades <base-ref>
+# with that commit's own runner, then the working tree, and writes the comparison (comment.md, summary.md,
+# delta.json) beside the working tree's results.
+#
+# The clone is $ERGOTS_SANTA_DIR, by default ergots/santa under $XDG_CACHE_HOME (or under .cache in the home
+# directory). Needs git, mise, jq and, for SANTA's resource bound, a systemd user manager on cgroup v2: Linux only.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+root="$(cd "$here/.." && pwd -P)"
+usage() { echo "usage: santa/grade [--santa <ref>] [--delta <base-ref>]" >&2; exit 2; }
+ref=main base=
+while [ $# -gt 0 ]; do
+  case $1 in
+    --santa) [ $# -ge 2 ] || usage; ref=$2; shift 2 ;;
+    --delta) [ $# -ge 2 ] || usage; base=$2; shift 2 ;;
+    *) usage ;;
+  esac
+done
+
+santa="${ERGOTS_SANTA_DIR:-${XDG_CACHE_HOME:-$HOME/.cache}/ergots/santa}"
+if [ ! -d "$santa/.git" ]; then
+  mkdir -p "$(dirname "$santa")"
+  git clone --quiet https://github.com/mwaddip/santa.git "$santa"
+fi
+git -C "$santa" fetch --quiet origin "$ref"
+git -C "$santa" checkout --quiet --detach FETCH_HEAD
+echo "SANTA $ref @ $(git -C "$santa" rev-parse --short HEAD), grading $root" >&2
+
+if [ -n "$base" ]; then
+  "$santa/santa-pr" "$root" "$base"
+  results="$santa/.santa/pr/head.json"
+else
+  "$santa/conform" --hosted "$root"
+  results="$santa/.santa/results.json"
+fi
+reds="$(dirname "$results")/reds.tsv"
+jq -r '(.runners[0].slices // {}) | to_entries[] | .key as $slice | .value.red[]
+       | [$slice, .op, .entry, .dim, .expected, .got, (.note // "")] | map(tostring) | @tsv' "$results" > "$reds"
+echo "red entries: $(jq '.runners[0].red_total' "$results")"
+echo "  $results"
+echo "  $reds"
+if [ -n "$base" ]; then
+  echo "  $santa/.santa/pr/comment.md (summary.md and delta.json beside it)"
+  cat "$santa/.santa/pr/comment.md"
+fi

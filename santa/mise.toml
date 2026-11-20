@@ -1,5 +1,3 @@
-# Dasher's toolchain — self-provisioned by santa-run via `mise exec` (presence-as-state:
-# it lives with the runner, so ./conform stays toolchain-agnostic). Pinned to the version
-# the v5 1705/1705 green run was produced with.
+# The runner's toolchain. santa-run provisions it with `mise exec`.
 [tools]
 node = "22.19.0"
