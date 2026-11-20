@@ -65,14 +65,6 @@
       "expected_error_code": "lambda-not-callable"
     },
     {
-      "name": "coll_fold_lambda_result_type_mismatch",
-      "tree_bytes_hex": "00b0100202040400d90101580101",
-      "opts_json": {},
-      "expected_value_json": null,
-      "expected_cost": 0,
-      "expected_error_code": "lambda-result-type-mismatch"
-    },
-    {
       "name": "coll_fold_not_coll",
       "tree_bytes_hex": "00b004540400d90101589a8c7201018c720102",
       "opts_json": {},

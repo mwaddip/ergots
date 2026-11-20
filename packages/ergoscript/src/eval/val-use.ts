@@ -15,7 +15,7 @@ import type { SValue, ValUse } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
-import { assertValueTypeSupported } from './_check-type'
+import { assertCheckedValue } from './_check-type'
 
 export function evalValUse(e: ValUse, env: Env, ctx: EvalContext): SValue {
   ctx.addCost(5)
@@ -23,9 +23,9 @@ export function evalValUse(e: ValUse, env: Env, ctx: EvalContext): SValue {
   if (v === undefined) {
     throw new EvalError(`ValUse(id=${e.valId}): no binding in env`, 'val-use-unbound')
   }
-  // checkType seam: a non-pair STuple / non-unary SFunc declared type rejects
-  // (the JVM cannot represent such a value). The declared type is the node's
-  // own `tpe`. See eval/_check-type.ts.
-  assertValueTypeSupported(e.tpe)
+  // ValUse.eval (values.scala:991): Value.checkType reads the node's declared type and the
+  // value's class after the env lookup. The declared type is the node's own `tpe`, stored, so
+  // there is no `exprTpe` read. See eval/_check-type.ts.
+  assertCheckedValue(e.tpe, v)
   return v
 }

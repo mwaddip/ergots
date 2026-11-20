@@ -1,80 +1,82 @@
 /**
- * checkType class (F5 batch 3) — `assertValueTypeSupported`.
+ * The JVM's `Value.checkType(node, evalResult)` (`values.scala:251-254`) runs
+ * `SType.isValueOfType(evalResult, node.tpe)` after evaluating a child at each
+ * `checkType` site, and `Value.typeError`s when it returns false. `isValueOfType`
+ * (`SType.scala:187-213`) has two kinds of outcome whose refusal ergots mirrors:
  *
- * JVM `Value.checkType(node, evalResult)` (values.scala:251-254) runs
- * `SType.isValueOfType(evalResult, node.tpe)` at the value-flow seams after
- * evaluating children. For a DECLARED type that is a non-pair `STuple` or a
- * non-unary `SFunc`, `isValueOfType` (SType.scala:200-205) `sys.error`s:
+ *   - **The type throws, whatever the value is.** `sys.error` fires on the arm
+ *     for a non-pair `STuple` (`items.length != 2`, `:200-202`,
+ *     "Unsupported tuple type"), a non-unary `SFunc` (`tDom.length != 1`,
+ *     `:203-205`, "Unsupported function type"), and the `case _` arm
+ *     (`:212`, "Unknown type"), which catches the JVM's `SAny` and `NoType`.
+ *     The JVM's runtime represents only `Tuple2` and `Function1` and has no
+ *     wildcard class, so a value of such a declared type is unrepresentable;
+ *     a tree whose `checkType` site reads one rejects without looking at the
+ *     value. `assertCheckedType(tpe)` mirrors this: `'unsupported-value-type'`.
  *
- *     case t: STuple =>
- *       if (t.items.length == 2) x.isInstanceOf[Tuple2[_,_]]
- *       else sys.error(s"Unsupported tuple type $t")
- *     case tF: SFunc =>
- *       if (tF.tDom.length == 1) x.isInstanceOf[Function1[_,_]]
- *       else sys.error(s"Unsupported function type $tF")
+ *   - **The value's class is not the type's.** `isValueOfType` returns false,
+ *     and `Value.checkType` passes the operand and its value to
+ *     `Value.typeError`. For a pair type (`STuple` of two items) the class
+ *     check is `x.isInstanceOf[Tuple2[_,_]]` (`:200-201`): a value that is not
+ *     a pair refuses. `assertCheckedValue(tpe, value)` makes this check for
+ *     the pair type only, after `assertCheckedType(tpe)`: `'checked-value-class'`.
  *
- * The JVM cannot represent values of these declared types (its runtime has
- * only Tuple2 and Function1), so it errors regardless of the runtime value.
- * Such declared types ARE wire-constructible — an arity-N tuple constant type
- * parses fine, and a multi-arg SFunc type annotation is representable — but a
- * value of that type is unrepresentable on the JVM, so it rejects at the seam.
+ *   The other class comparisons `isValueOfType` makes (an `SInt` against an
+ *   `Int`, an `SColl` against a `Coll`, a `SBoolean` against a `Boolean`, …)
+ *   are refusals of a mistyped default the JVM makes later and ergots does
+ *   not close here (residual 7 of "The Deserialize substitution", in
+ *   `facts/ergoscript-eval.md`).
  *
- * `assertValueTypeSupported(tpe)` is the ergots mirror. It is called from each
- * eval arm at a value-flow seam (Tuple items, ConstantPlaceholder,
- * ConcreteCollection items, BlockValue valdef-rhs + result, ValUse) — hooking
- * inside the arms (not a whole-tree pre-eval pass) gives JVM-faithful laziness
- * for free: a non-pair-tuple-typed const in a DEAD branch is never evaluated,
- * so its seam never runs.
+ * `SANY_JVM` and `NOTYPE_JVM` (`mir/types.ts`) are told by object identity:
+ * ergots' own `SAny` (the fresh `{ tag: 'SAny' }` object the method typing
+ * builds for a method ergots cannot type, residual 1 of
+ * `facts/ergoscript-wire.md`) is refused by no rule here — runtime values
+ * behind such a type stay concrete and pass every static check (memory
+ * `reference_sany_type_checks_skip_not_fail`).
  *
- * TOP-LEVEL ONLY — this mirrors the JVM's single `isValueOfType` call per seam
- * (it does NOT recurse into STuple items / SColl elem / SOption elem). Nesting
- * is covered because every value-flow seam that surfaces a sub-value runs its
- * own checkType call (e.g. a pair Tuple's items each get a Tuple-item seam
- * call). A non-pair tuple NESTED inside a pair tuple's item type is therefore
- * still caught — by the item seam, not by recursion here.
+ * TOP-LEVEL ONLY — this mirrors the JVM's single `isValueOfType` call per
+ * site (it does NOT recurse into `STuple` items / `SColl` elem / `SOption`
+ * elem). Nesting is covered because every value-flow seam that surfaces a
+ * sub-value runs its own `checkType` call, and those sites each call this
+ * helper.
  *
- * The FuncValue/Apply param+body SFunc arms (the P6 closure path) are not
- * hooked, and need no hook: no value of a non-unary SFunc is ever built. The
- * JVM's FuncValue.eval charges its 5 and then rejects a lambda of other than one
- * parameter wherever it is evaluated (values.scala:1070-1085), before any seam
- * sees it, and eval/func-value.ts does the same ('apply-arity-mismatch'); an
- * Apply of other than one argument rejects in eval/apply.ts, as the JVM's
- * Apply.eval does (values.scala:1262-1272). The SANTA witnesses
- * (test/fixtures/conformance/v5/authored/{FuncValue,Apply}.non_unary_arity.json)
- * cover a lambda that is bound or applied only; a non-unary lambda passed to
- * map, exists, forall or filter, or compared with ==, also rejects in the JVM
- * (test/eval/func-value.test.ts). So this helper's SFunc branch is reached only
- * through MIR built by the API, such as a Const declared with a non-unary SFunc
- * type: parsed data never has an SFunc type (rule 1009, facts/ergoscript-wire.md).
+ * `readCheckedType(node, ctx)` is the type read each JVM `checkType` site
+ * makes first (`val tpe = node.tpe`), before `isValueOfType` reads the type's
+ * tag. The read is `exprTpe(node, v)`, at the evaluation's version; its
+ * `ExprTpeError` propagates — a class-cast default that a `Deserialize`
+ * substitution put in untyped is the case where this throws, even where the
+ * value is fine (`facts/ergoscript-eval.md`, "The Deserialize substitution",
+ * item 5).
  *
- * `readCheckedType(node, ctx)` is the type READ each JVM `checkType` site makes
- * first (`val tpe = node.tpe`), before it compares the value's class (spec
- * docs/specs/2026-09-30-jvm-node-construction-design.md §5 item 5). A read that
- * throws rejects there, even where the value is fine: a class-cast default that
- * the Deserialize substitution put in untyped is the case. The sites that make
- * only this read, without `assertValueTypeSupported`: EQ's and NEQ's operands
- * (bin-op/relation.ts), the taken If branch (if.ts), Fold's zero (coll-fold.ts),
- * ByIndex's and OptionGetOrElse's defaults (coll-by-index.ts,
- * option-get-or-else.ts), and a lambda's body at each application (apply.ts and
- * the HOF arms). The comparison of the value's class there is residual 7.
- *
- * Source: JVM SType.scala:200-205, values.scala:251-254.
+ * Source: JVM `SType.scala:187-213`, `values.scala:251-254`.
  */
 
-import type { Expr, SType } from '../mir/types'
+import type { Expr, SType, SValue } from '../mir/types'
+import { SANY_JVM, NOTYPE_JVM } from '../mir/types'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { exprTpe } from '../mir/expr-tpe'
 
 /**
- * Throw `EvalError('unsupported-value-type', …)` iff `tpe` is a declared type
- * the JVM cannot represent a value of:
- *   - a non-pair `STuple` (`items.length !== 2`), OR
- *   - a non-unary `SFunc` (`args.length !== 1`).
+ * Throw `EvalError('unsupported-value-type')` if `isValueOfType` throws for
+ * `tpe` whatever the value is (`SType.scala:187-213`):
+ *   - a non-pair `STuple` (`items.length !== 2`, `:200-202`),
+ *   - a non-unary `SFunc` (`args.length !== 1`, `:203-205`),
+ *   - the JVM's `SAny` (`SANY_JVM`) or `NoType` (`NOTYPE_JVM`), told by
+ *     identity, which the `case _` arm catches (`:212`),
+ *   - `SString`, which has no arm and falls to the `case _` throw
+ *     (`:212`; a 6.0.7 probe of `sigmaProp("a" == "a")`, batch2 of the
+ *     final review, rejects at reduce with `RuntimeException: Unknown type SString`).
  *
- * Otherwise a no-op. Non-recursive (top-level check only); see module doc.
+ * Otherwise a no-op. Non-recursive (top-level check only).
  */
-export function assertValueTypeSupported(tpe: SType): void {
+export function assertCheckedType(tpe: SType): void {
+  if (tpe === SANY_JVM || tpe === NOTYPE_JVM) {
+    throw new EvalError(
+      `isValueOfType has no value for the JVM's ${tpe === NOTYPE_JVM ? 'NoType' : 'SAny'} (SType.scala:212)`,
+      'unsupported-value-type'
+    )
+  }
   if (tpe.tag === 'STuple' && tpe.items.length !== 2) {
     throw new EvalError(
       `Unsupported tuple type: arity ${tpe.items.length} (the JVM represents only pairs; SType.scala:200-202)`,
@@ -87,6 +89,35 @@ export function assertValueTypeSupported(tpe: SType): void {
       'unsupported-value-type'
     )
   }
+  if (tpe.tag === 'SString') {
+    throw new EvalError(
+      `isValueOfType has no arm for SString; its case _ throws "Unknown type SString" (SType.scala:212)`,
+      'unsupported-value-type'
+    )
+  }
+}
+
+/**
+ * The type-driven throws `assertCheckedType` makes (`'unsupported-value-type'`),
+ * then, for a pair type (`STuple` of two items), the JVM's
+ * `x.isInstanceOf[Tuple2[_,_]]` (`SType.scala:200-201`): a value of kind other
+ * than `Tuple` of two items refuses as `EvalError('checked-value-class')`
+ * (`values.scala:251-255`, which calls `Value.typeError`).
+ *
+ * The comparison for every other type is not made here (an `SInt` against an
+ * `Int`, an `SColl` against a `Coll`, …): residual 7 of "The Deserialize
+ * substitution" in `facts/ergoscript-eval.md`.
+ */
+export function assertCheckedValue(tpe: SType, value: SValue): void {
+  assertCheckedType(tpe)
+  if (tpe.tag === 'STuple' && tpe.items.length === 2) {
+    if (value.kind !== 'Tuple' || value.items.length !== 2) {
+      throw new EvalError(
+        `checkType: a value of kind '${value.kind}' is not a pair at an STuple of two items (SType.scala:200-201)`,
+        'checked-value-class'
+      )
+    }
+  }
 }
 
 /**
@@ -95,4 +126,15 @@ export function assertValueTypeSupported(tpe: SType): void {
  */
 export function readCheckedType(node: Expr, ctx: EvalContext): SType {
   return exprTpe(node, ctx.treeVersion ?? 0)
+}
+
+/**
+ * The JVM's `Value.checkType(node, value)` (`values.scala:251-255`) wired to
+ * the pair: `readCheckedType(node, ctx)` first (propagating any `ExprTpeError`
+ * of the type read), then `assertCheckedValue(tpe, value)`. Every
+ * `checkType` site calls this right after it evaluates `node`.
+ */
+export function assertCheckedNode(node: Expr, value: SValue, ctx: EvalContext): void {
+  const tpe = readCheckedType(node, ctx)
+  assertCheckedValue(tpe, value)
 }

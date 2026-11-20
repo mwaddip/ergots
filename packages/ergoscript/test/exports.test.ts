@@ -65,6 +65,14 @@ describe('@ergots/ergoscript public error-class surface', () => {
     expect(sValueStructuralEq).toBeTypeOf('function')
   })
 
+  it('root-exports `tupleColl`, the builder a caller uses for a tuple of another arity than two', () => {
+    // facts/ergoscript-eval.md "Public surface" and API.md: a caller that
+    // binds a tuple value of another arity than two at an extension or
+    // register position builds it with this function, so the collection's
+    // `elem` carries the one `SANY_JVM` identity the readers recognise.
+    expect((pkg as Record<string, unknown>).tupleColl).toBeTypeOf('function')
+  })
+
   it('a body-parse reject from parseTree is catchable as the root-exported ExprParseError', () => {
     // [0x00, 0xd7, 0x01, 0x80] = ErgoTree header V0 (no hasSize, no segregation) +
     // FunDef (0xd7), id 1, type-arg count 0x80: the FunDef nTpeArgs-128 reject SANTA's

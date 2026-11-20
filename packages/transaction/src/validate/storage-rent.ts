@@ -104,7 +104,7 @@ type RegisterEntry = { tpe: SType; value: SValue; opaqueBytes?: Uint8Array };
  *  compare as `ConstantNode.equals` does: their types, then their data under the
  *  JVM's value equality, which takes a Box by its id over its retained bytes
  *  (`CBox.equals`) rather than by a re-serialization. */
-function registerNodesEqual(a: RegisterEntry | undefined, b: RegisterEntry | undefined): boolean {
+export function registerNodesEqual(a: RegisterEntry | undefined, b: RegisterEntry | undefined): boolean {
     if (a === undefined || b === undefined) return a === b;
     if (a.opaqueBytes !== undefined || b.opaqueBytes !== undefined) {
         return a.opaqueBytes !== undefined && b.opaqueBytes !== undefined && bytesEqual(a.opaqueBytes, b.opaqueBytes);

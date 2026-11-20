@@ -1,0 +1,62 @@
+{
+  "schema" : "santa-eval/v3",
+  "op" : "Tuple.binding_provenance_input_var",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-tuple-binding-provenance",
+  "entries" : [
+    {
+      "name" : "getvarfrominput-tuple-constant-accept#0",
+      "script" : "[C2] `getVarFromInput[(Int, Int, Int)](0, 1).get.size`, input 0's var 1 = the tuple CONSTANT — `3` at cost 54. CONTROL for X2. (TupleValuesProbe's getVarFromInput row.)",
+      "tree_bytes_hex" : "0b0fb1e4dc650cfe020300020148040404",
+      "inputs" : [
+        {
+          "extension" : {
+            "1" : {
+              "kind" : "Value",
+              "bytes_hex" : "48040404020406"
+            }
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 54,
+        "error" : null
+      }
+    },
+    {
+      "name" : "getvarfrominput-tuple-expression-accept#1",
+      "script" : "[X2] the same, input 0's var 1 = the Tuple EXPRESSION — `3` at 54, identical to its constant twin: `Tuple.value` is the same Coll[Any] the data decoder builds (values.scala:818-822). SEPARATING: the per-input extension is read by the same `getValue`.",
+      "tree_bytes_hex" : "0b0fb1e4dc650cfe020300020148040404",
+      "inputs" : [
+        {
+          "extension" : {
+            "1" : {
+              "kind" : "Value",
+              "bytes_hex" : "8603040204040406"
+            }
+          }
+        }
+      ],
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 54,
+        "error" : null
+      }
+    }
+  ]
+}

@@ -31,7 +31,7 @@
 import { EvalError } from './eval-context'
 import type { EvalContext } from './eval-context'
 import type { ErgoBox, SigmaBoolean, SType, SValue } from '../mir/types'
-import { encodeBigIntBE, encodeUnsignedBigIntBE } from '../wire/serialize-svalue'
+import { encodeBigIntBE, encodeUnsignedBigIntBE, tupleItems } from '../wire/serialize-svalue'
 import { parseSValue } from '../wire/parse-svalue'
 import { reencodeTreeBytes } from '../wire/box-tree'
 import { parseSTypeWithFirstByte } from '../wire/parse-stype'
@@ -180,12 +180,29 @@ export function serializeCost(t: SType, v: SValue, ctx: EvalContext): void {
     // ── STuple ────────────────────────────────────────────────────────────────
     //
     // Wire: no length prefix — items written in order.
-    // JVM: Σ walk(item) per item.
+    // JVM: Σ walk(item) per item. The walker takes the same items the writer
+    // does (`tupleItems`), so a pair value and a collection-of-`SAny` value of
+    // the same items cost identically under their tuple type.
 
     case 'STuple': {
-      const tup = v as Extract<SValue, { kind: 'Tuple' }>
+      const items = tupleItems(v)
+      if (items === null) {
+        throw new EvalError(
+          `serialize: STuple cost walk expects a Tuple value or a Coll of SANY_JVM, got kind=${v.kind}`,
+          'global-serialize-failed',
+        )
+      }
+      // Length assertion mirrors the writer's (`CoreDataSerializer.scala:74`):
+      // a mismatch fails here before any per-item charge is made, matching the
+      // JVM's `assert` ordering (`CoreDataSerializer.scala:71-81`).
+      if (items.length !== t.items.length) {
+        throw new EvalError(
+          `serialize: STuple arity mismatch: type has ${t.items.length} items, value has ${items.length}`,
+          'global-serialize-failed',
+        )
+      }
       for (let i = 0; i < t.items.length; i++) {
-        serializeCost(t.items[i]!, tup.items[i]!, ctx)
+        serializeCost(t.items[i]!, items[i]!, ctx)
       }
       return
     }

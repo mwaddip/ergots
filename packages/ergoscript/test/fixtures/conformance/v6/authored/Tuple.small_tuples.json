@@ -1,0 +1,197 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.small_tuples",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-small-tuples",
+  "entries" : [
+    {
+      "name" : "const_one_item_type-errored#0",
+      "script" : "sigmaProp(c._1 == 1) where c is a CONSTANT of type `(Int)` — a one-item tuple TYPE, which the JVM parses and can never write back  // parses; eval fails — toDslTuple returns a raw Coll[Any] for a non-pair",
+      "tree_bytes_hex" : "0b0ad1938c60010402010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "const_zero_item_type-errored#1",
+      "script" : "sigmaProp(c == c) where c is a CONSTANT of type `()` — a zero-item tuple TYPE, whose data occupies no bytes at all  // parses; eval fails — toDslTuple returns a raw Coll[Any] for a non-pair",
+      "tree_bytes_hex" : "0b06d19360006000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tuple_expr_one_item-errored#2",
+      "script" : "sigmaProp(Tuple(1)._1 == 1) — a one-item tuple EXPRESSION. `TupleSerializer` writes a count and no type, so this round-trips verbatim; `Tuple.eval` then refuses it  // parses and round-trips; Tuple.eval refuses any count but two",
+      "tree_bytes_hex" : "0b0ad1938c86010402010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tuple_expr_zero_item-errored#3",
+      "script" : "sigmaProp(Tuple() == Tuple()) — a zero-item tuple EXPRESSION on both sides of an EQ  // parses and round-trips; Tuple.eval refuses any count but two",
+      "tree_bytes_hex" : "0b06d19386008600",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tuple_expr_127_items-errored#4",
+      "script" : "sigmaProp(Tuple(1 x 127)._1 == 1) — the LARGEST script tuple a signed count can express. The byte is 0x7f; one more wraps negative  // parses and round-trips; Tuple.eval refuses any count but two",
+      "tree_bytes_hex" : "0b8602d1938c867f0402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "tuple_expr_128_items-errored#5",
+      "script" : "sigmaProp(Tuple(1 x 128)._1 == 1) — one past the boundary. The count byte 0x80 reads as -128 and `safeNewArray` bounds only the upper end, so the parse throws NegativeArraySizeException and takes the whole carrier with it  // the PARSE throws: the count byte 0x80 reads as -128",
+      "tree_bytes_hex" : "0b8802d1938c868004020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402040204020402010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "const_pair_type_control-accept#6",
+      "script" : "sigmaProp(c._1 == 1) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_one_item_type`, identical in shape  // the writable twin, and the cost baseline",
+      "tree_bytes_hex" : "0b09d1938c580204010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 38,
+        "error" : null
+      }
+    },
+    {
+      "name" : "const_pair_eq_control-accept#7",
+      "script" : "sigmaProp(c == c) where c is a `(Int,Int)` CONSTANT — the writable twin of `const_zero_item_type`  // the writable twin, and the cost baseline",
+      "tree_bytes_hex" : "0b08d193580204580204",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 35,
+        "error" : null
+      }
+    },
+    {
+      "name" : "tuple_expr_two_items_control-accept#8",
+      "script" : "sigmaProp(Tuple(1, 1)._1 == 1) — the writable twin of the expression rows, and the one count `Tuple.eval` accepts, so this is the only row of the family that also SPENDS  // the writable twin, and the cost baseline",
+      "tree_bytes_hex" : "0b0cd1938c860204020402010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "SigmaProp",
+          "raw_hex" : "d3"
+        },
+        "cost" : 58,
+        "error" : null
+      }
+    },
+    {
+      "name" : "const_one_item_type_eq_self-errored#9",
+      "script" : "sigmaProp(c == c) where c is a CONSTANT of type `(Int)`  // `Unsupported tuple type (SInt$)`, where the `()` twin says `Unsupported tuple type ()` — the arity of the type is what equality refuses, not its emptiness",
+      "tree_bytes_hex" : "0b0ad1936001040260010402",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

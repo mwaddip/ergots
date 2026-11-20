@@ -1,0 +1,276 @@
+{
+  "schema" : "santa-eval/v2",
+  "op" : "Tuple.non_pair_value_type_directed",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-non-pair-tuple-consumers",
+  "entries" : [
+    {
+      "name" : "serialize_tuple-accept#0",
+      "script" : "[W1] `Global.serialize((1,2,3))` — **`020406` at cost 33.** `DataSerializer` writes the ITEMS and not the type, which is why a tuple and a one-item collection of it differ by exactly the length byte (W2). **REGRESSION GUARD, not a separating row:** sigma-rust already matches this one in value AND cost, which is itself worth knowing — its serializer is right where its evaluator is not — and the guard is what catches a representation port breaking it.",
+      "tree_bytes_hex" : "0b0cdc6a03dd0148040404020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 6
+            }
+          ]
+        },
+        "cost" : 33,
+        "error" : null
+      }
+    },
+    {
+      "name" : "serialize_collection_of_tuple-accept#1",
+      "script" : "[W2] `Global.serialize(Coll((1,2,3)))` — **`01020406` at cost 36**: the same three bytes behind a length. **REGRESSION GUARD** for the same reason as W1: already matching, and the row that would catch the port writing the tuple's TYPE instead of its items.",
+      "tree_bytes_hex" : "0b0edc6a03dd010c4804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 1
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 6
+            }
+          ]
+        },
+        "cost" : 36,
+        "error" : null
+      }
+    },
+    {
+      "name" : "serialize_coll_int_control-accept#2",
+      "script" : "[C1] **CONTROL for W1/W2** — `Global.serialize(Coll[Int](1,2,3))` is `03020406` at cost 36. The same 36 as W2 and the same three value bytes: a collection of three Ints and a collection holding one triple serialize identically but for the length, which is what shows W1/W2 are about the ITEMS reaching the writer.",
+      "tree_bytes_hex" : "0b0adc6a03dd011003020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 3
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 6
+            }
+          ]
+        },
+        "cost" : 36,
+        "error" : null
+      }
+    },
+    {
+      "name" : "serialize_any_typed_argument-errored#3",
+      "script" : "[R2] `Global.serialize(ByIndex((1,2,3), 0))` — **throws `SerializerException: Don't know how to serialize (1, SAny)`** (in the cause of an `InvocationTargetException`). `serialize_eval` writes by the ARGUMENT's static type, `ByIndex` over a tuple is typed `SAny`, and `DataSerializer` has no `SAny` arm. **SEPARATING:** an implementation that serializes by the runtime value rather than the declared type answers here and over-accepts.",
+      "tree_bytes_hex" : "0b10dc6a03dd01b248040404020406040000",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "serialize_length_lying_tuple-errored#4",
+      "script" : "[R3] `Global.serialize(Slice((1,2,3), 0, 2))` — **throws `AssertionError: Type (SInt,SInt,SInt) doesn't correspond to value`.** `Slice`'s static type stays the 3-item tuple while its value holds 2, and the tuple arm of the writer asserts the two agree. THE SHARPEST CONSEQUENCE of the declared type lying about the length — `Tuple.non_pair_value_ops` T4/T5 are this same `Slice` read through `SizeOf`, where the lie is harmless. **SEPARATING.**",
+      "tree_bytes_hex" : "0b11dc6a03dd01b44804040402040604000404",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "subst_constants_tuple_new_values-errored#5",
+      "script" : "[S1] `SubstConstants(script, Coll(0), Coll((1,2,3)))` where the script is SEGREGATED and its constant 0 IS the tuple — **throws `IllegalArgumentException: expected new constant to have the same (SInt,SInt,SInt) tpe`.** `toArrayOfConstants` lifts each item by the collection's `tItem`, which for a collection of non-pair tuples yields a **`Coll[SAny]`-typed constant** (measured directly), and `SubstConstants` requires the new constant's type to equal the old one's. **So substituting a non-pair tuple constant is impossible BY CONSTRUCTION**, not merely refused: no script can be built whose constant type the lift could match. **SEPARATING:** an implementation that lifts by the DECLARED tuple type instead substitutes successfully and over-accepts.",
+      "tree_bytes_hex" : "0b22740e131b1102480404040204060406d193b1730073011001000c4804040401020406",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "subst_constants_int_script_control-accept#6",
+      "script" : "[C2] **CONTROL for S1** — the identical machinery over a script whose constant 0 is an `Int`, substituting `Coll[Int](9)`: it RETURNS the re-serialized script at cost 315. Note what is NOT the control: substituting an `Int` into S1's tuple-constant script fails the SAME requirement, so that comparison would be circular and prove nothing. This one shows the machinery works and only the tuple case cannot be expressed.",
+      "tree_bytes_hex" : "0b16740e0d1b0b02040e040ed19373007301100100100112",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 27
+            },
+            {
+              "kind" : "Byte",
+              "value" : 11
+            },
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 18
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            },
+            {
+              "kind" : "Byte",
+              "value" : 14
+            },
+            {
+              "kind" : "Byte",
+              "value" : -47
+            },
+            {
+              "kind" : "Byte",
+              "value" : -109
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 0
+            },
+            {
+              "kind" : "Byte",
+              "value" : 115
+            },
+            {
+              "kind" : "Byte",
+              "value" : 1
+            }
+          ]
+        },
+        "cost" : 315,
+        "error" : null
+      }
+    },
+    {
+      "name" : "subst_constants_positions_as_tuple-errored#7",
+      "script" : "[S2] `SubstConstants(script, (0), Coll[Int](9))` — the POSITIONS argument given as a 1-item TUPLE instead of a `Coll[Int]`. **Throws `ClassCastException: [Ljava.lang.Object; cannot be cast to [I`.** The positions parameter is a primitive `Array[Int]`, and a 1-item tuple's value is a generic `Coll[Any]` over an Object array, so the cast fails before any substitution is attempted. This is the THIRD distinct way `SubstConstants` meets a non-pair tuple, after S1 (the new VALUES cannot be lifted to the old constant's type) and C2 (the machinery working over honest `Int` arguments) — and the only one that fails on the POSITIONS side. **C2 is its control too**, being the identical call with the positions as a real `Coll[Int]`: that returns the re-serialized script at 315, so the difference here is the argument's representation and nothing else. **REGRESSION GUARD by expectation, and the grading is what settles it:** the sigma-rust fork refuses positions-as-a-tuple too (its own PR 77 relay), so every eval-arm conformer is expected to match. If any accepts it, this row SEPARATING is the correction to make — a role is never derivable from the oracle alone.",
+      "tree_bytes_hex" : "0b17740e0d1b0b02040e040ed1937300730160010400100112",
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    }
+  ]
+}

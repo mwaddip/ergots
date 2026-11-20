@@ -29,8 +29,10 @@ import type { SType, SValue } from '../mir/types'
 import {
   append as _append,
   byteColl as _byteColl,
+  castArray as _castArray,
   classOf as _classOf,
   collOverArray as _collOverArray,
+  dataItemType as _dataItemType,
   empty as _empty,
   endsWith as _endsWith,
   filtered as _filtered,
@@ -44,12 +46,14 @@ import {
   reversed as _reversed,
   slice as _slice,
   startsWith as _startsWith,
+  tupleColl as _tupleColl,
   updateMany as _updateMany,
   updated as _updated,
   zip as _zip,
   CollArrayStore,
   CollClassCast,
   CollTypeRefused,
+  type ArrayClass as _ArrayClass,
   type CollClass as _CollClass,
   type CollValue as _CollValue,
 } from '../coll'
@@ -115,6 +119,14 @@ export function empty(elem: SType): CollValue {
 /** The collection the data reader builds (`CoreDataSerializer.deserializeColl` :166-191). */
 export function fromData(elem: SType, items: SValue[]): CollValue {
   return guard(() => _fromData(elem, items))
+}
+
+/** The item type the data reader gives a collection whose declared element type
+ *  is `elem` (`CoreDataSerializer.deserializeColl`, `:176-182`; `SColl(SAny)`
+ *  for a tuple of another arity than two, `:179-180`). A pure read of the
+ *  module's `dataItemType` — no refusals are raised. */
+export function dataItemType(elem: SType): SType {
+  return _dataItemType(elem)
 }
 
 /** `Coll.slice` (`CollsOverArrays.scala:40`, `:377`). */
@@ -204,6 +216,19 @@ export function updateMany(
 /** `Coll.append` (`CollsOverArrays.scala:48-57`, `:379-382`). */
 export function append(c: CollValue, other: CollValue): CollValue {
   return guard(() => _append(c, other))
+}
+
+/** The value of a tuple of another arity than two,
+ *  `Colls.fromArray(arr)(sigma.AnyType)` (`CoreDataSerializer.scala:139-143`,
+ *  `values.scala:818-822`). */
+export function tupleColl(items: SValue[]): CollValue {
+  return _tupleColl(items)
+}
+
+/** The cast a consumer makes when it needs the array of a class
+ *  (`toArray.asInstanceOf[Array[T]]`, `coll/ops.ts` `castArray`). */
+export function castArray(c: CollValue, array: _ArrayClass, what: string): SValue[] {
+  return guard(() => _castArray(c, array, what))
 }
 
 /**

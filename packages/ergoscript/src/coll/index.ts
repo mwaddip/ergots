@@ -22,11 +22,13 @@ export {
   CollClassCast,
   CollTypeRefused,
   dataClass,
+  dataItemType,
   runtimeClassOf,
 } from './class'
-export { byteColl, collOverArray, empty, fromArray, fromData } from './build'
+export { byteColl, collOverArray, empty, fromArray, fromData, tupleColl } from './build'
 export {
   append,
+  castArray,
   endsWith,
   filtered,
   flatMapped,

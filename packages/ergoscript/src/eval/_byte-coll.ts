@@ -8,6 +8,7 @@
 import type { SValue } from '../mir/types'
 import type { EvalErrorCode } from './errors'
 import { EvalError } from './eval-context'
+import { castArray } from './_coll'
 
 /**
  * Signed big-endian byte-array -> bigint. Pure bigint arithmetic; no
@@ -57,37 +58,41 @@ export const I256_MIN = -(1n << 255n)
 export const I256_MAX = (1n << 255n) - 1n
 
 /**
- * Extract a Coll[Byte] SValue as a Uint8Array. Throws EvalError with the given
- * code on:
- * - Non-Coll input (kind !== 'Coll')
- * - Coll whose elem isn't SByte (covers Coll[Int], Coll[Long], etc.)
- * - Per-item kind mismatch (defends against ConstantPlaceholder injection in
- *   hand-crafted MIR)
+ * Extract a `Coll[Byte]`'s items as a `Uint8Array`, by the JVM's array cast
+ * (`toArray.asInstanceOf[Array[Byte]]`, `CSigmaDslBuilder.scala:153` and
+ * siblings). Used by every consumer that needs the backing `byte[]`:
+ * `CalcBlake2b256`, `CalcSha256`, `ByteArrayToLong`, `ByteArrayToBigInt`,
+ * `DecodePoint`, `SGlobal.powHit`'s byte arguments, `SGlobal.deserializeTo`,
+ * `SGlobal.fromBigEndianBytes`, and the register / context-variable byte
+ * reads of `DeserializeContext` / `DeserializeRegister` / `SubstConstants`.
  *
- * The `arm` label is interpolated into error messages for caller-context
- * (e.g., `${arm}: expected Coll[Byte] input, got kind='${v.kind}'`).
- *
- * Consolidated from 6+ inline copies across phase 2i-a arms (T2-T7) — the
- * pattern recurred as predicted by the spec's "extract on 3rd caller" rule.
- *
- * Used by: CalcBlake2b256, CalcSha256, ByteArrayToLong, ByteArrayToBigInt,
- * Xor (twice for left/right), DecodePoint (T8 phase 2i-a), SubstConstants (T9).
+ * A non-`Coll` input is a type error, not a class cast: it throws with the
+ * caller's `code` (default `'predef-input-not-byte-array'`). A `Coll` whose
+ * array is of another class — `Object[]` from a tuple's `Coll[Any]`, or a
+ * primitive array of another class — routes through the module's `castArray`
+ * (`coll/ops.ts`) to `'coll-class-cast'`, the JVM's `ClassCastException` on
+ * the array cast. An empty collection of the unknown class returns an empty
+ * `Uint8Array`, as `castArray` lets through.
  */
 export function collByteToUint8Array(
   v: SValue,
   arm: string,
   code: EvalErrorCode = 'predef-input-not-byte-array',
 ): Uint8Array {
-  if (v.kind !== 'Coll' || v.elem.tag !== 'SByte') {
+  if (v.kind !== 'Coll') {
     throw new EvalError(
       `${arm}: expected Coll[Byte] input, got kind='${v.kind}'`,
       code,
     )
   }
-  const out = new Uint8Array(v.items.length)
-  for (let i = 0; i < v.items.length; i++) {
-    const item = v.items[i]!
+  const items = castArray(v, 'byte', arm)
+  const out = new Uint8Array(items.length)
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!
     if (item.kind !== 'Byte') {
+      // Defensive: an array of class `'byte'` holds `Byte` items. A caller
+      // may still hand in a mislabelled value (`ConstantPlaceholder`
+      // injection or hand-crafted MIR); fall back to the caller's code.
       throw new EvalError(
         `${arm}: Coll[Byte] item is not Byte (got '${item.kind}')`,
         code,

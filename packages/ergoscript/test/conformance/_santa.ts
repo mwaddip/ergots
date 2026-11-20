@@ -35,13 +35,13 @@ import { evaluateWith } from '../../src/eval/evaluate'
 import { makeContext, EvalError } from '../../src/eval/eval-context'
 import type { EvalOpts } from '../../src/eval/eval-context'
 import { GROUP_GENERATOR_BYTES } from '../../src/eval/_group-generator'
-import { hydrateSValue, hexToBytes, synthesizeStubBox, sTypeOfSValue } from '../_helpers'
+import { hydrateSValue, hexToBytes, synthesizeStubBox, sTypeFromJson } from '../_helpers'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
 import { serializeSValue } from '../../src/wire/serialize-svalue'
-import { ByteWriter, ReaderError } from '@ergots/scorex'
+import { ByteReader, ByteWriter, ReaderError } from '@ergots/scorex'
 import { ExprParseError } from '../../src/wire/errors'
-import { STypeParseError } from '../../src/wire/parse-stype'
-import { SValueParseError } from '../../src/wire/parse-svalue'
+import { parseSTypeWithFirstByte, STypeParseError } from '../../src/wire/parse-stype'
+import { parseAdditionalRegisters, parseSValue, SValueParseError, violatesCheckV6Type } from '../../src/wire/parse-svalue'
 import { SigmaBooleanParseError } from '../../src/wire/sigma-boolean'
 
 export interface SantaEntry {
@@ -167,6 +167,149 @@ function isWireParseError(err: unknown): boolean {
 }
 
 /**
+ * A reader of this package refused the bytes of a `Value` binding (runner
+ * contract §4). The caller maps it to the entry outcome `errored`: a
+ * conforming node would reject the position.
+ */
+class BindingRefused extends Error {
+  constructor(message: string, options?: { cause?: unknown }) {
+    super(message, options)
+    this.name = 'BindingRefused'
+  }
+}
+
+/**
+ * The `Value` binding at a register position (`selfRegisters` key 4..9):
+ * the bytes a node reads for a register value, framed as the
+ * additional-registers section `01 <bytes>` (one register), consumed whole
+ * by `parseAdditionalRegisters`. The register reader (`parseRegisterExpr`,
+ * at `wire/parse-svalue.ts`) accepts a Constant or a Tuple expression, and
+ * `parseAdditionalRegisters` runs rule-1019 CheckV6Type over the value.
+ * A Tuple-expression register stores its wire bytes in `opaqueBytes`, as
+ * `parseAdditionalRegisters` does on a real box.
+ *
+ * A typed wire refusal or bytes left after the register is a reader refusal;
+ * the caller maps it to `errored`.
+ */
+function bindRegisterValue(
+  bytes: Uint8Array,
+  treeVersion: number,
+): { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } {
+  const framed = new Uint8Array(bytes.length + 1)
+  framed[0] = 1
+  framed.set(bytes, 1)
+  const r = new ByteReader(framed)
+  let regs
+  try {
+    regs = parseAdditionalRegisters(r, treeVersion)
+  } catch (err) {
+    if (isWireParseError(err)) {
+      throw new BindingRefused(`register reader refused the Value: ${(err as Error).message}`, { cause: err })
+    }
+    throw err
+  }
+  if (!r.isExhausted) {
+    throw new BindingRefused(`${framed.length - r.position} byte(s) left after the register value`)
+  }
+  const entry = regs[4]
+  if (entry === undefined) {
+    throw new BindingRefused('register reader returned no register')
+  }
+  return entry
+}
+
+/**
+ * The `Value` binding at an extension position (an `input` at ctx var 1 or
+ * an `inputs[].extension` entry): the bytes a node reads for an extension
+ * value, in the shape the JVM's `ContextExtension.serializer.parse` reads
+ * (sigma-state 6.0.7, `ContextExtension.scala:52-66`). That reader is a
+ * Constant: a type byte, then its value, both at version 3; rule-1019
+ * CheckV6Type runs on the declared type before the value is read. A
+ * Tuple-expression lead (0x86) is no valid type byte, so the extension
+ * reader refuses it.
+ *
+ * The same thread of reads that `parseContextExtension` runs per variable
+ * (`packages/transaction/src/wire/input.ts`): one reader level around the
+ * Constant, so a deeply nested data value counts the same levels as it
+ * does on a real node; a typed wire refusal or bytes left over is a
+ * reader refusal, mapped by the caller to `errored`.
+ */
+function bindExtensionValue(
+  bytes: Uint8Array,
+  treeVersion: number,
+): { tpe: SType; value: SValue } {
+  void treeVersion // an extension value's reads are pinned to version 3 (ContextExtension.scala:61)
+  const r = new ByteReader(bytes)
+  try {
+    r.enterDepth()
+    r.peekU8()
+    const firstByte = r.readU8()
+    const tpe = parseSTypeWithFirstByte(firstByte, r, 3)
+    if (violatesCheckV6Type(tpe)) {
+      throw new SValueParseError(
+        `extension value type contains an Option, Header or UnsignedBigInt (rule-1019 CheckV6Type)`,
+        'extension-v6-type',
+      )
+    }
+    const value = parseSValue(tpe, 3, r)
+    r.exitDepth()
+    if (!r.isExhausted) {
+      throw new BindingRefused(`${bytes.length - r.position} byte(s) left after the extension value`)
+    }
+    return { tpe, value }
+  } catch (err) {
+    if (err instanceof BindingRefused) throw err
+    if (isWireParseError(err)) {
+      throw new BindingRefused(`extension reader refused the Value: ${(err as Error).message}`, { cause: err })
+    }
+    throw err
+  }
+}
+
+/**
+ * Hydrate a per-site input binding (an extension position: v2's `input`,
+ * v3's `inputs[].extension` value). A `{kind:'Value',bytes_hex}` goes
+ * through this package's extension reader; any other `kind` goes through
+ * `hydrateSValue` and keeps its declared type from the value's structure.
+ */
+function hydrateExtensionBinding(
+  json: unknown,
+  treeVersion: number,
+): { tpe: SType; value: SValue } {
+  const j = json as { [k: string]: unknown }
+  if (j['kind'] === 'Value') {
+    return bindExtensionValue(hexToBytes(j['bytes_hex'] as string), treeVersion)
+  }
+  const value = hydrateSValue(j)
+  // A Tuple JSON input's declared type is the `STuple` of its items' JSON
+  // types (`CoreDataSerializer.scala:139-144`): the data reader hands a
+  // tuple of another arity than two back as a `Coll[Any]`, so the hydrated
+  // value's own `kind: 'Coll'` reads as `Coll[Any]` — the declared tuple
+  // type lives only in the JSON structure.
+  return { tpe: sTypeFromJson(j), value }
+}
+
+/**
+ * Hydrate a per-site register binding (a v4 entry's `selfRegisters` value).
+ * A `{kind:'Value',bytes_hex}` goes through this package's register reader;
+ * any other `kind` goes through `hydrateSValue` and keeps its declared type
+ * from the value's structure.
+ */
+function hydrateRegisterBinding(
+  json: unknown,
+  treeVersion: number,
+): { tpe: SType; value: SValue; opaqueBytes?: Uint8Array } {
+  const j = json as { [k: string]: unknown }
+  if (j['kind'] === 'Value') {
+    return bindRegisterValue(hexToBytes(j['bytes_hex'] as string), treeVersion)
+  }
+  const value = hydrateSValue(j)
+  // A Tuple JSON input's declared type lives in the JSON structure (see
+  // `hydrateExtensionBinding` above for the same rule).
+  return { tpe: sTypeFromJson(j), value }
+}
+
+/**
  * The universal runner-contract "dummy context" (runner-contract.md §2, the
  * "canonical eval context" table). Every SANTA runner evaluates each entry
  * under the SAME pinned context — it mirrors the blesser's
@@ -256,61 +399,67 @@ export function evalSantaEntry(e: SantaEntry): SantaActual {
   //      ContextExtensions), no var-1 binding, no explicit SELF box/inputs.
   // v4: `input` + `selfRegisters` → var-1 binding + SELF box (in inputs)
   //      with R4..R9 populated from selfRegisters.
+  //
+  // A `Value` binding (runner contract §4: `{kind:'Value',bytes_hex}`) at
+  // any position (extension or register) goes through this package's own
+  // reader for that position (bindExtensionValue / bindRegisterValue); a
+  // reader's refusal is the entry's `errored`.
   let ctx
-  if (e.inputs !== undefined) {
-    // santa-eval/v3: multi-input context — populate inputExtensions.
-    const inputExtensions: ContextExtension[] = e.inputs.map(inp => {
-      const values = new Map<number, { tpe: SType; value: SValue }>()
-      for (const [k, raw] of Object.entries(inp.extension)) {
-        const varId = Number(k)
-        const value = hydrateSValue(raw)
-        values.set(varId, { tpe: sTypeOfSValue(value), value })
+  try {
+    if (e.inputs !== undefined) {
+      // santa-eval/v3: multi-input context — populate inputExtensions.
+      const inputExtensions: ContextExtension[] = e.inputs.map(inp => {
+        const values = new Map<number, { tpe: SType; value: SValue }>()
+        for (const [k, raw] of Object.entries(inp.extension)) {
+          const varId = Number(k)
+          values.set(varId, hydrateExtensionBinding(raw, treeVersion))
+        }
+        return { values }
+      })
+      ctx = makeContext({ ...dummy, treeVersion, constants: tree.constants, inputExtensions })
+    } else if (e.selfRegisters !== undefined) {
+      // santa-eval/v4: var-1 input binding + blesser-mirroring SELF box with R4..R9.
+      const input = hydrateExtensionBinding(e.input, treeVersion)
+      const registers: ErgoBox['registers'] = {}
+      for (const [k, raw] of Object.entries(e.selfRegisters)) {
+        const regId = Number(k)
+        registers[regId] = hydrateRegisterBinding(raw, treeVersion)
       }
-      return { values }
-    })
-    ctx = makeContext({ ...dummy, treeVersion, constants: tree.constants, inputExtensions })
-  } else if (e.selfRegisters !== undefined) {
-    // santa-eval/v4: var-1 input binding + blesser-mirroring SELF box with R4..R9.
-    const inputValue = hydrateSValue(e.input)
-    const inputTpe = sTypeOfSValue(inputValue)
-    const registers: ErgoBox['registers'] = {}
-    for (const [k, raw] of Object.entries(e.selfRegisters)) {
-      const regId = Number(k)
-      const value = hydrateSValue(raw)
-      registers[regId] = { tpe: sTypeOfSValue(value), value }
+      const selfBox = blesserSelfBox(registers)
+      ctx = makeContext({
+        ...dummy,
+        treeVersion,
+        constants: tree.constants,
+        extension: { values: new Map([[1, input]]) },
+        selfBox,
+        inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
+      })
+    } else if (e.input !== undefined) {
+      // santa-eval/v2: single input bound to ctx var 1 + blesser-mirroring SELF box.
+      const input = hydrateExtensionBinding(e.input, treeVersion)
+      const selfBox = blesserSelfBox()
+      ctx = makeContext({
+        ...dummy,
+        treeVersion,
+        constants: tree.constants,
+        extension: { values: new Map([[1, input]]) },
+        selfBox,
+        inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
+      })
+    } else {
+      // santa-eval/v1: closed tree, no input + blesser-mirroring SELF box.
+      const selfBox = blesserSelfBox()
+      ctx = makeContext({
+        ...dummy,
+        treeVersion,
+        constants: tree.constants,
+        selfBox,
+        inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
+      })
     }
-    const selfBox = blesserSelfBox(registers)
-    ctx = makeContext({
-      ...dummy,
-      treeVersion,
-      constants: tree.constants,
-      extension: { values: new Map([[1, { tpe: inputTpe, value: inputValue }]]) },
-      selfBox,
-      inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
-    })
-  } else if (e.input !== undefined) {
-    // santa-eval/v2: single input bound to ctx var 1 + blesser-mirroring SELF box.
-    const value = hydrateSValue(e.input)
-    const tpe = sTypeOfSValue(value)
-    const selfBox = blesserSelfBox()
-    ctx = makeContext({
-      ...dummy,
-      treeVersion,
-      constants: tree.constants,
-      extension: { values: new Map([[1, { tpe, value }]]) },
-      selfBox,
-      inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
-    })
-  } else {
-    // santa-eval/v1: closed tree, no input + blesser-mirroring SELF box.
-    const selfBox = blesserSelfBox()
-    ctx = makeContext({
-      ...dummy,
-      treeVersion,
-      constants: tree.constants,
-      selfBox,
-      inputs: [selfBox], // SAME ref → INPUTS = [SELF], selfBoxIndex = 0
-    })
+  } catch (err) {
+    if (err instanceof BindingRefused) return { value: null, cost: null, error: 'errored' }
+    throw err
   }
 
   try {

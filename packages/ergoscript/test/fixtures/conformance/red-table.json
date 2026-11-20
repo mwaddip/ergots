@@ -59,25 +59,6 @@
       "coll5-patch-B.globalxor-ctl0-v0-a2#667",
       "coll5-patch-B.globalxor-ctl1-v0-a2#668",
       "coll5-patch-B.globalxor-ctl3-v0-a2#669"
-    ],
-    "tuple-as-collection": [
-      "coll2-patch-B.append-tripleB.direct-v0-a2#308",
-      "coll2-patch-B.blake-tripleB.direct-v0-a2#313",
-      "coll2-patch-B.const-tripleB.direct-v0-a2#293",
-      "coll2-patch-B.filter-tripleB.direct-v0-a2#303",
-      "coll2-patch-B.inner-tripleB.direct-v0-a2#387",
-      "coll2-patch-B.l2b-tripleB.direct-v0-a2#318",
-      "coll2-patch-B.patched-tripleB.direct-v0-a2#323",
-      "coll2-patch-B.slice-tripleB.direct-v0-a2#298",
-      "coll2-patch-I.indices-tripleI.direct-v0-a2#348",
-      "coll2-patch-I.indices.append-tripleI.direct-v0-a2#363",
-      "coll2-patch-I.indices.filter-tripleI.direct-v0-a2#358",
-      "coll2-patch-I.indices.slice-tripleI.direct-v0-a2#353",
-      "coll2-patch-Z.append-tripleZ.direct-v0-a2#343",
-      "coll2-patch-Z.const-tripleZ.direct-v0-a2#328",
-      "coll2-patch-Z.filter-tripleZ.direct-v0-a2#338",
-      "coll2-patch-Z.inner-tripleZ.direct-v0-a2#411",
-      "coll2-patch-Z.slice-tripleZ.direct-v0-a2#333"
     ]
   },
   "v6/authored/Box.getReg_adversarial.json": {
@@ -231,42 +212,6 @@
       "coll5-patch-B.globalxor-ctl1-v3-a3#1337",
       "coll5-patch-B.globalxor-ctl3-v0-a3#1338",
       "coll5-patch-B.globalxor-ctl3-v3-a3#1339"
-    ],
-    "tuple-as-collection": [
-      "coll2-patch-B.append-tripleB.direct-v0-a3#616",
-      "coll2-patch-B.append-tripleB.direct-v3-a3#617",
-      "coll2-patch-B.blake-tripleB.direct-v0-a3#626",
-      "coll2-patch-B.blake-tripleB.direct-v3-a3#627",
-      "coll2-patch-B.const-tripleB.direct-v0-a3#586",
-      "coll2-patch-B.const-tripleB.direct-v3-a3#587",
-      "coll2-patch-B.filter-tripleB.direct-v0-a3#606",
-      "coll2-patch-B.filter-tripleB.direct-v3-a3#607",
-      "coll2-patch-B.inner-tripleB.direct-v0-a3#774",
-      "coll2-patch-B.inner-tripleB.direct-v3-a3#775",
-      "coll2-patch-B.l2b-tripleB.direct-v0-a3#636",
-      "coll2-patch-B.l2b-tripleB.direct-v3-a3#637",
-      "coll2-patch-B.patched-tripleB.direct-v0-a3#646",
-      "coll2-patch-B.patched-tripleB.direct-v3-a3#647",
-      "coll2-patch-B.slice-tripleB.direct-v0-a3#596",
-      "coll2-patch-B.slice-tripleB.direct-v3-a3#597",
-      "coll2-patch-I.indices-tripleI.direct-v0-a3#696",
-      "coll2-patch-I.indices-tripleI.direct-v3-a3#697",
-      "coll2-patch-I.indices.append-tripleI.direct-v0-a3#726",
-      "coll2-patch-I.indices.append-tripleI.direct-v3-a3#727",
-      "coll2-patch-I.indices.filter-tripleI.direct-v0-a3#716",
-      "coll2-patch-I.indices.filter-tripleI.direct-v3-a3#717",
-      "coll2-patch-I.indices.slice-tripleI.direct-v0-a3#706",
-      "coll2-patch-I.indices.slice-tripleI.direct-v3-a3#707",
-      "coll2-patch-Z.append-tripleZ.direct-v0-a3#686",
-      "coll2-patch-Z.append-tripleZ.direct-v3-a3#687",
-      "coll2-patch-Z.const-tripleZ.direct-v0-a3#656",
-      "coll2-patch-Z.const-tripleZ.direct-v3-a3#657",
-      "coll2-patch-Z.filter-tripleZ.direct-v0-a3#676",
-      "coll2-patch-Z.filter-tripleZ.direct-v3-a3#677",
-      "coll2-patch-Z.inner-tripleZ.direct-v0-a3#822",
-      "coll2-patch-Z.inner-tripleZ.direct-v3-a3#823",
-      "coll2-patch-Z.slice-tripleZ.direct-v0-a3#666",
-      "coll2-patch-Z.slice-tripleZ.direct-v3-a3#667"
     ]
   },
   "v6/authored/Coll.reference_store_ops.json": {
@@ -279,9 +224,6 @@
       "unit-patch-eq-refused-at-parse#47"
     ],
     "method-not-implemented": [
-      "generic-int-coll-tuple-patch-accept#9",
-      "int-coll-tuple-patch-accept#8",
-      "tuple-receiver-groupelement-accept#2",
       "unit-coll-append-method-errored#67"
     ],
     "zero-width-collection": [
@@ -307,13 +249,45 @@
     ]
   },
   "v6/authored/Coll.zip_unequal_sides_v6.json": {
-    "tuple-as-collection": [
-      "arr-Xor-left-Triple-bytes-Int-v0-a3#229",
-      "arr-Xor-left-Triple-bytes-v0-a3#228"
-    ],
     "method-not-implemented": [
       "zip-ls-longer-map.method-v0-a3#4",
       "zip-rs-empty-map.method-v0-a3#21"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_input_var.json": {
+    "expression-register": [
+      "getvarfrominput-tuple-expression-accept#1"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_register.json": {
+    "comparer-item-type": [
+      "register-coll-data-zip-eq-accept#6"
+    ],
+    "expression-register": [
+      "register-coll-expression-accept#3",
+      "register-coll-expression-eq-accept#5",
+      "register-coll-expression-zip-eq-accept#7"
+    ]
+  },
+  "v6/authored/Tuple.binding_provenance_var.json": {
+    "expression-register": [
+      "getvar-pair-expression-byindex0-accept#17",
+      "getvar-pair-expression-byindex1-accept#19",
+      "getvar-pair-expression-get-accept#5",
+      "getvar-pair-expression-isdefined-accept#3",
+      "getvar-pair-expression-serialize-accept#27",
+      "getvar-pair-expression-size-accept#15",
+      "getvar-tuple-expression-accept#1"
+    ]
+  },
+  "v6/authored/Tuple.non_pair_value_gates.json": {
+    "method-not-implemented": [
+      "min_method_control-accept#12",
+      "min_method_left_any-errored#6",
+      "min_method_right_any-accept#9",
+      "plus_method_control-accept#11",
+      "plus_method_left_any-errored#5",
+      "plus_method_right_any-accept#8"
     ]
   }
 }

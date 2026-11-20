@@ -303,16 +303,6 @@
       "pre-getOrElse.out-B.preHeader.votes-itemP.direct-v0-a2#135",
       "pre-getOrElse.out-B.preHeader.votes-itemS.direct-v0-a2#127",
       "pre-getOrElse.out-B.preHeader.votes-itemZ.direct-v0-a2#115"
-    ],
-    "tuple-as-collection": [
-      "pre-patch-B.header.parentId-tripleB.direct-v0-a2#184",
-      "pre-patch-B.preHeader.minerPk.getEncoded-tripleB.direct-v0-a2#226",
-      "pre-patch-B.preHeader.parentId-tripleB.direct-v0-a2#40",
-      "pre-patch-B.preHeader.votes-tripleB.direct-v0-a2#112",
-      "pre-patch.r1-B.header.parentId-tripleB.direct-v0-a2#185",
-      "pre-patch.r1-B.preHeader.minerPk.getEncoded-tripleB.direct-v0-a2#227",
-      "pre-patch.r1-B.preHeader.parentId-tripleB.direct-v0-a2#41",
-      "pre-patch.r1-B.preHeader.votes-tripleB.direct-v0-a2#113"
     ]
   },
   "v5/Coll.patch_array_class_context.json": {
@@ -1060,36 +1050,6 @@
       "pre-getOrElse.out-B.preHeader.votes-itemS.direct-v3-a3#448",
       "pre-getOrElse.out-B.preHeader.votes-itemZ.direct-v0-a3#426",
       "pre-getOrElse.out-B.preHeader.votes-itemZ.direct-v3-a3#427"
-    ],
-    "tuple-as-collection": [
-      "pre-endsWith-B.preHeader.parentId-tripleB.direct-v3-a3#181",
-      "pre-endsWith-B.preHeader.parentId-tripleI.direct-v3-a3#185",
-      "pre-endsWith-B.preHeader.parentId-tripleZ.direct-v3-a3#183",
-      "pre-endsWith-B.preHeader.votes-tripleB.direct-v3-a3#419",
-      "pre-endsWith-B.preHeader.votes-tripleI.direct-v3-a3#423",
-      "pre-endsWith-B.preHeader.votes-tripleZ.direct-v3-a3#421",
-      "pre-patch-B.header.parentId-tripleB.direct-v0-a3#556",
-      "pre-patch-B.header.parentId-tripleB.direct-v3-a3#557",
-      "pre-patch-B.preHeader.minerPk.getEncoded-tripleB.direct-v0-a3#640",
-      "pre-patch-B.preHeader.minerPk.getEncoded-tripleB.direct-v3-a3#641",
-      "pre-patch-B.preHeader.parentId-tripleB.direct-v0-a3#176",
-      "pre-patch-B.preHeader.parentId-tripleB.direct-v3-a3#177",
-      "pre-patch-B.preHeader.votes-tripleB.direct-v0-a3#414",
-      "pre-patch-B.preHeader.votes-tripleB.direct-v3-a3#415",
-      "pre-patch.r1-B.header.parentId-tripleB.direct-v0-a3#558",
-      "pre-patch.r1-B.header.parentId-tripleB.direct-v3-a3#559",
-      "pre-patch.r1-B.preHeader.minerPk.getEncoded-tripleB.direct-v0-a3#642",
-      "pre-patch.r1-B.preHeader.minerPk.getEncoded-tripleB.direct-v3-a3#643",
-      "pre-patch.r1-B.preHeader.parentId-tripleB.direct-v0-a3#178",
-      "pre-patch.r1-B.preHeader.parentId-tripleB.direct-v3-a3#179",
-      "pre-patch.r1-B.preHeader.votes-tripleB.direct-v0-a3#416",
-      "pre-patch.r1-B.preHeader.votes-tripleB.direct-v3-a3#417",
-      "pre-startsWith-B.preHeader.parentId-tripleB.direct-v3-a3#180",
-      "pre-startsWith-B.preHeader.parentId-tripleI.direct-v3-a3#184",
-      "pre-startsWith-B.preHeader.parentId-tripleZ.direct-v3-a3#182",
-      "pre-startsWith-B.preHeader.votes-tripleB.direct-v3-a3#418",
-      "pre-startsWith-B.preHeader.votes-tripleI.direct-v3-a3#422",
-      "pre-startsWith-B.preHeader.votes-tripleZ.direct-v3-a3#420"
     ]
   },
   "v6/Coll.patch_array_class_context_v6.json": {

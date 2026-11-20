@@ -11,11 +11,13 @@
  */
 
 import type { SType, SValue } from '../mir/types'
+import { SANY_JVM } from '../mir/types'
 import {
   arrayClassOf,
   CollArrayStore,
   CollClassCast,
   dataClass,
+  dataItemType,
   runtimeClassOf,
   type ArrayClass,
   type CollClass,
@@ -242,10 +244,52 @@ export function byteColl(bytes: Uint8Array, specialised: boolean): CollValue {
  * its class is `dataClass(elem)`. The data reader specialises for `SBoolean`
  * (:172) and `SByte` (:174), routes a pair element type to `pairCollFromArrays`
  * (:205-215), and goes through `new CollOverArray` (:176-190) for every other
- * item type.
+ * item type. The value's runtime `elem` is the item descriptor
+ * `deserializeColl` passes to `new CollOverArray`
+ * (`CoreDataSerializer.scala:176-182`): the declared element type unchanged
+ * for every type the `stypeToRType` arm reads, and `SColl(SAny)` for a tuple
+ * element of another arity than two, which takes `collRType(sigma.AnyType)`
+ * (`:179-180`). `dataItemType` applies that rule.
  */
 export function fromData(elem: SType, items: SValue[]): CollValue {
-  return { kind: 'Coll', elem, items, cls: dataClass(elem) }
+  return { kind: 'Coll', elem: dataItemType(elem), items, cls: dataClass(elem) }
+}
+
+/**
+ * The value of a tuple of another arity than two:
+ * `Colls.fromArray(arr)(sigma.AnyType)`
+ * (`core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:139-143`,
+ * `core/shared/src/main/scala/sigma/ast/values.scala:818-822` for
+ * `Tuple.value`, both routing through `Evaluation.toDslTuple` at
+ * `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`).
+ *
+ * The JVM gives such a value the plain `CollOverArray` of `Any` over `Object[]`:
+ * `elem` is `SANY_JVM` (the JVM's `SAny`, told apart from ergots' own `SAny`
+ * by object identity, `mir/types.ts:79`), and the class is
+ * `{ shape: 'array', specialised: false, array: 'Object' }`. Two routes give
+ * a script such a value: a data constant at a `STuple` type of another arity
+ * (through the data reader's tuple arm), and a `Tuple` expression held in a
+ * register or a context variable, whose `value` is read on access. Evaluating
+ * a `Tuple` expression of that arity in a script refuses (`:826-827`).
+ *
+ * **Caller input.** `items` is an array of one `SValue` per tuple item, in
+ * order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). Each item is
+ * a boxed value of whatever kind the item happens to be. The builder uses
+ * `items` as-is: the caller owns the array it hands in.
+ *
+ * **The public export.** This builder is a public API of `@ergots/ergoscript`
+ * (re-exported from the package root): a caller that binds a tuple value of
+ * another arity than two at an extension or register position produces it
+ * with this function, so the collection's `elem` is told by the one `SANY_JVM`
+ * identity the readers recognise.
+ */
+export function tupleColl(items: SValue[]): CollValue {
+  return {
+    kind: 'Coll',
+    elem: SANY_JVM,
+    items,
+    cls: { shape: 'array', specialised: false, array: 'Object' },
+  }
 }
 
 /**

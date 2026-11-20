@@ -34,8 +34,7 @@ import type { Env } from './env'
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
-import { exprTpe } from '../mir/expr-tpe'
-import { assertValueTypeSupported } from './_check-type'
+import { assertCheckedNode } from './_check-type'
 import { fromArray } from './_coll'
 
 export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValue {
@@ -58,13 +57,11 @@ export function evalCollection(e: Collection, env: Env, ctx: EvalContext): SValu
     )
   }
   // kind === 'Exprs'
-  // ConcreteCollection.eval runs Value.checkType on each item (values.scala);
-  // checkType is against the item's STATIC declared type, so a non-pair STuple
-  // / non-unary SFunc declared type rejects (the JVM cannot represent such a
-  // value). See eval/_check-type.ts.
+  // ConcreteCollection.eval (values.scala:894) runs Value.checkType on each item right after it
+  // is evaluated: the item's declared type and the value's class. See eval/_check-type.ts.
   const items = e.items.map((item) => {
     const v = evalExpr(item, env, ctx)
-    assertValueTypeSupported(exprTpe(item, ctx.treeVersion ?? 0))
+    assertCheckedNode(item, v, ctx)
     return v
   })
   for (let i = 0; i < items.length; i++) {

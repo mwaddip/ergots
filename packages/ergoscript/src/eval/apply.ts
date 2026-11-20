@@ -40,7 +40,7 @@ import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 
 const APPLY_COST = 30
 
@@ -89,11 +89,16 @@ export function evalApply(e: Apply, env: Env, ctx: EvalContext): SValue {
     // (JVM `stypeToRType(STypeVar)` → "Unknown type T"). Fires at apply, before
     // binding — independent of whether the body reads the arg.
     assertArgTypeResolved(closure.argTpes[i]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the applied value, before the AddToEnvironmentDesc fixed 5 is charged
+    // and before the body is evaluated. The arg's type is stored on the closure. See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[i]!, argValues[i]!)
     ctx.addCost(5) // ADD_TO_ENV_COST per sigma-rust apply.rs (mirrors block.rs:30 / block-value.ts:31)
     bodyEnv = bodyEnv.extend(closure.argIds[i]!, argValues[i]!)
   }
   const result = evalExpr(closure.body, bodyEnv, ctx)
-  // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-  readCheckedType(closure.body, ctx)
+  // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+  // value's class after each application. See eval/_check-type.ts.
+  assertCheckedNode(closure.body, result, ctx)
   return result
 }

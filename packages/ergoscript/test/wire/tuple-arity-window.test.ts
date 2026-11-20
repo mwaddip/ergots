@@ -24,6 +24,7 @@ import { hexToBytes, captureEvalError, parseParsedTree as parseTree } from '../_
 import { expectParseError } from './_helpers'
 import { ByteWriter } from '@ergots/scorex'
 import type { Expr, Tuple } from '../../src/mir/types'
+import { tupleColl } from '../../src/coll'
 
 function bytesToHex(bytes: Uint8Array): string {
   return Array.from(bytes)
@@ -87,10 +88,12 @@ describe('generic-tuple TYPE window (TypeSerializer.scala:188-194 vs :93-94)', (
     // (TUPLE_TYPECODE=96) → parseConstFromByte → parseSTypeWithFirstByte →
     // TUPLE_TYPECODE arm → reads len 1 + 0x04 (SInt); DATA = one Int
     // (zigzag 0x0a = 5). No STuple arity require in TypeSerializer:188-194.
+    // The data reader gives a tuple of another arity than two the
+    // `Coll[Any]` of `Evaluation.toDslTuple` (`Evaluation.scala:99-102`).
     const tree = parseTree(hexToBytes('006001040a'))
     const ctx = makeContext({ treeVersion: 0, constants: tree.constants })
     const value = evaluateWith(tree, ctx)
-    expect(value).toEqual({ kind: 'Tuple', items: [{ kind: 'Int', value: 5 }] })
+    expect(value).toEqual(tupleColl([{ kind: 'Int', value: 5 }]))
   })
 
   it('arity-1 STuple TYPE cannot re-serialize (TypeSerializer:93-94 asymmetry)', () => {

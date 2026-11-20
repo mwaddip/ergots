@@ -4,6 +4,7 @@ import { parseSValue, SValueParseError } from '../src/wire/parse-svalue'
 import { serializeSValue, SValueSerializeError } from '../src/wire/serialize-svalue'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { asRead } from './_helpers'
+import { tupleColl } from '../src/coll'
 
 describe('SValue (variant smoke tests)', () => {
   it('Boolean variant', () => {
@@ -277,14 +278,17 @@ const cases: RoundTripCase[] = [
     ]},
     bytes: [0x02, 0x01],
   },
+  // A tuple of another arity than two is the Coll[Any] the JVM data reader
+  // gives (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple`
+  // `Evaluation.scala:99-102`).
   {
     name: 'STuple[SInt, SInt, SInt] (1, 2, 3)',
     t: { tag: 'STuple', items: [{ tag: 'SInt' }, { tag: 'SInt' }, { tag: 'SInt' }] },
-    v: { kind: 'Tuple', items: [
+    v: tupleColl([
       { kind: 'Int', value: 1 },
       { kind: 'Int', value: 2 },
       { kind: 'Int', value: 3 },
-    ]},
+    ]),
     bytes: [0x02, 0x04, 0x06],
   },
   // 4-element tuple
@@ -293,12 +297,12 @@ const cases: RoundTripCase[] = [
     t: { tag: 'STuple', items: [
       { tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' },
     ]},
-    v: { kind: 'Tuple', items: [
+    v: tupleColl([
       { kind: 'Byte', value: 1 },
       { kind: 'Byte', value: 2 },
       { kind: 'Byte', value: 3 },
       { kind: 'Byte', value: 4 },
-    ]},
+    ]),
     bytes: [0x01, 0x02, 0x03, 0x04],
   },
   // 5-element tuple (still no length prefix — caller knows arity from SType.items)
@@ -308,13 +312,13 @@ const cases: RoundTripCase[] = [
       { tag: 'SBoolean' }, { tag: 'SBoolean' }, { tag: 'SBoolean' },
       { tag: 'SBoolean' }, { tag: 'SBoolean' },
     ]},
-    v: { kind: 'Tuple', items: [
+    v: tupleColl([
       { kind: 'Boolean', value: true },
       { kind: 'Boolean', value: false },
       { kind: 'Boolean', value: true },
       { kind: 'Boolean', value: false },
       { kind: 'Boolean', value: true },
-    ]},
+    ]),
     bytes: [0x01, 0x00, 0x01, 0x00, 0x01],
   },
 ]

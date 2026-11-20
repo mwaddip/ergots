@@ -31,10 +31,10 @@ import type { Env } from './env'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEquals, hasSAny } from '../mir/stype-helpers'
-import { flatMapped, empty } from './_coll'
+import { dataItemType, flatMapped, empty } from './_coll'
 
 // Pattern B outer cost: add_per_item_jit_cost(base=60, per_chunk=10, chunk_size=8, n)
 // Source: scoll.rs:126
@@ -99,16 +99,26 @@ export function evalSCollFlatMap(
     )
   }
 
-  // 5. Elem-type check (R3(a) divergence).
+  // 5. Elem-type check.
   //    Static check via mc.args[0] when it's a FuncValue MIR node; skipped
   //    for ValUse-source lambdas because the runtime Closure SValue does not
-  //    carry argTpes (mir/types.ts:149-156). Mirrors coll-map.ts:94-108.
+  //    carry argTpes (mir/types.ts:149-156). Mirrors coll-map.ts.
+  //    The compare target is `dataItemType(argTpe)` — the item type the data
+  //    reader gives (`CoreDataSerializer.scala:176-182`), which is
+  //    `SColl(SAny)` for a tuple argument of another arity than two
+  //    (`:179-180`): a data `Coll[(A, B, C)]` has `elem: SColl(SAny)` and is
+  //    admitted here, with the per-application check refusing non-empty
+  //    inputs through the lambda's `assertCheckedValue`.
   const lambdaExpr = mc.args[0]!
   if (lambdaExpr.tag === 'FuncValue' && lambdaExpr.args.length > 0) {
     const lambdaInputTpe = lambdaExpr.args[0]!.tpe
-    if (!sTypeEquals(inputColl.elem, lambdaInputTpe)) {
+    const dataExpected = dataItemType(lambdaInputTpe)
+    if (
+      !sTypeEquals(inputColl.elem, lambdaInputTpe)
+      && !sTypeEquals(inputColl.elem, dataExpected)
+    ) {
       throw new EvalError(
-        `SColl.flatMap: input elem type ${JSON.stringify(inputColl.elem)} does not match lambda arg type ${JSON.stringify(lambdaInputTpe)}`,
+        `SColl.flatMap: input elem type ${JSON.stringify(inputColl.elem)} does not match lambda arg type ${JSON.stringify(lambdaInputTpe)} (data reader's item type ${JSON.stringify(dataExpected)})`,
         'coll-elem-tpe-mismatch'
       )
     }
@@ -149,21 +159,24 @@ export function evalSCollFlatMap(
   const argId = closure.argIds[0]!
   const parts: SValue[] = []
   for (const item of inputColl.items) {
+    // Reject applying a lambda whose arg type is an unresolved type var (the JVM's
+    // "Unknown type T" throw at stypeToRType, Evaluation.scala:54-55). Per-element,
+    // so an empty input never binds and never throws.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the item, before the AddToEnvironmentDesc 5 is charged and before
+    // the body is evaluated. Per-element ⇒ an empty input never checks. See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[0]!, item)
     // Per-element lambda-arg binding cost: 5 (ADD_TO_ENV_COST). JVM applies the
     // FuncValue once per element, each application charging AddToEnvironmentDesc
     // = 5 to bind the arg before the body eval (`values.scala:1047`). Binding
     // inline here without it under-charged 5/element vs JVM.
     ctx.addCost(5)
-    // Extend the lambda's CAPTURED (definition-site) env — lexical scoping,
-    // JVM-faithful for v6. For inline flatMap lambdas capturedEnv == the caller
-    // env (no-op); differs only for out-of-scope-captured lambdas.
-    // v6 P6: reject a type-var arg type at the per-element apply (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds, never throws.
-    assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application (values.scala:1080; spec §5 item 5).
-    readCheckedType(closure.body, ctx)
+    // Lambda body (values.scala:1080): Value.checkType reads the body's declared type and the
+    // value's class after each application. See eval/_check-type.ts.
+    assertCheckedNode(closure.body, itemRes, ctx)
     if (itemRes.kind !== 'Coll') {
       throw new EvalError(
         `SColl.flatMap: lambda body returned non-Coll; got '${itemRes.kind}'`,

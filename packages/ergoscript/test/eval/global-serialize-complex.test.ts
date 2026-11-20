@@ -42,6 +42,7 @@ import { seedBoxTree } from '../../src/wire/box-tree'
 import { ByteWriter, ByteReader, deriveHeaderId } from '@ergots/scorex'
 import type { MethodCall, SType, SValue, ErgoBox } from '../../src/mir/types'
 import type { Header } from '@ergots/scorex'
+import { tupleColl } from '../../src/coll'
 
 /** Construct a Global.serialize MethodCall expr over a Const arg. */
 function serExpr(tpe: SType, value: SValue): MethodCall {
@@ -267,15 +268,12 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
   //   box walk: 48 + 12 = 60 ; total = 14 + 10 + 60 = 84.
 
   it('serialize[Box] with 4-tuple SByte register (R4) → cost 81 (Quadruple code, no length byte)', () => {
-    const reg4: SValue = {
-      kind: 'Tuple',
-      items: [
-        { kind: 'Byte', value: 1 },
-        { kind: 'Byte', value: 2 },
-        { kind: 'Byte', value: 3 },
-        { kind: 'Byte', value: 4 },
-      ],
-    }
+    const reg4: SValue = tupleColl([
+      { kind: 'Byte', value: 1 },
+      { kind: 'Byte', value: 2 },
+      { kind: 'Byte', value: 3 },
+      { kind: 'Byte', value: 4 },
+    ])
     const tpe4: SType = {
       tag: 'STuple',
       items: [{ tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' }, { tag: 'SByte' }],
@@ -294,16 +292,13 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     // The >4-arity length byte (putUByte(len)) is the live consensus surface this test
     // pins. TypeSerializer.scala:247-248 writes TupleTypeCode + putUByte(len); F2 #5
     // confirmed putUByte = 1.
-    const reg5: SValue = {
-      kind: 'Tuple',
-      items: [
-        { kind: 'Byte', value: 1 },
-        { kind: 'Byte', value: 2 },
-        { kind: 'Byte', value: 3 },
-        { kind: 'Byte', value: 4 },
-        { kind: 'Byte', value: 5 },
-      ],
-    }
+    const reg5: SValue = tupleColl([
+      { kind: 'Byte', value: 1 },
+      { kind: 'Byte', value: 2 },
+      { kind: 'Byte', value: 3 },
+      { kind: 'Byte', value: 4 },
+      { kind: 'Byte', value: 5 },
+    ])
     const tpe5: SType = {
       tag: 'STuple',
       items: [

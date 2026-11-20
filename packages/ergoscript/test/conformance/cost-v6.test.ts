@@ -146,6 +146,25 @@ describe('Box.getReg_adversarial — gate codes (conformance-arm context)', () =
   })
 })
 
+// The `Value` binding (runner contract §4): a vector's `input`,
+// `selfRegisters` or `inputs[].extension` entry of shape `{kind:'Value',
+// bytes_hex:...}` is the bytes a node reads for that position, bound
+// through this package's own reader. The control row below is the first
+// register-position `Value` binding in the vendored corpus; this test pins
+// that the harness runs it to an outcome (`errored`, `not-implemented`, or a
+// value).
+describe('register-position Value binding runs (control row)', () => {
+  it('Tuple.binding_provenance_register register-tuple-constant-accept#0 runs', () => {
+    const doc = JSON.parse(
+      fs.readFileSync(path.join(vectorDir, 'authored/Tuple.binding_provenance_register.json'), 'utf8'),
+    ) as SantaVector
+    const e = doc.entries.find(x => x.name === 'register-tuple-constant-accept#0')
+    if (e === undefined) throw new Error('control row register-tuple-constant-accept#0 not found')
+    const actual = evalSantaEntry(e)
+    expect(['errored', 'not-implemented', null]).toContain(actual.error)
+  })
+})
+
 describe('svalueToSantaJson — SigmaProp arm', () => {
   it('svalueToSantaJson encodes SigmaProp as serialized-SigmaBoolean raw_hex', () => {
     expect(svalueToSantaJson({ kind: 'SigmaProp', value: { tag: 'TrivialProp', value: true } }))

@@ -9,10 +9,11 @@
  * Divide/Modulo throw 'arith-divide-by-zero' when the right operand is zero,
  * checked BEFORE performing the operation.
  *
- * Cost is per-op AND per-type (is_bigint derived from left operand).
- * Charged AFTER left-eval, BEFORE right-eval, matching sigma-rust ordering
- * (bin_op.rs:190: lv = self.left.eval; lines 194-203: add_jit_cost; line 220:
- * rv = || self.right.eval).
+ * Cost is per-op AND per-type (is_bigint derived from left operand). Charged
+ * after both operands are evaluated and after the `ArithOp.impls` lookup on
+ * the left operand's static type (`ArithOp.eval` evaluates left then right
+ * then calls `companion.eval`, which does `impls(tpe.typeCode)` before
+ * `addCost` at `data/shared/src/main/scala/sigma/ast/trees.scala:722-728, :734-736`).
  *
  * Per sigma-rust bin_op.rs:194-203:
  *   Plus/Minus:              15 (non-bigint) / 20 (bigint)
@@ -38,10 +39,12 @@
  * checked_div behavior.
  */
 import type { BinOp, SValue, ArithOp } from '../../mir/types'
+import { SANY_JVM, NOTYPE_JVM } from '../../mir/types'
 import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
+import { exprTpe } from '../../mir/expr-tpe'
 import {
   isNumeric,
   valueToBigInt,
@@ -72,6 +75,47 @@ function arithCost(op: ArithOp, isBigInt: boolean): number {
 }
 
 // ---------------------------------------------------------------------------
+// The arith static dispatch — the ArithOp.impls lookup on the LEFT operand.
+// ---------------------------------------------------------------------------
+
+/**
+ * The JVM's `ArithOp.eval` evaluates the left operand, then the right operand,
+ * then calls `companion.eval(this, tpe.typeCode, x, y)` with `tpe = left.tpe`
+ * (`data/shared/src/main/scala/sigma/ast/trees.scala:722-728`, `:707`).
+ * `ArithOpCompanion.eval` (`:733-736`) does `ArithOp.impls(typeCode)` FIRST,
+ * before `addCost`, and `impls` (`:861-869`) has entries for `SByte` (1),
+ * `SShort` (2), `SInt` (3), `SLong` (4), `SBigInt` (6) and `SUnsignedBigInt`
+ * (9) only. An arith node (`Plus`, `Minus`, `Multiply`, `Divide`, `Modulo`,
+ * `Min`, `Max`) whose LEFT operand's static type is the JVM's `SAny`
+ * (code 97) or `NoType` (code 0) has no implementation: the lookup refuses
+ * before any cost of the node is added.
+ *
+ * ergots reads the left operand's static type with `exprTpe` and refuses when
+ * it is the object `SANY_JVM` or `NOTYPE_JVM` by identity. ergots' own `SAny`
+ * (a fresh `{ tag: 'SAny' }` object the method typing builds, residual 1 of
+ * `facts/ergoscript-wire.md`) is a different object and passes: runtime values
+ * behind such a type stay concrete and the dispatch proceeds by `isNumeric`
+ * on `lv.kind`. The identity check is the same posture as `_check-type.ts`.
+ *
+ * This is not a `checkType` site — the JVM's refusal here is through the
+ * `impls` map lookup, not through `isValueOfType` — so the arm does NOT call
+ * `assertCheckedNode` / `assertCheckedValue`. The code is
+ * `'bin-op-not-numeric'`, whose contract sentence in `facts/ergoscript-eval.md`
+ * reads "an arithmetic node whose LEFT operand's static type is the JVM's
+ * `SAny` or `NoType` — the `ArithOp.impls` lookup has no entry for type code
+ * 97 or 0".
+ */
+function assertArithImplForLeftType(e: BinOp, treeVersion: number): void {
+  const leftTpe = exprTpe(e.left, treeVersion)
+  if (leftTpe === SANY_JVM || leftTpe === NOTYPE_JVM) {
+    throw new EvalError(
+      `BinOp.Arith: ArithOp.impls (trees.scala:861-869) has no entry for the left operand's static type ${leftTpe === NOTYPE_JVM ? 'NoType (code 0)' : 'SAny (code 97)'}; the lookup refuses before addCost (trees.scala:734-736)`,
+      'bin-op-not-numeric',
+    )
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Main evaluator.
 // ---------------------------------------------------------------------------
 
@@ -80,14 +124,28 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   if (e.op.kind !== 'Arith') throw new Error('evalArithOp: wrong kind')
   const op: ArithOp = e.op.op
 
-  // Step 1: eval left operand (sigma-rust bin_op.rs:190).
+  // Step 1: eval left operand (`trees.scala:722`).
   const lv = evalExpr(e.left, env, ctx)
 
-  // UBI is not in `isNumeric` (P2b Critical 1) — route it locally, before the
-  // guard. Both operands must be UBI; cost is the non-BigInt tier (spec §3).
+  // Step 2: eval right operand (`trees.scala:723`). The JVM evaluates both
+  // operands before `companion.eval` runs the `ArithOp.impls` lookup and
+  // `addCost` (`trees.scala:722-728`, `:733-736`), so a refusing right
+  // surfaces its own refusal before the static-type lookup below.
+  const rv = evalExpr(e.right, env, ctx)
+
+  // Step 3: the `ArithOp.impls` lookup — static-type dispatch on the LEFT
+  // operand, refusing a left typed as the JVM's `SAny` or `NoType` before
+  // the node's cost is added, whatever the left's runtime kind (UBI
+  // included). See `assertArithImplForLeftType` above.
+  assertArithImplForLeftType(e, ctx.treeVersion ?? 0)
+
+  // Step 4a: UBI is not in `isNumeric` (`eval/bin-op/_numeric.ts`), so an
+  // UBI left value routes locally. Both operands must be UBI; the cost is
+  // the non-BigInt tier (`trees.scala:734-736` charges on the impl's
+  // `argTpe`, and `UnsignedBigInt` sits at `impls(9)` with the Byte/Short/
+  // Int/Long cost).
   if (lv.kind === 'UnsignedBigInt') {
     ctx.addCost(arithCost(op, /*isBigInt*/ false)) // 15 / 15 / 5 by op
-    const rv = evalExpr(e.right, env, ctx)
     if (rv.kind !== 'UnsignedBigInt') {
       throw new EvalError(
         `BinOp.Arith.${op}: UnsignedBigInt operand requires an UnsignedBigInt other operand, got '${rv.kind}'`,
@@ -97,9 +155,10 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     return { kind: 'UnsignedBigInt', value: evalUBIArith(op, lv.value, rv.value) }
   }
 
-  // Validate left is numeric before charging cost (mirrors sigma-rust which
-  // dispatches on lv.kind below — a non-numeric left would hit the `_ => Err`
-  // arm, but we check here for a typed error code, same posture as bit.ts).
+  // Step 4b: validate left is numeric (defensive on the runtime kind; the
+  // JVM's dispatch on `left.tpe` ran above and admitted an unlisted static
+  // type only through ergots' own `SAny`, residual 1 of
+  // `facts/ergoscript-wire.md`, where the runtime kind is the ground truth).
   if (!isNumeric(lv.kind)) {
     throw new EvalError(
       `BinOp.Arith.${op}: non-numeric left operand kind '${lv.kind}'`,
@@ -107,20 +166,17 @@ export function evalArithOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
     )
   }
 
-  // Step 2: derive is_bigint from lv, charge cost (sigma-rust bin_op.rs:192-203).
-  // We have no UnsignedBigInt SValue kind (v5 scope; SUnsignedBigInt is v6-only).
-  const isBI = lv.kind === 'BigInt'
-  ctx.addCost(arithCost(op, isBI))
-
-  // Step 3: eval right operand (sigma-rust bin_op.rs:220 lazy closure rv()).
-  const rv = evalExpr(e.right, env, ctx)
-
   if (!isNumeric(rv.kind)) {
     throw new EvalError(
       `BinOp.Arith.${op}: non-numeric right operand kind '${rv.kind}'`,
       'bin-op-not-numeric',
     )
   }
+
+  // Step 4c: derive is_bigint from lv, charge cost (`trees.scala:735`
+  // `addCost(costKind, impl.argTpe)`, after the impls lookup).
+  const isBI = lv.kind === 'BigInt'
+  ctx.addCost(arithCost(op, isBI))
 
   // Operand kinds differ. The JVM deserializer auto-upcasts the narrower
   // numeric operand to the wider so the op runs at the wider type — but ONLY

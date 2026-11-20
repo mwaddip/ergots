@@ -1,14 +1,15 @@
 /**
- * Unit tests for `_sigma-helpers.ts`: `expectSigmaProp` + `extractSigmaPropColl`.
+ * Unit tests for `_sigma-helpers.ts`: `expectSigmaProp`.
  *
- * These helpers are promoted ahead of the YAGNI threshold because they have
- * 3 callers across 3 files in Tasks 4-6 (Atleast, SigmaAnd, SigmaOr).
+ * The helper has three callers: `SigmaAnd` (`sigma-and.ts`), `SigmaOr`
+ * (`sigma-or.ts`), and `AtLeast`'s defensive per-item check after the array
+ * cast (`atleast.ts`).
  *
- * Design: PLAN.md Task 4, Step 2.
- * Source cross-reference: ergotree-interpreter/src/eval/atleast.rs:31-46
+ * Source cross-reference: `data/shared/src/main/scala/sigma/ast/trees.scala`
+ * — `SigmaAnd.eval`, `SigmaOr.eval`, `AtLeast.eval`.
  */
 import { describe, expect, it } from 'vitest'
-import { expectSigmaProp, extractSigmaPropColl } from '../../src/eval/_sigma-helpers'
+import { expectSigmaProp } from '../../src/eval/_sigma-helpers'
 
 describe('expectSigmaProp', () => {
   it('returns inner SigmaBoolean on success', () => {
@@ -17,37 +18,6 @@ describe('expectSigmaProp', () => {
   })
   it('throws sigma-prop-coll-elem-not-sigma-prop on non-SigmaProp', () => {
     expect(() => expectSigmaProp({ kind: 'Int', value: 42 }, 'test')).toThrow(
-      expect.objectContaining({ code: 'sigma-prop-coll-elem-not-sigma-prop' }),
-    )
-  })
-})
-
-describe('extractSigmaPropColl', () => {
-  it('returns SigmaBoolean[] on Coll[SigmaProp] input', () => {
-    const sb1 = { tag: 'TrivialProp' as const, value: true }
-    const sb2 = { tag: 'TrivialProp' as const, value: false }
-    const value = {
-      kind: 'Coll' as const,
-      elem: { tag: 'SSigmaProp' as const },
-      items: [
-        { kind: 'SigmaProp' as const, value: sb1 },
-        { kind: 'SigmaProp' as const, value: sb2 },
-      ],
-    }
-    expect(extractSigmaPropColl(value, 'test')).toEqual([sb1, sb2])
-  })
-  it('throws sigma-prop-input-not-coll on non-Coll', () => {
-    expect(() =>
-      extractSigmaPropColl({ kind: 'Int', value: 42 }, 'test'),
-    ).toThrow(expect.objectContaining({ code: 'sigma-prop-input-not-coll' }))
-  })
-  it('throws sigma-prop-coll-elem-not-sigma-prop on non-SigmaProp item', () => {
-    const value = {
-      kind: 'Coll' as const,
-      elem: { tag: 'SAny' as const },
-      items: [{ kind: 'Int' as const, value: 42 }],
-    }
-    expect(() => extractSigmaPropColl(value, 'test')).toThrow(
       expect.objectContaining({ code: 'sigma-prop-coll-elem-not-sigma-prop' }),
     )
   })

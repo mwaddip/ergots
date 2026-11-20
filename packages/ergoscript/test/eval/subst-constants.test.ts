@@ -153,13 +153,11 @@ describe('SubstConstants arm — defensive shape guards (non-parser MIR paths)',
     expect(err.code).toBe('subst-constants-error')
   })
 
-  it('throws subst-constants-error when positions is Coll[Byte] (not Coll[Int])', () => {
-    // Use an actual 1-const template so the script_bytes guard passes; the
-    // failure must come from the positions Coll[Int] guard, not the script_bytes
-    // guard.
-    // template `00740e061001045473001001001001ce0f` corresponds to a 1-const
-    // i32 template; here we hard-code minimal bytes and rely on the positions
-    // guard firing before parseTree is called.
+  it("throws coll-class-cast when positions is a Coll[Byte] whose array is 'byte' and the cast wants 'int'", () => {
+    // The JVM's `positions = positionsV.toArray` at `trees.scala:643` casts
+    // the backing array to `Array[Int]`; a `Coll[Byte]` over `byte[]` fails
+    // that cast with a `ClassCastException`, surfaced here as
+    // `'coll-class-cast'` through the collection module's `castArray`.
     const expr: SubstConstantsExpr = {
       tag: 'SubstConstants',
       scriptBytes: {
@@ -188,7 +186,7 @@ describe('SubstConstants arm — defensive shape guards (non-parser MIR paths)',
     }
     const ctx = makeContext()
     const err = captureEvalError(() => evalExpr(expr, Env.empty(), ctx))
-    expect(err.code).toBe('subst-constants-error')
+    expect(err.code).toBe('coll-class-cast')
   })
 
   it('throws subst-constants-error when new_values is SInt (not Coll[_])', () => {

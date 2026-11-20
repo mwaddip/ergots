@@ -67,11 +67,11 @@ import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { extractCollItems, extractFuncValue } from './_coll-helpers'
 import { assertArgTypeResolved } from './_lambda'
-import { readCheckedType } from './_check-type'
+import { assertCheckedNode, assertCheckedValue } from './_check-type'
 import { exprTpe } from '../mir/expr-tpe'
 import { sTypeEqualsModuloSAny, hasSAny } from '../mir/stype-helpers'
 import { sValueType } from './svalue-type'
-import { mapped, empty } from './_coll'
+import { dataItemType, mapped, empty } from './_coll'
 
 // Outer cost: add_per_item_jit_cost(base=20, per_chunk=1, chunk_size=10, n)
 // Sigma-rust ref: coll_map.rs:72
@@ -103,28 +103,30 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // 3. Guard: mapper must be a callable Lambda with at least one arg.
   const closure = extractFuncValue(mapperVal)
 
-  // 3b. Elem-type check: input.elem must match the mapper's declared arg type
-  // (a shape mirror of the JVM's `FuncValue.eval` `Value.checkType(arg0._2,
-  // vArg)` = `isValueOfType`, `SType.scala:187-213`, which rejects a wrong
-  // kind at each application). The TS MIR has no `mapper_sfunc` field; we
-  // derive the expected input type from the mapper Expr when it is a
-  // FuncValue node (e.mapper.args[0].tpe). When the mapper is not a FuncValue
-  // node (ValUse, If, etc.), skip — `extractFuncValue` above already enforces
-  // callable-at-runtime, and the per-item application charges arg-bind via
-  // addCost(5).
+  // 3b. Elem-type check: input.elem must match `dataItemType(argTpe)` (the
+  // item type `CoreDataSerializer.deserializeColl` gives for the declared
+  // argument type, `:176-182`; `SColl(SAny)` for a tuple argument of another
+  // arity than two, `:179-180`). A shape mirror of the JVM's `FuncValue.eval`
+  // `Value.checkType(arg0._2, vArg)` = `isValueOfType`, `SType.scala:187-213`,
+  // which rejects a wrong kind at each application. The TS MIR has no
+  // `mapper_sfunc` field; we derive the expected input type from the mapper
+  // Expr when it is a FuncValue node (e.mapper.args[0].tpe). When the mapper
+  // is not a FuncValue node (ValUse, If, etc.), skip — `extractFuncValue`
+  // above already enforces callable-at-runtime, and the per-item application
+  // charges arg-bind via addCost(5).
   //
-  // SAny tolerance: when the RUNTIME input collection's elem is SAny we skip
-  // the check rather than reject. SAny is our placeholder for an element type
-  // we couldn't resolve statically (it flows from unresolved MethodCall return
-  // types — see `exprTpe` — through ValDef/ValUse/Map-output). The JVM never
-  // has SAny here; its check (on the concrete runtime type) passes, so
-  // rejecting on our lossy SAny is a false positive. Mirrors the
-  // SAny-tolerance in ByIndex/OptionGet/SelectField.
+  // SAny tolerance (modulo-SAny): when the RUNTIME input collection's elem is
+  // SAny we admit, as the JVM's per-application class check reads the runtime
+  // value's class and passes (`reference_sany_type_checks_skip_not_fail`).
   if (e.mapper.tag === 'FuncValue' && e.mapper.args.length > 0) {
     const mapperInputTpe = e.mapper.args[0]!.tpe
-    if (!sTypeEqualsModuloSAny(inputColl.elem, mapperInputTpe)) {
+    const dataExpected = dataItemType(mapperInputTpe)
+    if (
+      !sTypeEqualsModuloSAny(inputColl.elem, mapperInputTpe)
+      && !sTypeEqualsModuloSAny(inputColl.elem, dataExpected)
+    ) {
       throw new EvalError(
-        `Map: input elem type ${JSON.stringify(inputColl.elem)} does not match mapper declared arg type ${JSON.stringify(mapperInputTpe)}`,
+        `Map: input elem type ${JSON.stringify(inputColl.elem)} does not match mapper declared arg type ${JSON.stringify(mapperInputTpe)} (data reader's item type ${JSON.stringify(dataExpected)})`,
         'coll-elem-tpe-mismatch'
       )
     }
@@ -166,20 +168,22 @@ export function evalMap(e: Map, env: Env, ctx: EvalContext): SValue {
   // `mapped` call below makes.
   const outItems: SValue[] = []
   for (const item of inputColl.items) {
+    // Reject applying a lambda whose arg type is an unresolved type var (the JVM's
+    // "Unknown type T" throw at stypeToRType, Evaluation.scala:54-55). Per-element,
+    // so an empty input never binds.
+    assertArgTypeResolved(closure.argTpes[0]!)
+    // FuncValue.eval (values.scala:1074): Value.checkType reads the arg's declared type and the
+    // value's class against the item, before the AddToEnvironmentDesc 5 is charged and before
+    // the body is evaluated. Per-element ⇒ an empty input never checks. See eval/_check-type.ts.
+    assertCheckedValue(closure.argTpes[0]!, item)
     // Per-iter cost: 5 for `AddToEnvironmentDesc` (JVM values.scala:1076).
     ctx.addCost(COLL_MAP_PER_ITER)
-    // Extend the lambda's CAPTURED (definition-site) env with the arg
-    // binding — lexical scoping, JVM-faithful for v6. For inline mapper
-    // lambdas capturedEnv == the caller env, so this is a no-op.
-    // v6 P6: reject a type-var arg type at the per-element apply (JVM
-    // "Unknown type T"). Per-element ⇒ an empty input never binds.
-    assertArgTypeResolved(closure.argTpes[0]!)
     const bodyEnv = closure.capturedEnv.extend(argId, item)
     const itemRes = evalExpr(closure.body, bodyEnv, ctx)
-    // The JVM's closure reads the body's type after each application
-    // (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:
-    // `Value.checkType(body, res)` reads `body.tpe` before the shape check).
-    readCheckedType(closure.body, ctx)
+    // Lambda body (`data/shared/src/main/scala/sigma/ast/values.scala:1080`:
+    // `Value.checkType(body, res)`): the body's declared type and the value's class, after each
+    // application. See eval/_check-type.ts.
+    assertCheckedNode(closure.body, itemRes, ctx)
     outItems.push(itemRes)
   }
 

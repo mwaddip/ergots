@@ -24,10 +24,14 @@
  *      a successor `AvlTreeData` with a replaced digest on successful
  *      modification.
  *
- * Defensive shape checks throw EvalError `'method-not-implemented'` per
- * the compact-taxonomy decision (Decision #1 from 2g.5). Wire-format
- * invariants make these unreachable for parser-produced trees; the guards
- * exist for hand-crafted MIR / future ConstantPlaceholder injection.
+ * An outer kind check (the value is not a `Coll`) throws
+ * `'method-not-implemented'`; an array of another class (the JVM's
+ * `toArray` cast on the key, value, proof or digest) routes through
+ * `castArray` and surfaces as `'coll-class-cast'`; an entries item that
+ * is no pair takes the JVM's failed `Tuple2` pattern-match cast as
+ * `'coll-class-cast'`. Wire-format invariants make the shape checks
+ * unreachable for parser-produced trees; the guards exist for
+ * hand-crafted MIR / `ConstantPlaceholder` injection.
  *
  * Convention: leading-underscore filename follows existing project pattern
  * (`_byte-coll.ts`, `_box-synthesis.ts`, `_coll-helpers.ts`, `_numeric.ts`).
@@ -36,6 +40,7 @@
 import type { SValue, AvlTreeData } from '../mir/types'
 import type { Operation, AvlTreeConfig } from '@ergots/avltree'
 import { EvalError } from './eval-context'
+import { castArray } from './_coll'
 
 // ---------------------------------------------------------------------------
 // Tree-data projection helpers.
@@ -122,8 +127,9 @@ export function buildLookupOps(keys: Uint8Array[]): Operation[] {
  * Used by `insert` — each tuple's first element becomes the key, second
  * becomes the value.
  *
- * @throws EvalError `'method-not-implemented'` if input doesn't conform
- *   (non-Coll, items not `Tuple` of arity 2, tuple elements not Coll[Byte]).
+ * @throws EvalError `'method-not-implemented'` on a non-Coll input,
+ *   `'coll-class-cast'` on an item that is no pair or whose component's
+ *   array is of another class (see `extractEntries`).
  */
 export function buildInsertOps(entries: SValue): Operation[] {
   const pairs = extractEntries(entries)
@@ -166,14 +172,20 @@ export function buildRemoveOps(keys: Uint8Array[]): Operation[] {
 // ---------------------------------------------------------------------------
 
 /**
- * `Coll[Byte]` SValue → `Uint8Array`. Each `Byte` item carries a signed i8
- * (range -128..=127 per parser convention at `wire/parse-svalue.ts:96-97`);
- * we recover the u8 wire byte via `value & 0xff`.
+ * `Coll[Byte]` SValue → `Uint8Array`, by the JVM's array cast
+ * (`key.toArray` / `proof.toArray` / `value.toArray` /
+ * `digest.toArray` in `CErgoTreeEvaluator`'s AvlTree methods and in
+ * `CAvlTreeVerifier.apply`). Each `Byte` item carries a signed i8
+ * (`wire/parse-svalue.ts:96-97`); we recover the u8 wire byte via
+ * `value & 0xff`.
  *
- * Used directly by every Tier-2 handler that takes a key or value argument.
- *
- * @throws EvalError `'method-not-implemented'` if `v` is not a `Coll` or
- *   any item is not a `Byte`.
+ * Used by every Tier-2 handler that takes a key, value, proof, or digest
+ * argument. A non-`Coll` input is a type error (`'method-not-implemented'`
+ * for parser-produced trees, defensive against `ConstantPlaceholder`
+ * injection). A `Coll` whose array is of another class — `Object[]` from a
+ * tuple's `Coll[Any]`, for one — routes through the module's `castArray`
+ * (`coll/ops.ts`) to `'coll-class-cast'`, the JVM's `ClassCastException` on
+ * the array cast.
  */
 export function extractBytes(v: SValue): Uint8Array {
   if (v.kind !== 'Coll') {
@@ -182,27 +194,31 @@ export function extractBytes(v: SValue): Uint8Array {
       'method-not-implemented'
     )
   }
-  const out = new Uint8Array(v.items.length)
-  for (let i = 0; i < v.items.length; i++) {
-    const item = v.items[i]!
+  const items = castArray(v, 'byte', 'AvlTree byte argument')
+  const out = new Uint8Array(items.length)
+  for (let i = 0; i < items.length; i++) {
+    const item = items[i]!
     if (item.kind !== 'Byte') {
+      // Defensive: an array of class `'byte'` holds `Byte` items. Fall back
+      // to the taxonomy's shape code for a mislabelled value.
       throw new EvalError(
         `expected Byte item at index ${i}, got '${item.kind}'`,
         'method-not-implemented'
       )
     }
-    // i8 → u8: `& 0xff` recovers the original wire byte for negatives.
     out[i] = item.value & 0xff
   }
   return out
 }
 
 /**
- * `Coll[Coll[Byte]]` SValue → `Uint8Array[]`. Recurses `extractBytes` per
- * item. Used by `getMany` (input keys) and `remove` (input keys).
+ * `Coll[Coll[Byte]]` SValue → `Uint8Array[]`. The outer collection is read
+ * through the interface, as `keys.map { key => key.toArray }` in
+ * `CErgoTreeEvaluator.getMany_eval` (`:124`) and
+ * `operations(i).toArray` in `remove_eval` (`:242`); each inner `Coll[Byte]`
+ * is cast through `extractBytes` (the JVM's `key.toArray`).
  *
- * @throws EvalError `'method-not-implemented'` if `v` is not a `Coll`, or
- *   any item fails `extractBytes` shape check.
+ * Used by `getMany` (input keys) and `remove` (input keys).
  */
 export function extractByteArrayList(v: SValue): Uint8Array[] {
   if (v.kind !== 'Coll') {
@@ -211,17 +227,22 @@ export function extractByteArrayList(v: SValue): Uint8Array[] {
       'method-not-implemented'
     )
   }
+  // The outer read walks `v.items` through the Coll interface; each inner
+  // item goes through the byte-array cast.
   return v.items.map(item => extractBytes(item))
 }
 
 /**
- * `Coll[Tuple[Coll[Byte], Coll[Byte]]]` SValue → `{key, value}[]`. Defensive
- * shape check at every level: input must be a `Coll`, each item must be a
- * `Tuple` of arity 2, both tuple elements must pass `extractBytes`.
+ * `Coll[Tuple[Coll[Byte], Coll[Byte]]]` SValue → `{key, value}[]`. The outer
+ * collection is read through the interface, as the JVM's
+ * `entries.forall { case (key, value) => ... }` reads it
+ * (`CErgoTreeEvaluator.insert_eval` `:141`, `update_eval` `:174`,
+ * `insertOrUpdate_eval` `:205`). Each item is pattern-matched as a `Tuple2`:
+ * an item that is no pair fails the match on the JVM, mirrored here as
+ * `'coll-class-cast'` (a failed cast of the item to a pair). Each
+ * component's bytes are then cast as `extractBytes` does.
  *
- * Used by `buildInsertOps` / `buildUpdateOps`.
- *
- * @throws EvalError `'method-not-implemented'` on any shape mismatch.
+ * Used by `buildInsertOps` / `buildUpdateOps` / `buildInsertOrUpdateOps`.
  */
 export function extractEntries(v: SValue): { key: Uint8Array; value: Uint8Array }[] {
   if (v.kind !== 'Coll') {
@@ -231,16 +252,12 @@ export function extractEntries(v: SValue): { key: Uint8Array; value: Uint8Array 
     )
   }
   return v.items.map((item, i) => {
-    if (item.kind !== 'Tuple') {
+    if (item.kind !== 'Tuple' || item.items.length !== 2) {
+      // The JVM's `case (k, v) =>` pattern match on an item that is no
+      // `Tuple2` fails the cast; mirror that as the array-cast code.
       throw new EvalError(
-        `expected Tuple item at index ${i}, got '${item.kind}'`,
-        'method-not-implemented'
-      )
-    }
-    if (item.items.length !== 2) {
-      throw new EvalError(
-        `expected Tuple of arity 2 at index ${i}, got arity ${item.items.length}`,
-        'method-not-implemented'
+        `AvlTree entries: item at index ${i} is not a pair (got kind '${item.kind}')`,
+        'coll-class-cast'
       )
     }
     return {

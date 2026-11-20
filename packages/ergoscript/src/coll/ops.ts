@@ -958,6 +958,68 @@ function unzipForPatch(p: CollValue): { ls: CollValue; rs: CollValue } {
   return splitSides(rebuilt, cls)
 }
 
+/**
+ * The cast a consumer makes when it needs the array of a class
+ * (`toArray.asInstanceOf[Array[T]]`, the pattern the JVM uses in every
+ * byte-reading consumer: `CalcBlake2b256` and `CalcSha256`,
+ * `ByteArrayToBigInt`, `AvlTree.get`/`getMany`/`contains`/`insert`/`update`/
+ * `remove`/`insertOrUpdate` key and proof arguments, `AvlTree.updateDigest`,
+ * `AtLeast` (`trees.scala:314-320`), `Append` against a primitive-backed
+ * operand (`CollsOverArrays.scala:48-57`), and `Global.powHit`'s byte
+ * arguments; `docs/findings/eval-non-pair-tuple-values.md` in SANTA's
+ * repository).
+ *
+ * On a `'array'`-shape receiver the cast reads the array the
+ * `CollOverArray` stores (`:11`, `toArray` is the backing field): a
+ * specialised or plain object over the same `array` passes equally — the
+ * class's `array` field decides, not `specialised`. An array of another
+ * class is `CollClassCast`, as a JVM `ClassCastException` on
+ * `toArray.asInstanceOf[Array[T]]`.
+ *
+ * On a `'pairs'`-shape receiver there is no single stored array:
+ * `PairOfCols` keeps TWO arrays, one per side (`:274`). Its `toArray`
+ * materialises a new one by zipping (`:299`, `toArray = ls.toArray.zip(rs.
+ * toArray)`), which is not the stored array a reader is after. A consumer
+ * that needs the single stored array therefore refuses on a `'pairs'`
+ * receiver with `CollClassCast`. The byte-reading consumers above all need
+ * a primitive array, and a pair-shape collection has no one. This arm is
+ * unmeasured against the JVM, and no caller casts a `'pairs'` collection
+ * to `'Tuple2'`.
+ *
+ * On an `'unknown'`-shape receiver the items pass through unchecked. The
+ * class is carried only by an empty result of a `map` / `flatMap` whose
+ * mapper's static range ergots cannot name ("A collection's class" in
+ * `facts/ergoscript-eval.md`), so `items` is `[]`; no reader refuses this
+ * value, and the honest script
+ * `hash ++ CONTEXT.headers.flatMap(h => h.id)` with no headers reaches
+ * `CalcBlake2b256`'s cast on an unknown-class collection and answers.
+ *
+ * `what` names the consumer, for the error message.
+ *
+ * @throws CollClassCast when the receiver's array is of another class, and
+ *   when the receiver is `'pairs'`-shape.
+ */
+export function castArray(c: CollValue, array: ArrayClass, what: string): SValue[] {
+  const cls = classOf(c)
+  if (cls.shape === 'pairs') {
+    throw new CollClassCast(
+      `${what}: a PairOfCols has no single stored array; Array[${array}] cast refused`,
+    )
+  }
+  if (cls.shape === 'unknown') {
+    // An empty result of an untyped mapper, by the one builder of this
+    // class (`coll/build.ts` `empty`); `items` is `[]` and every reader
+    // takes it.
+    return c.items
+  }
+  if (cls.array !== array) {
+    throw new CollClassCast(
+      `${what}: Array of ${cls.array} is not of class ${array}`,
+    )
+  }
+  return c.items
+}
+
 /** Split an array of pair values into two arrays of components. */
 function splitPairItems(items: SValue[]): [SValue[], SValue[]] {
   const n = items.length

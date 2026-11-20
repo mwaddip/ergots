@@ -28,7 +28,7 @@ import type { Env } from '../env'
 import type { EvalContext } from '../eval-context'
 import { EvalError } from '../eval-context'
 import { evalExpr } from '../eval'
-import { readCheckedType } from '../_check-type'
+import { assertCheckedNode } from '../_check-type'
 import { isNumeric, valueToBigInt, bigIntToValue, widerKind, upcastCost } from './_numeric'
 import { compareUBI } from './_ubi-binop'
 import {
@@ -365,11 +365,35 @@ export function sTypeEquals(a: SType, b: SType): boolean {
  * @param ctx Optional EvalContext for JIT cost accumulation; omitted = cost-free
  */
 function compareSValues(a: SValue, b: SValue, ctx?: EvalContext): boolean {
-  // Different kinds → catch-all arm in sigma-rust (lines 131-135): charges
-  // EQ_PRIM_COST and then `Ok(lv == rv)` where PartialEq returns false for
-  // cross-variant pairs. So: charge EQ_PRIM_COST, return false.
+  // Different kinds. The JVM's `DataValueComparer.equalDataValues`
+  // (`data/shared/src/main/scala/sigma/data/DataValueComparer.scala:310-398`)
+  // dispatches on the LEFT value's kind and charges that arm's cost before
+  // the inner match detects the type mismatch. ergots covers two of the
+  // thirteen left kinds the JVM dispatches on and keeps the rest at
+  // `EQ_PRIM_COST` (3); the remaining kinds (BigInt, UnsignedBigInt,
+  // GroupElement, SigmaProp, AvlTree, Option, Box, PreHeader, Header,
+  // String, Unit) are not reachable through an `EQ(l, r)` at tree v3,
+  // where `SigmaBuilder.equalityOp` (`:686-693`) calls
+  // `check2(l, r, SameTypeConstrain)` at parse (`check-build.ts` runs the
+  // same constraint): cross-kind operands reject at parse. A Deserialize
+  // substitution of a value of another type past the parse check would
+  // expose the primitive default here. The full cost table is stated as a
+  // residual in `facts/ergoscript-eval.md` under "The comparer's cost
+  // table and the cross-kind residual".
+  //
+  // Implemented (match the JVM):
+  //   - left `Coll` on a non-`Coll` right → `MatchType` (1), before the
+  //     inner match (`DataValueComparer.scala:317-327`).
+  //   - left `Tuple2` on a non-`Tuple2` right → `EQ_Tuple` (4)
+  //     (`:329-337`).
+  // Default (primitive kinds: Boolean/Byte/Short/Int/Long) → `EQ_Prim`
+  //     (3), as the JVM charges (`:313-315`).
+  // Default for every other left kind on a different right → `EQ_Prim`
+  //     (3), an ergots residual.
   if (a.kind !== b.kind) {
-    ctx?.addCost(EQ_PRIM_COST)
+    if (a.kind === 'Coll') ctx?.addCost(COLL_MATCH_TYPE_COST)
+    else if (a.kind === 'Tuple') ctx?.addCost(EQ_TUPLE_COST)
+    else ctx?.addCost(EQ_PRIM_COST)
     return false
   }
 
@@ -688,12 +712,13 @@ export function evalRelationOp(e: BinOp, env: Env, ctx: EvalContext): SValue {
   // No envelope cost — sigma-rust bin_op.rs:205 match arm is empty for Eq/NEq;
   // all JIT cost is charged INSIDE sValueEquals (mirrors data_value_comparer.rs).
   if (op === 'Eq' || op === 'NEq') {
-    // EQ.eval / NEQ.eval (trees.scala:1204-1208, 1224-1228): each operand is evaluated, then checkType reads its
-    // type (spec §5 item 5), the left one's before the right one is evaluated.
+    // EQ.eval / NEQ.eval (trees.scala:1206-1210, 1226-1230): each operand is evaluated, then
+    // Value.checkType reads its declared type and the value's class, the left one's before the
+    // right one is evaluated. See eval/_check-type.ts.
     let left = evalExpr(e.left, env, ctx)
-    readCheckedType(e.left, ctx)
+    assertCheckedNode(e.left, left, ctx)
     let right = evalExpr(e.right, env, ctx)
-    readCheckedType(e.right, ctx)
+    assertCheckedNode(e.right, right, ctx)
     // Mismatched-numeric equality: the JVM deserializer auto-upcasts the narrower
     // operand to the wider for pre-V3 ErgoTree versions (equalityOp → applyUpcast,
     // SigmaBuilder.scala:679-686,750-756), so e.g. EQ(Int 5, Long 5) compares as

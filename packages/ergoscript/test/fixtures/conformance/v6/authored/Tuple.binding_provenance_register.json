@@ -1,0 +1,938 @@
+{
+  "schema" : "santa-eval/v4",
+  "op" : "Tuple.binding_provenance_register",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "source" : "santa:authored-eval-tuple-binding-provenance",
+  "entries" : [
+    {
+      "name" : "register-tuple-constant-accept#0",
+      "script" : "[C3] `SELF.R4[(Int, Int, Int)].get.size`, R4 = the tuple CONSTANT — `3` at cost 89. CONTROL for X3. (TupleValuesProbe G2.)",
+      "tree_bytes_hex" : "0b09b1e4c6a70448040404",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "48040404020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-tuple-expression-accept#1",
+      "script" : "[X3] the same, R4 = the Tuple EXPRESSION — `3` at 89, identical to its constant twin: `Tuple.value` is the same Coll[Any] the data decoder builds (values.scala:818-822). SEPARATING: a register is read with `getValue` too (ErgoBoxCandidate.scala:231). (G3.)",
+      "tree_bytes_hex" : "0b09b1e4c6a70448040404",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "8603040204040406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-data-accept#2",
+      "script" : "[C4] `SELF.R4[Coll[(Int, Int, Int)]].get(0).size`, R4 = the DATA constant Coll((1, 2, 3)) — `3` at cost 124. The data decoder gives a collection of non-pair tuples the item type Coll[Any] (CoreDataSerializer.deserializeColl); the SAME collection built in-script throws `Unsupported tuple type` (Tuple.non_pair_value_gates G10). CONTROL for X4.",
+      "tree_bytes_hex" : "0b0eb1b2e4c6a7040c48040404040000",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "0c4804040401020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 124,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-expression-accept#3",
+      "script" : "[X4] the same, R4 = a ConcreteCollection EXPRESSION of the tuple (opcode 0x83) — `3` at 124. Read as a binding, the expression's `.value` is built without the in-script `checkType` (values.scala:879-884), so it does not throw like G10, though its item type is the TUPLE type (stypeToRType), not Coll[Any]. SEPARATING by provenance.",
+      "tree_bytes_hex" : "0b0eb1b2e4c6a7040c48040404040000",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "83014804040448040404020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 3
+        },
+        "cost" : 124,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-data-eq-accept#4",
+      "script" : "[C5] `SELF.R4[Coll[(Int, Int, Int)]].get == Coll((1, 2, 3))` (a constant in the tree), R4 = the DATA constant — `true` at cost 119: both sides carry item type Coll[Any], so the comparison reaches the items. CONTROL for X5. (TupleValuesProbe V3.)",
+      "tree_bytes_hex" : "0b1393e4c6a7040c480404040c4804040401020406",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "0c4804040401020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 119,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-expression-eq-accept#5",
+      "script" : "[X5] the same comparison, R4 = the ConcreteCollection EXPRESSION — `false` at 81. Same declared type, so the builder's SameType check passes, but item type TupleType against Coll[Any], and the comparer bails on that before any item (38 cheaper than C5). SEPARATING: an implementation that does not keep a collection's producer answers `true`. (V2.)",
+      "tree_bytes_hex" : "0b1393e4c6a7040c480404040c4804040401020406",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "83014804040448040404020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 81,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-data-zip-eq-accept#6",
+      "script" : "[C6] `SELF.R4[Coll[(Int, Int, Int)]].get.zip(Coll(4)) == Coll(((1, 2, 3), 4))`, R4 = the DATA constant — `false` at cost 101. THE ORDER INVERTS: the tree's pair constant gets its nested tuple's item type from stypeToRType — Pair(TupleType, Int) — because the decoder's Coll[Any] case covers only a non-pair tuple ELEMENT, so the data-built register (Pair(Coll[Any], Int) once zipped) is the one that differs. CONTROL for X6.",
+      "tree_bytes_hex" : "0b1c93dc0c1de4c6a7040c48040404011001080c4c480404040102040608",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "0c4804040401020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 101,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-coll-expression-zip-eq-accept#7",
+      "script" : "[X6] the same, R4 = the ConcreteCollection EXPRESSION — `true` at 146: zipped, its item type is Pair(TupleType, Int), the tree constant's, so the comparison reaches the items. SEPARATING: the producer decides the verdict in the opposite direction to X5. (V4.)",
+      "tree_bytes_hex" : "0b1c93dc0c1de4c6a7040c48040404011001080c4c480404040102040608",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "83014804040448040404020406"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 146,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-isdefined-accept#8",
+      "script" : "[P1c] `SELF.R4[(Int, Int)].isDefined`, R4 = the pair CONSTANT — `true`. CONTROL for P1x: `OptionIsDefined` never reads the value.",
+      "tree_bytes_hex" : "0b05e6c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-isdefined-accept#9",
+      "script" : "[P1x] `SELF.R4[(Int, Int)].isDefined`, R4 = the pair Tuple EXPRESSION — `true`, as its constant twin: `CBox.getReg` (CBox.scala:32) checks only the type the value was stored with, so the read hands back the expression's Coll[Any], and `OptionIsDefined` never looks at it. SEPARATING: an implementation that refuses a pair-typed Tuple expression AT THE READ refuses this.",
+      "tree_bytes_hex" : "0b05e6c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 70,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-get-accept#10",
+      "script" : "[P2c] `SELF.R4[(Int, Int)].get`, R4 = the pair CONSTANT — the pair `(1, 2)` (a Scala Tuple2). CONTROL for P2x.",
+      "tree_bytes_hex" : "0b05e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Tuple",
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-get-accept#11",
+      "script" : "[P2x] `SELF.R4[(Int, Int)].get`, R4 = the pair Tuple EXPRESSION — `Coll[Any](1, 2)`, encoded `{\"kind\":\"Coll\",\"elem\":{\"tag\":\"SAny\"},…}`, at its twin's cost: `OptionGet` is `opt.get` (transformers.scala:598) and checks nothing, so the root's value is the expression's `Tuple.value` (values.scala:818-822) under a pair type. SEPARATING: refusing at the read, or answering a pair, is red.",
+      "tree_bytes_hex" : "0b05e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SAny"
+          },
+          "items" : [
+            {
+              "kind" : "Int",
+              "value" : 1
+            },
+            {
+              "kind" : "Int",
+              "value" : 2
+            }
+          ]
+        },
+        "cost" : 75,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-eq-constant-accept#12",
+      "script" : "[P3c] `SELF.R4[(Int, Int)].get == (1, 2)`, R4 = the pair CONSTANT — `true`. CONTROL for P3x.",
+      "tree_bytes_hex" : "0b0993e4c6a70458580204",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-eq-constant-errored#13",
+      "script" : "[P3x] `SELF.R4[(Int, Int)].get == (1, 2)`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `EQ` type-checks its LEFT operand before it compares (trees.scala:1206, `Value.checkType` → `SType.isValueOfType`, which wants a Tuple2 for a pair type, SType.scala:200). SEPARATING: an implementation that compares the Coll[Any] with the pair (answering `false`) is red.",
+      "tree_bytes_hex" : "0b0993e4c6a70458580204",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-constant-eq-accept#14",
+      "script" : "[P4c] `(1, 2) == SELF.R4[(Int, Int)].get`, R4 = the pair CONSTANT — `true`. CONTROL for P4x.",
+      "tree_bytes_hex" : "0b0993580204e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-constant-eq-errored#15",
+      "script" : "[P4x] `(1, 2) == SELF.R4[(Int, Int)].get`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): the same check on the RIGHT operand (trees.scala:1208), after the constant on the left passed its own. SEPARATING: an implementation that checks only the left operand is red.",
+      "tree_bytes_hex" : "0b0993580204e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-neq-constant-accept#16",
+      "script" : "[P5c] `SELF.R4[(Int, Int)].get != (1, 2)`, R4 = the pair CONSTANT — `false`. CONTROL for P5x.",
+      "tree_bytes_hex" : "0b0994e4c6a70458580204",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : false
+        },
+        "cost" : 90,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-neq-constant-errored#17",
+      "script" : "[P5x] `SELF.R4[(Int, Int)].get != (1, 2)`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `NEQ` checks its operands as `EQ` does (trees.scala:1226). SEPARATING: answering `true` (a collection is not the pair) is red.",
+      "tree_bytes_hex" : "0b0994e4c6a70458580204",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-eq-self-accept#18",
+      "script" : "[P6c] `SELF.R4[(Int, Int)].get == SELF.R4[(Int, Int)].get`, R4 = the pair CONSTANT — `true`. CONTROL for P6x.",
+      "tree_bytes_hex" : "0b0b93e4c6a70458e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Boolean",
+          "value" : true
+        },
+        "cost" : 160,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-eq-self-errored#19",
+      "script" : "[P6x] `SELF.R4[(Int, Int)].get == SELF.R4[(Int, Int)].get`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): both sides are the same Coll[Any], but the left operand's check refuses it before anything is compared (trees.scala:1206). SEPARATING: comparing the two equal collections (answering `true`) is red.",
+      "tree_bytes_hex" : "0b0b93e4c6a70458e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-size-errored#20",
+      "script" : "[P7c] `SELF.R4[(Int, Int)].get.size`, R4 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll): `SizeOf` (transformers.scala:357) takes its input as a collection. CONTROL for P7x.",
+      "tree_bytes_hex" : "0b06b1e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-expression-size-accept#21",
+      "script" : "[P7x] `SELF.R4[(Int, Int)].get.size`, R4 = the pair Tuple EXPRESSION — `2`: the static type is a pair, but `STuple` extends `SCollection[SAny]`, so the tree parses, and `SizeOf` takes the value as the collection it is. SEPARATING: refusing at the read, or refusing a pair-typed `SizeOf`, is red.",
+      "tree_bytes_hex" : "0b06b1e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 89,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-byindex0-errored#22",
+      "script" : "[P8c] `SELF.R4[(Int, Int)].get(0)`, R4 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll): `ByIndex` (transformers.scala:249) takes its input as a collection. CONTROL for P8x.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040000",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-expression-byindex0-accept#23",
+      "script" : "[P8x] `SELF.R4[(Int, Int)].get(0)`, R4 = the pair Tuple EXPRESSION — `1`, the first item of the Coll[Any]; the node's type is the pair's item type, `Any`. SEPARATING: refusing at the read or at the node is red.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040000",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 110,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-byindex1-errored#24",
+      "script" : "[P9c] `SELF.R4[(Int, Int)].get(1)`, R4 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll), as P8c. CONTROL for P9x.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040200",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-expression-byindex1-accept#25",
+      "script" : "[P9x] `SELF.R4[(Int, Int)].get(1)`, R4 = the pair Tuple EXPRESSION — `2`, the second item. SEPARATING: refusing at the read or at the node is red.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040200",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 110,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-constant-byindex2-errored#26",
+      "script" : "[P10c] `SELF.R4[(Int, Int)].get(2)`, R4 = the pair CONSTANT — ERRORED (ClassCastException: a Scala Tuple2 is not a Coll), as P8c. CONTROL for P10x.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040400",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-expression-byindex2-errored#27",
+      "script" : "[P10x] `SELF.R4[(Int, Int)].get(2)`, R4 = the pair Tuple EXPRESSION — ERRORED (ArrayIndexOutOfBoundsException): the Coll[Any] holds exactly the pair's two items. SEPARATING: an implementation that reads past them or answers a default is red.",
+      "tree_bytes_hex" : "0b09b2e4c6a70458040400",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-field1-accept#28",
+      "script" : "[P11c] `SELF.R4[(Int, Int)].get._1`, R4 = the pair CONSTANT — `1`. CONTROL for P11x.",
+      "tree_bytes_hex" : "0b078ce4c6a7045801",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 1
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-field1-errored#29",
+      "script" : "[P11x] `SELF.R4[(Int, Int)].get._1`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet): `SelectField` (transformers.scala:291) matches a Tuple2 and anything else is `Value.typeError(input, …)`, which names its INPUT. The read itself did not refuse (P1x, P2x). SEPARATING: selecting the item from the Coll[Any] is red.",
+      "tree_bytes_hex" : "0b078ce4c6a7045801",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-field2-accept#30",
+      "script" : "[P12c] `SELF.R4[(Int, Int)].get._2`, R4 = the pair CONSTANT — `2`. CONTROL for P12x.",
+      "tree_bytes_hex" : "0b078ce4c6a7045802",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Int",
+          "value" : 2
+        },
+        "cost" : 85,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-field2-errored#31",
+      "script" : "[P12x] `SELF.R4[(Int, Int)].get._2`, R4 = the pair Tuple EXPRESSION — ERRORED (InterpreterException `Invalid type returned by evaluator`, naming the OptionGet), as P11x, for the second item. SEPARATING: selecting the item from the Coll[Any] is red.",
+      "tree_bytes_hex" : "0b078ce4c6a7045802",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : null,
+        "cost" : null,
+        "error" : "errored"
+      }
+    },
+    {
+      "name" : "register-pair-constant-serialize-accept#32",
+      "script" : "[P13c] `Global.serialize(SELF.R4[(Int, Int)].get)`, R4 = the pair CONSTANT — `0204`: `Global.serialize` writes by the argument's STATIC type (methods.scala:1982), the pair's two Ints. CONTROL for P13x.",
+      "tree_bytes_hex" : "0b0adc6a03dd01e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "580204"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            }
+          ]
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    },
+    {
+      "name" : "register-pair-expression-serialize-accept#33",
+      "script" : "[P13x] `Global.serialize(SELF.R4[(Int, Int)].get)`, R4 = the pair Tuple EXPRESSION — `0204`, the same bytes at its twin's cost: the static type is the pair, and the writer takes a Tuple2 or a Coll[Any] alike (`Evaluation.fromDslTuple`, Evaluation.scala:91). SEPARATING: refusing at the read, refusing to write a Coll[Any] under a pair type, or writing it as a collection (a length first) is red.",
+      "tree_bytes_hex" : "0b0adc6a03dd01e4c6a70458",
+      "selfRegisters" : {
+        "4" : {
+          "kind" : "Value",
+          "bytes_hex" : "860204020404"
+        }
+      },
+      "input" : {
+        "kind" : "Int",
+        "value" : 0
+      },
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      },
+      "expected" : {
+        "value" : {
+          "kind" : "Coll",
+          "elem" : {
+            "tag" : "SByte"
+          },
+          "items" : [
+            {
+              "kind" : "Byte",
+              "value" : 2
+            },
+            {
+              "kind" : "Byte",
+              "value" : 4
+            }
+          ]
+        },
+        "cost" : 100,
+        "error" : null
+      }
+    }
+  ]
+}

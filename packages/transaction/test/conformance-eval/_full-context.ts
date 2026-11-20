@@ -34,6 +34,7 @@ import {
   parseSValue,
   serializeSValue,
   serializeSigmaBoolean,
+  tupleColl,
   SValueParseError,
   SValueSerializeError,
   ErgoTreeParseError,
@@ -249,6 +250,47 @@ function readExtensionValueBinding(bytesHex: string): { tpe: SType; value: SValu
 // ---- Hydrate a JSON-form SValue (runner contract §4) ----
 
 /**
+ * Derive the declared SType of a SANTA JSON input from the JSON structure,
+ * not from the hydrated value. A Tuple JSON of any arity has an `STuple`
+ * type built from its items' JSON types — `sTypeOfSValue` on a hydrated
+ * tuple collection would answer `Coll[SAny]` for a tuple of another arity
+ * than two, since the hydrated value's `kind` is `Coll` for that case.
+ */
+function sTypeFromJson(json: any): SType {
+  switch (json.kind) {
+    case 'Boolean': return { tag: 'SBoolean' }
+    case 'Byte': return { tag: 'SByte' }
+    case 'Short': return { tag: 'SShort' }
+    case 'Int': return { tag: 'SInt' }
+    case 'Long': return { tag: 'SLong' }
+    case 'BigInt': return { tag: 'SBigInt' }
+    case 'UnsignedBigInt': return { tag: 'SUnsignedBigInt' }
+    case 'GroupElement': return { tag: 'SGroupElement' }
+    case 'SigmaProp': return { tag: 'SSigmaProp' }
+    case 'Box': return { tag: 'SBox' }
+    case 'AvlTree': return { tag: 'SAvlTree' }
+    case 'Header': return { tag: 'SHeader' }
+    case 'PreHeader': return { tag: 'SPreHeader' }
+    case 'Unit': return { tag: 'SUnit' }
+    case 'Coll': return { tag: 'SColl', elem: json.elem as SType }
+    case 'Coll[Byte]': return { tag: 'SColl', elem: { tag: 'SByte' } }
+    case 'Tuple':
+      return { tag: 'STuple', items: (json.items as any[]).map(sTypeFromJson) }
+    case 'Option': {
+      const elem =
+        (json.elem as SType | undefined) ??
+        (json.value !== null ? sTypeFromJson(json.value) : undefined)
+      if (elem === undefined) {
+        throw new Error('sTypeFromJson: Option None without elem is untypeable')
+      }
+      return { tag: 'SOption', elem }
+    }
+    default:
+      throw new Error(`sTypeFromJson: unknown kind '${json.kind}'`)
+  }
+}
+
+/**
  * Hydrate a SANTA JSON value (either an SValue by its `kind`, or a `Value`
  * binding whose bytes go through this package's extension reader) into
  * ergots' runtime `SValue` plus its declared `SType`. The runner contract
@@ -262,7 +304,12 @@ function hydrateExtensionValue(json: unknown, treeVersion: number): { tpe: SType
     return readExtensionValueBinding(j['bytes_hex'] as string)
   }
   const value = hydrateSValue(j, treeVersion)
-  return { tpe: sTypeOfSValue(value), value }
+  // A Tuple JSON input of any arity has an `STuple` type built from its
+  // items' JSON types (`CoreDataSerializer.scala:139-144`): the data reader
+  // hands a tuple of another arity than two back as a `Coll[Any]`, so the
+  // hydrated value's own `kind: 'Coll'` reads as `Coll[Any]` — the declared
+  // tuple type lives only in the JSON structure.
+  return { tpe: sTypeFromJson(j), value }
 }
 
 function hydrateSValue(json: unknown, treeVersion: number): SValue {
@@ -294,8 +341,14 @@ function hydrateSValue(json: unknown, treeVersion: number): SValue {
       return { kind: 'Coll', elem: { tag: 'SByte' }, items }
     }
     case 'Tuple': {
+      // A pair is `kind: 'Tuple'`; every other arity is the `Coll[Any]` the
+      // JVM data reader hands back (`CoreDataSerializer.scala:139-144`
+      // through `Evaluation.toDslTuple` `Evaluation.scala:99-102`). The
+      // declared `STuple` type lives in the JSON structure (`sTypeFromJson`
+      // above).
       const items = (j['items'] as unknown[]).map(i => hydrateSValue(i, treeVersion))
-      return { kind: 'Tuple', items }
+      if (items.length === 2) return { kind: 'Tuple', items }
+      return tupleColl(items)
     }
     case 'Option': {
       const raw = j['value']
@@ -598,14 +651,12 @@ export function evalFullContextEntry(e: SantaFullCtxEntry): SantaActual {
  * `row is green; remove it from the red table`.
  */
 export const RED_REASONS: Record<string, string> = {
-  'tuple-as-collection':
-    'A tuple constant of three or more items is handed where a collection is wanted.',
   comparer:
     'An item comparison across integer widths or over boxed values on a plain receiver.',
   'method-not-implemented':
     "ergots throws its 'method-not-implemented' code: a method id with no handler, or an argument guard that reuses the code.",
   'expression-register':
-    "The entry's SELF, another box, or an extension holds an expression as a register or variable value, which ergots' readers refuse before anything else is read.",
+    "The entry's SELF, another box, or an extension holds an expression as a register or variable value that ergots' readers refuse at parse before anything else is read (a `ConcreteCollection` or a `DeserializeContext` in a register; a `Tuple`, `ConcreteCollection` or other expression lead in an extension value, whose reader takes a Constant lead byte only).",
 }
 
 /** `<v5|v6>/<file>` → reason id → entry names. */

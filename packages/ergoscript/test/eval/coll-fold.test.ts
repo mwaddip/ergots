@@ -1,57 +1,46 @@
 /**
- * Fold (collection fold) eval — fixture-driven test (phase 2f Coll HOFs Task 8).
+ * Fold eval — fixture-driven test.
  *
- * Third lambda HOF arm. Tests the `Fold` arm of the evaluator: applies a binary
- * function to an accumulator and each element of a collection, going left to right.
+ * Applies a binary function to an accumulator and each element of a
+ * collection, going left to right. `Fold.eval` (`transformers.scala:224-231`)
+ * evaluates input, evaluates zero, runs `Value.checkType(zero, zeroV)` —
+ * the only `checkType` site in the arm — evaluates foldOp, charges the
+ * sequence cost at the input's length, and runs `inputV.foldLeft(zeroV,
+ * foldOpV)`. The lambda takes a 2-tuple `(acc, item)` and destructures it
+ * via SelectField (1-indexed, 1=acc, 2=item).
  *
- * Structurally distinct from Map/Filter: the lambda takes a 2-tuple `(acc, item)`
- * and destructures it via SelectField (1-indexed, 1=acc, 2=item).
+ * Cost (Mixed pattern — outer + per-item):
+ *   Outer, AFTER all three child evals (input, zero, fold_op), BEFORE the
+ *   loop:
+ *     `addPerItemCost(3, 1, 10, n)` where n = input.length.
+ *     n=0 → 3, n=4 → 4, n=5 → 4, n=12 → 5.
+ *   Per-iter, inside the closure, BEFORE body eval:
+ *     `addCost(5)` per element.
  *
- * Cost: Mixed pattern — outer + per-item.
- *   - Outer (after ALL THREE child evals — input, zero, fold_op — before loop):
- *       add_per_item_jit_cost(3, 1, 10, n) where n = input.length
- *       NOTE: outer cost is (3, 1, 10), NOT (20, 1, 10) like Map/Filter.
- *       n=0 → 3, n=4 → 4, n=5 → 4, n=12 → 5
- *   - Per-iter (inside closure, before body eval):
- *       addCost(5) per element
- *
- * Sigma-rust ref: ergotree-interpreter/src/eval/coll_fold.rs:12-71
- *   line 18: input_v = self.input.eval(env, ctx)?;
- *   line 19: zero_v = self.zero.eval(env, ctx)?;
- *   line 20: fold_op_v = self.fold_op.eval(env, ctx)?;
- *   line 29: ctx.add_jit_cost(5)?;   // per-iter, inside closure
- *   line 48: ctx.add_per_item_jit_cost(3, 1, 10, n_items)?;  // outer (base=3!)
- *   line 50-63: NativeColl bytes path + WrappedColl path
- *
- * Lambda body shape (happy-path): BinOp(Plus, SelectField(1, ValUse(tup_id)),
- *   SelectField(2, ValUse(tup_id))) — SelectField(1) extracts acc, SelectField(2)
- *   extracts item. SelectField is 1-indexed per phase 2f medium.
- *
- * Sigma-rust proptest tree shape (coll_fold.rs:100-150):
- *   FuncArg { idx: 1, tpe: STuple([zero_tpe, input_elem_tpe]) }
- *   body = BinOp(Plus, SelectField(1, ValUse(1)), SelectField(2, ValUse(1)))
- *   — same pattern used in fixtures 1, 2, 3, 4, 5.
+ * Lambda body shape (happy-path): `BinOp(Plus, SelectField(1, ValUse(tup_id)),
+ *   SelectField(2, ValUse(tup_id)))` — SelectField(1) extracts acc,
+ *   SelectField(2) extracts item. SelectField is 1-indexed.
  *
  * Tuple construction in the loop:
- *   Each iteration creates { kind: 'Tuple', items: [acc, item] } as the lambda arg,
- *   bound to closure.argIds[0] in a fresh env scope. Body uses SelectField(1) to get
- *   acc (items[0]) and SelectField(2) to get item (items[1]).
- *   The 1-based SelectField index maps to items[fieldIndex - 1].
+ *   Each iteration creates `{ kind: 'Tuple', items: [acc, item] }` as the
+ *   lambda arg, bound to `closure.argIds[0]` in a fresh env scope. Body
+ *   uses SelectField(1) to get acc (items[0]) and SelectField(2) to get
+ *   item (items[1]). The 1-based SelectField index maps to
+ *   `items[fieldIndex - 1]`.
  *
- * Fixture entries (9):
+ * Fixture entries (8):
  *   1. coll_fold_happy_sum               — [1,2,3,4].fold(0)((acc,item) => acc+item) → Int(10)
  *   2. coll_fold_multiply                — [1,2,3].fold(1)((acc,item) => acc*item)   → Int(6)
  *   3. coll_fold_empty                   — [].fold(42)(...) → Int(42)
  *   4. coll_fold_byte_coll               — Coll[Byte].fold(0_byte)  → Byte(35)
  *   5. coll_fold_sg_n12                  — n=12 smoking-gun; outer=5 vs n=5 outer=4
  *   6. coll_fold_lambda_not_callable     — 'lambda-not-callable'
- *   7. coll_fold_lambda_result_type_mismatch — 'lambda-result-type-mismatch'
- *   8. coll_fold_not_coll                — 'coll-input-not-coll'
- *   9. coll_fold_cost_limit_exceeded     — 'cost-limit-exceeded'
+ *   7. coll_fold_not_coll                — 'coll-input-not-coll'
+ *   8. coll_fold_cost_limit_exceeded     — 'cost-limit-exceeded'
  *
  * Smoking-gun test (live-eval):
- *   Compare entries 1 (n=4) and 5 (n=12) extracted costs to verify outer cost changes
- *   at n=10 chunk boundary (n=5 → outer 4; n=12 → outer 5).
+ *   Compare entries 1 (n=4) and 5 (n=12) extracted costs to verify outer
+ *   cost changes at n=10 chunk boundary (n=5 → outer 4; n=12 → outer 5).
  */
 
 import { describe, it, expect } from 'vitest'

@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator (phases 2b–2i-c, 2j, JVM-alignment, v6 P0–P6, F1–F5 batch 4).** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **87 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented (phases P0–P6), including first-class functions (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator.** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **88 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented, first-class functions included (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -42,12 +42,13 @@ import {
   boxTreeOf, reencodeTreeBytes, seedBoxTree, boxBytesOf, boxIdOf,
   violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
+  tupleColl,
   isUnparsedTree,
   MAX_TREE_SIZE, MAX_PROPOSITION_SIZE, VERSION,
   type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
   type ParseTreeOptions, type SType, type SValue, type Expr, type ErgoBox,
   type AdditionalRegisters,
-  type ArrayClass, type CollClass,
+  type ArrayClass, type CollClass, type CollValue,
   type Network, type AddressType,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
   ExprParseError, ExprSerializeError, ExprTpeError,
@@ -301,7 +302,7 @@ type SValue =
   | { kind: 'AvlTree';      value: AvlTreeData }
   | { kind: 'Unit' }
   | { kind: 'Coll';         elem: SType; items: SValue[]; cls?: CollClass }
-  | { kind: 'Tuple';        items: SValue[] }
+  | { kind: 'Tuple';        items: SValue[] }    // holds exactly two items; a tuple value of any other arity is a Coll[Any], per facts/ergoscript-eval.md "Tuples and non-pair tuple values"
   | { kind: 'Option';       elem: SType; value: SValue | null }
   | { kind: 'Lambda';       closure: Closure }
   | { kind: 'Context' }                        // phase 2g.5 — Context Expr arm sentinel
@@ -314,7 +315,28 @@ Runtime-value discriminated union. Composite kinds (`Coll`, `Option`) carry thei
 
 A `Coll` value carries an optional `cls: CollClass` — the class of the JVM's `Coll[A]` object the value stands for (`core/shared/src/main/scala/sigma/data/CollsOverArrays.scala`): array shape over a primitive or reference array, or a pair of two sides. Every value built inside this package has `cls` set, and the evaluator reads it where the JVM reads the class (`getOrElse` on a specialised or pair receiver, `patch` / `updated` / `updateMany` / `append` stores, `startsWith` / `endsWith` casts, `map` / `flatMap` through the result's array). A `Coll` handed in without `cls` reads as the data reader's class for its `elem` (`CoreDataSerializer.deserializeColl`, `:166-191`): `Coll[Boolean]` and `Coll[Byte]` specialised over the primitive array, a pair-item type as `PairOfCols` with plain sides, every other item type as the plain class over its item's class tag. A consumer building a `Coll` by hand for a context (a register value, a context-extension value) may leave `cls` out: the evaluator reads the data reader's class, as the JVM does for a value that reaches an evaluation through its data codec. The two error codes a class decision raises, `'coll-class-cast'` (a value or array cast to another class) and `'coll-array-store'` (an array refuses a store), live in `facts/ergoscript-eval.md`.
 
+A `Tuple` value holds exactly two items, as the JVM's `Tuple2` does. A tuple value of any other arity is a `Coll` with `elem` the JVM's `SAny` (`SANY_JVM`) and `cls: { shape: 'array', specialised: false, array: 'Object' }` — the plain class over `Object[]` that the JVM's `Colls.fromArray(arr)(sigma.AnyType)` gives (`CoreDataSerializer.scala:139-144`, `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). A collection of non-pair tuples takes `elem: SColl(SAny)` (`CoreDataSerializer.scala:179-180`). A `Tuple` expression in a register gives this `Coll[Any]` at every arity, two included, when the value is read (`values.scala:818-822`); the context-extension reader (`@ergots/transaction`'s `parseContextExtension`) reads a Constant only, so an extension value that is a `Tuple` expression is refused at the read. The two routes that give a script such a value — a data constant and a `Tuple` expression in a register — are the inputs to the readers that cast a collection's array (`AtLeast`, the hashes, `ByteArrayToBigInt`, the AvlTree key and proof arguments, `updateDigest`, `Global.powHit`'s byte arguments, and `Append` against a primitive-backed operand); each refuses a `Coll[Any]` with `'coll-class-cast'`. `SelectField` answers on a `kind: 'Tuple'` value only; a `Coll[Any]` is a type error (`'select-field-non-pair'`). At each JVM `checkType` site a `Coll[Any]` under a pair type is `'checked-value-class'` (`SType.scala:200-201`); a declared type of the JVM's `SAny` or `NoType`, or of a non-pair `STuple` or non-unary `SFunc`, at those sites is `'unsupported-value-type'`. See `facts/ergoscript-eval.md`, "Tuples and non-pair tuple values", for the full rule and the writer's `fromDslTuple` behaviour.
+
 `SigmaProp.value` is a structural `SigmaBoolean` (6-variant discriminated union — see `facts/ergoscript-sigma.md`). Wire parse + serialize is byte-identical against sigma-rust; structural access is consumed by `verifySignature` and by the `SigmaPropBytes` evaluator arm.
+
+### `tupleColl(items)`
+
+```ts
+function tupleColl(items: SValue[]): CollValue;
+```
+
+Build the `Coll[Any]` the JVM data reader gives for a tuple of another arity than two (`CoreDataSerializer.scala:139-144` through `Evaluation.toDslTuple` `core/shared/src/main/scala/sigma/Evaluation.scala:99-102`). The `CollValue` is `Extract<SValue, { kind: 'Coll' }>` — a narrowing of the `SValue` union to its `Coll` member — with `elem: SANY_JVM`, `items` as given, and `cls: { shape: 'array', specialised: false, array: 'Object' }` (the plain class over `Object[]`). `SANY_JVM` is the one `SAny` object the readers recognise by identity (told from ergots' own `SAny` by `===`).
+
+A caller that binds a tuple value of another arity than two at an extension or register position uses this builder: the collection's `elem` is identity-sensitive, and this is the one API that produces it. `items` is one `SValue` per tuple item, in order (`items[0]` is `t._1`, `items[1]` is `t._2`, and so on). A pair stays `{ kind: 'Tuple', items }` — the builder is for non-pair arities.
+
+A tuple collection is told by the identity of its `elem` object: the one `SANY_JVM` object `tupleColl` places on it. A `kind: 'Coll'` whose `elem` is a structural `{ tag: 'SAny' }` object (not `SANY_JVM` by `===`) is not a tuple collection to the evaluator. Consequences for such a value, each pinned by a unit test in `packages/ergoscript/test/coll/structural-sany-elem.test.ts`:
+
+- The value writer (`serializeSValue` at an `STuple` type, `wire/serialize-svalue.ts`) refuses with `SValueSerializeError('type-value-mismatch')` — `tupleItems` matches by the object identity of `SANY_JVM` and returns `null` on any other `SAny` object.
+- The element-type check of the five lambda-applying Coll arms (Filter / Exists / ForAll / MapColl / SColl.flatMap) refuses with `EvalError('coll-elem-tpe-mismatch')` — the structural `SAny` equals neither the declared argument type nor `dataItemType(argTpe)`, while the identity check against `SANY_JVM` admits the tupleColl's elem.
+- `SelectField` refuses with `EvalError('select-field-input-not-tuple')` — its class check for a non-pair-value input fires first on a `kind: 'Coll'`, before the tupleColl-identity branch that gives `'select-field-non-pair'`.
+- `SizeOf` and `ByIndex` still answer — they iterate on `items` and have no `elem` identity test.
+
+`makeContext` does not normalise: a register or extension entry whose declared type is a non-pair `STuple` and whose value is a `Coll` built outside `tupleColl` with a structural `SAny` keeps that structural `elem`. A caller that builds a tuple collection for a harness binding uses `tupleColl`.
 
 ### `CollClass` / `ArrayClass`
 
@@ -478,7 +500,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 87 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
+- **Postcondition (failure):** Throws `EvalError` with one of the 88 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
 - **Behaviour changes (2026-09-30; `docs/specs/2026-09-30-jvm-node-construction-design.md`):**
   - **No pre-eval pass.** `evaluate` no longer runs `validateBinOpTypes`, `validateMethodCallArity` or `validateV6Types` over the tree before evaluating it. The JVM makes those checks only at parse, and so does `parseTree` now (see "`ExprParseError` codes"): a relation's operand types (`'relation-operand-not-numeric'`, `'relation-operand-type-mismatch'`, which were `EvalError`s `'bin-op-not-numeric'` and `'bin-op-kind-mismatch'` from the pass), a v3 `MethodCall` without arguments (`'method-call-empty-args'`, retired as an `EvalError` code) and a v6 type below v3 (see `parseSType`). So a relation rebuilt around a substituted script is not checked by `check2` again, as in the JVM. `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired: a parsed tree below v3 cannot carry one (a size-flagged tree degrades, and its spend fails `'unparsed-ergotree'`; an unsized one rejects). Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written, as it evaluates a relation or a method call it builds.
   - **Nodes the JVM does not evaluate.** Every raw `BitOp` (`BitOr`, `BitAnd`, `BitXor` and the three shifts) and `BitInversion` rejects when evaluated, with `'unsupported-eval-node'`, charging nothing and evaluating no operand, as `TreeLookup` and `CreateAvlTree` already did. Before, `BitOr`, `BitAnd`, `BitXor` and `BitInversion` evaluated and the shifts threw `'not-implemented-yet'`. A tree that holds one only in a branch never evaluated still evaluates. The v6 methods (`bitwiseOr`, `shiftLeft` and the rest) are unchanged. `ModQ` (`0xe7`), `ModQArith` (`0xe8` `PlusModQ`, `0xe9` `MinusModQ`) and `TaggedVariable` (`0x71`) reject the same way: `'unsupported-eval-node'`, nothing charged, no operand evaluated.
@@ -577,13 +599,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 87 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 88 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 87 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 88 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|
@@ -601,8 +623,9 @@ All 87 `EvalError` codes and their semantics are documented in `facts/ergoscript
 | `'coll-class-cast'` | A cast of a value or an array to another class. Thrown by: `getOrElse` on a specialised `CollOverArray` with a default of another class (in range and out), and on `PairOfCols` with a non-pair default at the method call (in range and out, through the bridge method's cast of `default: Object` to `Tuple2`); `startsWith` / `endsWith` on a specialised receiver whose argument's array is of another class (even empty), and on `PairOfCols` whose fallback casts a primitive-array non-pair argument to `Tuple2[]`; `patch` on a specialised receiver with a patch over another array; `updated` / `updateMany` on a specialised receiver with an item of another class, on `PairOfCols` with a non-pair item, and through a specialised pair side's own unbox; `append` on a specialised receiver with an operand of another array (even empty), and on `PairOfCols` through the `unzip` fallback whose component store on a primitive side casts (a left component of another class into a primitive left side, and the same for the right); `map` through the result array's per-item unbox on a primitive class, and the `ArrayBuilder.ofUnit.+=` call-site cast on a non-Unit; `flatMap` through the result array's per-item unbox on a primitive class; the pair-builder's component store on a specialised pair side with a component of another class (every producer that routes a pair-item type through `fromArray`); and the `Xor` arm's per-pair unbox on a non-byte item in the min-length range. Mirrors the JVM's `ClassCastException` |
 | `'coll-array-store'` | A store a reference array refuses. Thrown by: `append` on a plain primitive receiver with an operand of another array (even empty), on a plain reference receiver with a primitive operand (even empty), and per-item on a plain reference receiver with a non-empty operand of another reference class; `updated`, `updateMany` and `patch` on a plain reference receiver whose array refuses the stored value (`Coll[Unit]` on direct aastore, `Coll[Coll[_]]` with a non-Coll item, a named reference class with an item of another class); `map` through the result array's per-item aastore (the `PairOfCols.map` direct store into `new Array[V]`, including `Array[BoxedUnit]`); `flatMap` through the result array's per-item aastore on a reference class; and the pair-builder's `storeComponent` on a plain reference pair side with a component of another class, and the pair-build itself on an item that is not a Tuple-of-2. Mirrors the JVM's `ArrayStoreException` |
 | `'deserialize-rebuild-failed'` | New on 2026-09-30: a node the Deserialize substitution rebuilds, around a substituted script or default, fails its constructor's checks, as Kiama's `dup` runs them in the JVM (a class cast included); the check's error is the `cause` |
-| `'unsupported-value-type'` | A value flowing through a checkType seam (Tuple item, ConcreteCollection item, BlockValue, ValUse, ConstantPlaceholder) has a declared non-pair `STuple` (arity≠2) or non-unary `SFunc` (arity≠1) type — JVM `SType.isValueOfType` sys.error (F5 batch 3; adversarial-only) |
-| `'select-field-non-pair'` | `SelectField` input is a Tuple of arity≠2 — JVM `SelectField.eval` matches only `Tuple2` (F5 batch 3; adversarial-only) |
+| `'unsupported-value-type'` | At a checkType site (`EQ`/`NEQ` operands, taken `If` branch, Tuple item, ConcreteCollection item, BlockValue, ValUse, ConstantPlaceholder, `Fold`/`ByIndex`/`OptionGetOrElse` default), the node's declared type is one the JVM's `isValueOfType` has no value for: a non-pair `STuple` (arity≠2), a non-unary `SFunc` (arity≠1), or the JVM's `SAny` or `NoType` (`SType.scala:200-205`, `:212`); JVM `sys.error` ("Unsupported tuple type", "Unsupported function type", "Unknown type"); adversarial-only |
+| `'checked-value-class'` | At a checkType site under a pair-typed node (`STuple` of two items), the evaluated value's runtime class is not a pair (`SType.scala:200-201`, `x.isInstanceOf[Tuple2[_,_]]`, then `Value.typeError` at `values.scala:251-255`); adversarial-only. The JVM's class checks on the other `isValueOfType` arms (typed collection stores and the primitive-wrapper arms) stay residual |
+| `'select-field-non-pair'` | `SelectField` input is a value of kind other than `'Tuple'` under a `STuple` type, or a `'Tuple'` value whose arity is not 2 — JVM `SelectField.eval` matches only `Tuple2` (`transformers.scala:297-308`, `Value.typeError`); adversarial-only |
 | `'atleast-too-many-children'` | `Atleast` input collection holds >255 SigmaProps — JVM `CSigmaDslBuilder.atLeast` cap (`MaxChildrenCountForAtLeastOp = 255`); thrown after the per-item charge, before the degenerate-bound reductions (F5 batch 4; adversarial-only) |
 | `'context-extension-key-out-of-range'` | SELF context-extension key outside `[0,127]` — the JVM keys the extension by signed `Byte`, so a wire key ≥0x80 is negative and crashes `toSigmaContext` before reduction (v6 batch-6; adversarial-only; per-input extensions unaffected) |
 
