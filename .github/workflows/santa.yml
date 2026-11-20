@@ -12,3 +12,6 @@ jobs:
         with:
           fetch-depth: 0 # the base and head are graded from this checkout
       - uses: mwaddip/santa/.github/actions/santa-pr@main
+        # with:
+        #   runner-path: santa      # the runner's directory in this repository (default santa)
+        #   label: owner/repo       # its name in the comment (default the repository's)
