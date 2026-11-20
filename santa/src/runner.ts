@@ -11,6 +11,10 @@ import {
   BatchAVLProver, verifyAvlBatchPartial, AvlVerifyError,
   type AvlTreeConfig, type Operation,
 } from '@ergots/avltree'
+import {
+  parseTransaction, serializeTransaction, validateStateful, parseContextExtension,
+  type ErgoLikeTransaction, type StatefulDeps,
+} from '@ergots/transaction'
 import { decodeSValue } from './decode'
 import { extensionBinding, registerBinding, BindingRefused, NoExtensionReader, type ExtensionReader } from './binding'
 import { isWireCodecError } from './codec-errors'
@@ -556,13 +560,13 @@ type WireResult = {
 const SBOX: SType = { tag: 'SBox' }
 
 
-/** The wire-tier slice of the lazily-loaded @ergots/transaction codec (null if ergots-impl
- *  predates the tx tier — then a Transaction entry degrades to not-implemented). */
-type WireTxCodec = { parseTransaction: (b: Uint8Array) => unknown; serializeTransaction: (tx: unknown) => Uint8Array } | null
+/** The transaction codec a Transaction wire entry round-trips through: @ergots/transaction's. */
+type WireTxCodec = { parseTransaction: typeof parseTransaction; serializeTransaction: typeof serializeTransaction }
+const TX_CODEC: WireTxCodec = { parseTransaction, serializeTransaction }
 
 /** Round-trip one wire entry → exactly one WireResult. Never-panic net mirrors runEntry: any
  *  otherwise-uncaught throw becomes `panicked` (note carries the message) so the run continues. */
-export function runWireEntry(e: WireEntry, tx: WireTxCodec = null): WireResult {
+export function runWireEntry(e: WireEntry, tx: WireTxCodec = TX_CODEC): WireResult {
   try {
     return runWireEntryInner(e, tx)
   } catch (err) {
@@ -654,12 +658,9 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       }
     }
     case 'Transaction': {
-      // ergots HAS a tx wire codec since @ergots/transaction (merged) — round-trip via
-      // parseTransaction → serializeTransaction, the structural analog of the ErgoTree case
-      // (serializeTransaction re-encodes from structure, not a cached-bytes echo). The codec is the
-      // lazily-loaded module threaded in by runWireVector; null (ergots-impl predates the tx tier)
-      // ⇒ not-implemented. A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError.
-      if (!tx) return { bytes_hex: null, error: 'not-implemented' }
+      // Round-trip via @ergots/transaction's parseTransaction → serializeTransaction, the structural
+      // analog of the ErgoTree case (serializeTransaction re-encodes from structure, not a cached-bytes
+      // echo). A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError.
       const bytes = hexToBytes(e.bytes_hex)
       try {
         const parsed = tx.parseTransaction(bytes)
@@ -677,13 +678,10 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
   }
 }
 
-/** run(wire vector) → actuals: exactly one WireResult per entry, keyed by name (total).
- *  Async because the Transaction kind round-trips via the lazily-loaded @ergots/transaction codec,
- *  loaded once per vector and threaded into each entry (null ⇒ Transaction degrades to not-impl). */
-export async function runWireVector(doc: WireVector): Promise<Record<string, WireResult>> {
-  const tx = await loadTxModule()
+/** run(wire vector) → actuals: exactly one WireResult per entry, keyed by name (total). */
+export function runWireVector(doc: WireVector): Record<string, WireResult> {
   const actuals: Record<string, WireResult> = {}
-  for (const e of doc.entries) actuals[e.name] = runWireEntry(e, tx)
+  for (const e of doc.entries) actuals[e.name] = runWireEntry(e)
   return actuals
 }
 
@@ -692,10 +690,8 @@ export async function runWireVector(doc: WireVector): Promise<Record<string, Wir
 // StatefulDeps (input/data boxes + the provided block context) → validateStateful, which RETURNS
 // the transaction's block cost on accept and THROWS on reject. Bytes are the consensus form — the
 // context-extension wire order survives parseTransaction with no special handling (the
-// getVarFromInput / inputExtensions substrate intact). The package lives on the ergots tx branch;
-// if absent (ergots-impl on a pre-tx master) it loads as null and every entry degrades to
-// not-implemented, leaving eval/wire untouched. dasher claims cost (runner.json), so an accept
-// carries that block cost: runner-contract-transaction.md §1-§5.
+// getVarFromInput / inputExtensions substrate intact). The runner claims cost (runner.json), so an
+// accept carries that block cost: runner-contract-transaction.md §1-§5.
 
 interface TxEntry {
   name: string
@@ -720,9 +716,6 @@ type TxResult = {
   note?: string
 }
 
-// Frozen singleton — returned by reference on every entry (never mutated).
-const TX_NOT_IMPL: TxResult = Object.freeze({ valid: null, cost: null, error: 'not-implemented' })
-
 /** SANTA preHeader JSON → ergots PreHeader (hex→bytes, u64 string→bigint). */
 function toPreHeader(p: TxEntry['preHeader']): PreHeader {
   return {
@@ -736,33 +729,12 @@ function toPreHeader(p: TxEntry['preHeader']): PreHeader {
   }
 }
 
-/** Lazily load @ergots/transaction. A VARIABLE specifier keeps tsc from statically resolving it
- *  (the package is only present when ergots-impl is pinned to the tx branch); absence ⇒ null. */
-async function loadTxModule(): Promise<{
-  parseTransaction: (b: Uint8Array) => unknown
-  serializeTransaction: (tx: unknown) => Uint8Array
-  validateStateful: (tx: unknown, deps: unknown) => number
-  /** Present once ergots exports its context-extension reader from the package root. */
-  parseContextExtension?: Exclude<ExtensionReader, null>
-} | null> {
-  try {
-    const spec = '@ergots/transaction'
-    return (await import(spec)) as never
-  } catch {
-    return null
-  }
-}
-
 /** One tx entry → its verdict. Setup/decode failures (parseTransaction, box/header parse) are
  *  `errored`; validateStateful returning is `accept` at the block cost it returns, throwing is
  *  `reject` (record the code). Wrapped by the caller's panic-net for anything otherwise-uncaught. */
-function runTxEntry(
-  e: TxEntry,
-  parseTransaction: (b: Uint8Array) => unknown,
-  validateStateful: (tx: unknown, deps: unknown) => number,
-): TxResult {
-  let tx: unknown
-  let deps: unknown
+function runTxEntry(e: TxEntry): TxResult {
+  let tx: ErgoLikeTransaction
+  let deps: StatefulDeps
   try {
     const treeVersion = e.version.ergoTree
     const box = (hex: string): ErgoBox =>
@@ -793,13 +765,11 @@ function runTxEntry(
 
 /** run(transaction vector) → actuals: exactly one TxResult per entry, keyed by name (total). The
  *  panic-net mirrors runEntry — any otherwise-uncaught throw becomes `panicked`. */
-export async function runTransactionVector(doc: TxVector): Promise<Record<string, TxResult>> {
-  const mod = await loadTxModule()
+export function runTransactionVector(doc: TxVector): Record<string, TxResult> {
   const actuals: Record<string, TxResult> = {}
   for (const e of doc.entries) {
-    if (!mod) { actuals[e.name] = TX_NOT_IMPL; continue }
     try {
-      actuals[e.name] = runTxEntry(e, mod.parseTransaction, mod.validateStateful)
+      actuals[e.name] = runTxEntry(e)
     } catch (err) {
       const note = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
       actuals[e.name] = { valid: null, cost: null, error: 'panicked', note }
@@ -982,25 +952,25 @@ export function runAuthdsVector(doc: AuthdsVector): Record<string, AuthdsResult>
  *  schemas, `santa-wire/v1`, `santa-transaction/v1` and `santa-authds/v1`. Under any other schema (a later
  *  version, a tier the runner does not mount, none) every entry answers `{"error": "not-implemented"}`, decided
  *  on the schema alone, before an entry is read (runner-integration §3). */
-export async function runDocument(raw: RawVector): Promise<Record<string, unknown>> {
+export function runDocument(raw: RawVector): Record<string, unknown> {
   const { schema } = raw
   if (schema === 'santa-wire/v1') return runWireVector(raw as unknown as WireVector)
   if (schema === 'santa-transaction/v1') return runTransactionVector(raw as unknown as TxVector)
   if (schema === 'santa-authds/v1') return runAuthdsVector(raw as unknown as AuthdsVector)
   if (schema !== undefined && EVAL_SCHEMAS.has(schema)) {
-    return runVector(raw as unknown as Vector, (await loadTxModule())?.parseContextExtension ?? null)
+    return runVector(raw as unknown as Vector, parseContextExtension)
   }
   return unread(raw)
 }
 
 // ---- CLI: runner <vector.json> [actuals-out.json] (mirrors Runner.scala) ----
-async function main(argv: string[]): Promise<void> {
+function main(argv: string[]): void {
   const vecPath = argv[2]
   if (!vecPath) {
     console.error('usage: runner <vector.json> [<actuals-out.json>]')
     process.exit(2)
   }
-  const actuals = await runDocument(JSON.parse(readFileSync(vecPath, 'utf8')) as RawVector)
+  const actuals = runDocument(JSON.parse(readFileSync(vecPath, 'utf8')) as RawVector)
   const json = JSON.stringify(actuals, null, 2)
   const outPath = argv[3]
   if (outPath) {
@@ -1014,5 +984,5 @@ async function main(argv: string[]): Promise<void> {
 // Run main only when invoked as the bin (not when imported). pathToFileURL resolves a
 // relative argv path to an absolute file URL so the comparison is robust.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv).catch((e) => { console.error(e); process.exit(1) })
+  main(process.argv)
 }

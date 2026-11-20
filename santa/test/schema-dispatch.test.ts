@@ -17,28 +17,28 @@ const evalEntry = (name: string) =>
 const wireEntry = { name: 'c', kind: 'Constant', bytes_hex: '090105', version: { activated: 3, ergoTree: 3 } }
 
 describe('a vector whose schema the runner does not know: every entry is not-implemented', () => {
-  it('a later version of the eval schema, with entries the santa-eval/v1 arm evaluates', async () => {
-    const actuals = await runDocument({ schema: 'santa-eval/v99', entries: [evalEntry('g'), evalEntry('h')] })
+  it('a later version of the eval schema, with entries the santa-eval/v1 arm evaluates', () => {
+    const actuals = runDocument({ schema: 'santa-eval/v99', entries: [evalEntry('g'), evalEntry('h')] })
     expect(actuals).toStrictEqual({ g: NOT_IMPLEMENTED, h: NOT_IMPLEMENTED })
   })
 
-  it('a later version of the wire schema, with an entry the santa-wire/v1 arm writes back', async () => {
-    const actuals = await runDocument({ schema: 'santa-wire/v2', entries: [wireEntry] })
+  it('a later version of the wire schema, with an entry the santa-wire/v1 arm writes back', () => {
+    const actuals = runDocument({ schema: 'santa-wire/v2', entries: [wireEntry] })
     expect(actuals).toStrictEqual({ c: NOT_IMPLEMENTED })
   })
 
-  it('a tier the runner does not mount, with an entry the eval arm evaluates', async () => {
-    const actuals = await runDocument({ schema: 'santa-block/v1', entries: [evalEntry('g')] })
+  it('a tier the runner does not mount, with an entry the eval arm evaluates', () => {
+    const actuals = runDocument({ schema: 'santa-block/v1', entries: [evalEntry('g')] })
     expect(actuals).toStrictEqual({ g: NOT_IMPLEMENTED })
   })
 
-  it('a tier the runner does not mount, with an entry that holds no tree', async () => {
-    const actuals = await runDocument({ schema: 'santa-block/v1', entries: [{ name: 'b', block: {} }] })
+  it('a tier the runner does not mount, with an entry that holds no tree', () => {
+    const actuals = runDocument({ schema: 'santa-block/v1', entries: [{ name: 'b', block: {} }] })
     expect(actuals).toStrictEqual({ b: NOT_IMPLEMENTED })
   })
 
-  it('no schema', async () => {
-    const actuals = await runDocument({ entries: [evalEntry('g')] })
+  it('no schema', () => {
+    const actuals = runDocument({ entries: [evalEntry('g')] })
     expect(actuals).toStrictEqual({ g: NOT_IMPLEMENTED })
   })
 
@@ -57,43 +57,43 @@ describe('a vector whose schema the runner does not know: every entry is not-imp
 })
 
 describe('a vector whose schema the runner knows runs on that schema\'s arm', () => {
-  it('santa-eval/v1', async () => {
-    const actuals = await runDocument({ schema: 'santa-eval/v1', entries: [evalEntry('g')] })
+  it('santa-eval/v1', () => {
+    const actuals = runDocument({ schema: 'santa-eval/v1', entries: [evalEntry('g')] })
     expect(actuals).toStrictEqual({ g: { value: { kind: 'GroupElement', bytes_hex: GENERATOR }, cost: 305, error: null } })
   })
 
-  it('santa-eval/v2 through santa-eval/v5 and santa-eval/v6-fullctx reach the eval arm', async () => {
+  it('santa-eval/v2 through santa-eval/v5 and santa-eval/v6-fullctx reach the eval arm', () => {
     // Each of these schemas requires a context field the entry lacks: the eval arm's answer is `panicked`,
     // its note naming the field.
     for (const schema of ['santa-eval/v2', 'santa-eval/v3', 'santa-eval/v4', 'santa-eval/v5', 'santa-eval/v6-fullctx']) {
-      const actuals = await runDocument({ schema, entries: [evalEntry('g')] }) as Record<string, { error: string; note: string }>
+      const actuals = runDocument({ schema, entries: [evalEntry('g')] }) as Record<string, { error: string; note: string }>
       expect(actuals.g.error, schema).toBe('panicked')
       expect(actuals.g.note, schema).toMatch(/^Error: missing /)
     }
   })
 
-  it('santa-wire/v1', async () => {
-    const actuals = await runDocument({ schema: 'santa-wire/v1', entries: [wireEntry] })
+  it('santa-wire/v1', () => {
+    const actuals = runDocument({ schema: 'santa-wire/v1', entries: [wireEntry] })
     expect(actuals).toStrictEqual({ c: { bytes_hex: '090105', error: null } })
   })
 
-  it('santa-transaction/v1', async () => {
+  it('santa-transaction/v1', () => {
     const doc = JSON.parse(readFileSync(
       path.resolve(here, 'fixtures/transaction/v6/captured/bigint-downcast-2666.json'), 'utf8'))
     const entries = doc.entries as { name: string; expected: { cost: number } }[]
-    const actuals = await runDocument(doc)
+    const actuals = runDocument(doc)
     expect(actuals).toStrictEqual(
       Object.fromEntries(entries.map((e) => [e.name, { valid: true, cost: e.expected.cost, error: null }])))
   })
 
-  it('santa-authds/v1', async () => {
+  it('santa-authds/v1', () => {
     const entry = {
       name: 'p',
       kind: 'avl_prove',
       settings: { key_length: 32, value_length: null },
       payload: { operations: [{ tag: 'Lookup', key_hex: '04'.repeat(32) }], gen_proof_after: [] },
     }
-    const actuals = await runDocument({ schema: 'santa-authds/v1', entries: [entry] })
+    const actuals = runDocument({ schema: 'santa-authds/v1', entries: [entry] })
     expect(actuals).toStrictEqual({ p: { proofs: [], digests: [], error: null } })
   })
 })

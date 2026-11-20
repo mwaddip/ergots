@@ -11,11 +11,10 @@ const loadVector = (rel: string): Parameters<typeof runTransactionVector>[0] =>
   JSON.parse(readFileSync(path.resolve(here, 'fixtures/transaction', rel), 'utf8'))
 
 describe('runTransactionVector — santa-transaction/v1 (bytes-anchored tx arm)', () => {
-  it('keystone seed bigint-downcast-2666: the tx arm accepts it at the JVM-blessed cost (a JVM-accepted captured tx)', async () => {
-    // ergots now has a real aggregate tx arm (@ergots/transaction); runTransactionVector is async
-    // and returns a verdict per entry — not the old not-implemented stub.
+  it('keystone seed bigint-downcast-2666: the tx arm accepts it at the JVM-blessed cost (a JVM-accepted captured tx)', () => {
+    // The tx arm runs @ergots/transaction's validateStateful and returns a verdict per entry.
     const vec = loadVector('v6/captured/bigint-downcast-2666.json')
-    const actuals = await runTransactionVector(vec)
+    const actuals = runTransactionVector(vec)
     // totality: one outcome per entry, keyed by name, none omitted
     expect(Object.keys(actuals)).toEqual(vec.entries.map((e) => e.name))
     // dasher claims the cost dimension (runner.json cost:true): an accepted spend reports

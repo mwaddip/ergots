@@ -4,6 +4,7 @@ import {
   SigmaBooleanParseError, SigmaBooleanSerializeError, ExprParseError,
 } from '@ergots/ergoscript'
 import { ReaderError } from '@ergots/scorex'
+import { TxParseError } from '@ergots/transaction'
 
 /** ergots' typed wire-codec error classes — a codec REJECTION of the bytes (a faithful reject ⇒
  *  `errored`), distinct from an untyped throw (a library/runner defect ⇒ the panic-net). The ErgoTree
@@ -17,9 +18,8 @@ export function isWireCodecError(err: unknown): boolean {
     || err instanceof SigmaBooleanParseError || err instanceof SigmaBooleanSerializeError
     || err instanceof ExprParseError
     || err instanceof ReaderError
-    // @ergots/transaction's TxParseError is loaded lazily (variable specifier), so match by name
-    // rather than instanceof — a tx-codec rejection of the bytes is a faithful `errored`.
-    || (err instanceof Error && err.name === 'TxParseError')
+    // A tx-codec rejection of the bytes is a faithful `errored`.
+    || err instanceof TxParseError
     // ExprTpeError: a node the JVM refuses to build (ergots' sized-tree work lets it propagate as a
     // hard reject). By name too: ergots master does not export the class from the package root.
     || (err instanceof Error && err.name === 'ExprTpeError')
