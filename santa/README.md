@@ -16,7 +16,8 @@ santa/grade --delta <base-ref>  # also grade <base-ref>, and print what changed 
 ```
 
 `santa/grade` fetches SANTA into a clone of its own (`$ERGOTS_SANTA_DIR`, by default `ergots/santa` under the user
-cache directory) and runs that clone's `./conform --hosted` on this checkout, uncommitted edits included. It prints
+cache directory), checks the chosen commit out over whatever the clone held, and runs the clone's
+`./conform --hosted` on this checkout, uncommitted edits included. It prints
 one line per slice (tier / version / provenance) with its counts, then the number of red entries and the path of
 two files:
 
@@ -24,7 +25,8 @@ two files:
 - `reds.tsv`: the same, one line per red entry.
 
 `--delta <base-ref>` runs SANTA's `./santa-pr`, the comparison the pull request check posts: entries newly red, now
-green, red another way and still red, one row per vector file.
+green, red another way and still red, one row per vector file. `<base-ref>` is a branch, tag or commit of this
+repository. The script exits 1 when the runner could not build or run.
 
 It needs `git`, [`mise`](https://mise.jdx.dev), `jq` and a systemd user manager on cgroup v2 (SANTA bounds each run's
 memory and time with it), so it runs on Linux.
@@ -47,7 +49,7 @@ The runner picks its arm by the vector's `schema`, by exact name and version:
 | Schema | Arm | Calls |
 |---|---|---|
 | `santa-eval/v1` to `santa-eval/v5`, `santa-eval/v6-fullctx` | `runVector` | `parseTree`, `makeContext`, `evaluateWith` (`@ergots/ergoscript`) |
-| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of each kind (`@ergots/ergoscript`, `@ergots/transaction`) |
+| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of the kinds `Constant`, `Box`, `SigmaBoolean`, `ErgoTree` (`@ergots/ergoscript`) and `Transaction` (`@ergots/transaction`) |
 | `santa-transaction/v1` | `runTransactionVector` | `parseTransaction`, `validateStateful` (`@ergots/transaction`) |
 | `santa-authds/v1` | `runAuthdsVector` | `BatchAVLProver`, `verifyAvlBatchPartial` (`@ergots/avltree`) |
 | `santa-nipopow/v1` | `runNipopowVector` | `updateInterlinks`, `prove`, `serializeProof` (`@ergots/nipopow`) |
@@ -56,7 +58,9 @@ Under any other schema every entry answers `{"error": "not-implemented"}`.
 
 An entry's outcome is ergots' own: a value (with its cost), `errored` when ergots refuses the input with one of its
 typed errors, `not-implemented` when ergots has no handler for the operation, and `panicked` (with the message in
-`note`) for any other throw. The runner compares nothing; grading is SANTA's.
+`note`) for any other throw. In the transaction arm, any failure to read the transaction, its boxes or its headers
+is `errored`, and a refusal by `validateStateful` is a rejection (`valid: false`, with ergots' error code as the
+reason). The runner compares nothing; grading is SANTA's.
 
 ## The scope it declares
 

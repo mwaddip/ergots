@@ -2,15 +2,18 @@
 # grade [--santa <ref>] [--delta <base-ref>]: grade this checkout against SANTA's vectors.
 #
 # Fetches SANTA (`mwaddip/santa`, `main` unless --santa names another branch, tag or commit) into a clone of its own,
-# then runs that clone's `./conform --hosted` on this checkout: the working tree in place, uncommitted edits included,
-# with this checkout's santa-run. conform prints one line per slice (tier/version/provenance); this script then
+# checks that commit out over whatever the clone held, then runs the clone's `./conform --hosted` on this checkout:
+# the working tree in place, uncommitted edits included, with this checkout's santa-run. conform prints one line per slice (tier/version/provenance); this script then
 # prints the number of red entries and where the full results are:
 #   results.json  conform's results, every red entry with its dimension, what SANTA expects and what ergots answered
 #   reds.tsv      one line per red entry: slice, op, entry, dimension, expected, got, note
 #
 # --delta <base-ref> runs `./santa-pr` in place of `./conform`, as the pull request check does: it grades <base-ref>
-# with that commit's own runner, then the working tree, and writes the comparison (comment.md, summary.md,
-# delta.json) beside the working tree's results.
+# (a branch, tag or commit of this repository, taken as the commit it names here) with that commit's own runner,
+# then the working tree, and writes the comparison (comment.md, summary.md, delta.json) beside the working tree's
+# results.
+#
+# Exits 1 when the runner could not build or run: conform's line for it says why, and nothing is graded.
 #
 # The clone is $ERGOTS_SANTA_DIR, by default ergots/santa under $XDG_CACHE_HOME (or under .cache in the home
 # directory). Needs git, mise, jq and, for SANTA's resource bound, a systemd user manager on cgroup v2: Linux only.
@@ -32,16 +35,25 @@ if [ ! -d "$santa/.git" ]; then
   mkdir -p "$(dirname "$santa")"
   git clone --quiet https://github.com/mwaddip/santa.git "$santa"
 fi
-git -C "$santa" fetch --quiet origin "$ref"
-git -C "$santa" checkout --quiet --detach FETCH_HEAD
+git -C "$santa" fetch --quiet --tags origin
+commit="$(git -C "$santa" rev-parse --verify --quiet "origin/$ref^{commit}" \
+  || git -C "$santa" rev-parse --verify --quiet "$ref^{commit}")" \
+  || { echo "santa/grade: SANTA has no branch, tag or commit '$ref'" >&2; exit 2; }
+git -C "$santa" checkout --quiet --force --detach "$commit"
 echo "SANTA $ref @ $(git -C "$santa" rev-parse --short HEAD), grading $root" >&2
 
 if [ -n "$base" ]; then
-  "$santa/santa-pr" "$root" "$base"
+  base_commit="$(git -C "$root" rev-parse --verify --quiet "$base^{commit}")" \
+    || { echo "santa/grade: this repository has no branch, tag or commit '$base'" >&2; exit 2; }
+  "$santa/santa-pr" "$root" "$base_commit"
   results="$santa/.santa/pr/head.json"
 else
   "$santa/conform" --hosted "$root"
   results="$santa/.santa/results.json"
+fi
+if [ "$(jq -r '.runners[0].mark // "errored"' "$results")" = errored ]; then
+  echo "santa/grade: the runner could not build or run (conform's line for it, above, says why); nothing is graded" >&2
+  exit 1
 fi
 reds="$(dirname "$results")/reds.tsv"
 jq -r '(.runners[0].slices // {}) | to_entries[] | .key as $slice | .value.red[]
