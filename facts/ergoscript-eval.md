@@ -490,7 +490,25 @@ The JVM 6.0.6 parses some nodes that have no `eval` of their own, and its defaul
 - **`'byte-array-to-bigint-empty'`** — `ByteArrayToBigInt`: input length 0. Distinct from the out-of-range code (JVM throws on empty rather than defaulting to BigInt(0)).
 - **`'byte-array-to-bigint-out-of-range'`** — `ByteArrayToBigInt`: signed-BE-decoded value outside `[I256_MIN, I256_MAX]` = `[-2^255, 2^255 - 1]`. Length is NOT capped at 32: 33+ byte inputs with redundant sign-extension bytes succeed when their effective value fits in i256.
 - **`'decode-point-invalid'`** — `DecodePoint`: the 33-byte SEC1-compressed input failed `decodePoint` adapter validation. Charged Pattern A cost 300 BEFORE the throw.
-- **`'subst-constants-error'`** — `SubstConstants` (CONSENSUS-CRITICAL — output bytes go on-chain): compact code covering 6 throw paths (positions vs newValues length mismatch; element type mismatch vs the template's constant type at a position; newValues not a Coll; positions not a Coll; scriptBytes not Coll[Byte]; serializer-level substitution error from `substituteConstantsBytes` — bad template bytes / too-many-constants, or a template constant's type read failing rule 1017 or 1018 under the evaluation's tree version, which the JVM rethrows at eval too; since 2026-09-30 that wire error is the `EvalError`'s `cause`). Out-of-range positions are a no-op, NOT a throw (JVM `getPositionsBackref` parity); the cost is sized by the TEMPLATE's `constants.length`, not positions.length (sigma-rust `subst_const.rs:221-283`). Per the compact-taxonomy decision; distinguished by `.message`.
+- **`'subst-constants-error'`** — every refusal of `SubstConstants` (CONSENSUS-CRITICAL: the output bytes go on-chain); the refusals are told apart by `.message`. The arm follows the JVM's `SubstConstants.eval` (`data/shared/src/main/scala/sigma/ast/trees.scala:628-651`) in this order:
+  1. `scriptBytes`, `positions` and `newValues` are evaluated. `scriptBytes` is a `Coll[Byte]`, `positions` a `Coll[Int]`, `newValues` a collection; any other value refuses.
+  2. **The lift.** Every item of `newValues`, in order, is lifted to a constant by its runtime class (`toArrayOfConstants`, `data/shared/src/main/scala/sigma/eval/Extensions.scala:53-64`; `Platform.liftToConstant`, `data/jvm/src/main/scala/sigma/Platform.scala:16-63`). The first item with no lift refuses the call, whatever `positions` holds.
+
+     | Item | Lifts | To the type |
+     |---|---|---|
+     | Boolean, Byte, Short, Int, Long, BigInt, GroupElement, SigmaProp, AvlTree | at every version | its own |
+     | a collection (a tuple of another arity than two is one) | at every version | `Coll` of the collection's `elem` |
+     | Box | from activated version 2 (`Platform.scala:50-54`) | `SBox` |
+     | Header, PreHeader, UnsignedBigInt | from tree version 3 (`:35-37`) | its own |
+     | String | below tree version 3 (`:39`) | `SString` |
+     | Unit, a pair, an Option, `CONTEXT`, `Global`, a function | at no version | |
+
+     The activated version is the block's (`activatedScriptVersion`, `eval/_activated-version.ts`), read only when an item is a Box: a context without a pre-header evaluates every other call. The cases of the JVM's match over host classes (`Array[...]`, `java.math.BigInteger`, `ErgoBox`, `AvlTreeData`, `SigmaBoolean`) have no ergots value.
+  3. The lengths of `positions` and `newValues` are compared (`ErgoTreeSerializer.scala:323`).
+  4. The template's header and constants are read (`:326`) under the evaluation's tree version: rule 1012 on the header, `'too-many-constants'`, and a constant's type or data read failing rule 1017 or 1018.
+  5. For each template constant a position names, the constant's type is compared with the lifted type of the `newValues` item its first position names (`:356`), and that item is written by its lifted type (`:358`). An out-of-range position names nothing (`getPositionsBackref`, `:286-299`).
+
+  A refusal from steps 3 to 5 carries the wire error as the `EvalError`'s `cause`. No refusal adds the node's cost: the JVM adds it after the block that lifts and substitutes has returned (`CErgoTreeEvaluator.addSeqCost`, `interpreter/shared/src/main/scala/sigmastate/interpreter/CErgoTreeEvaluator.scala:399-415`). Residuals: a collection item lifts to `Coll` of ergots' `elem` where the JVM reads the collection's own item type, so the comparison of step 5 differs for a collection whose `elem` is another type than the JVM's item type; and the Box gate of step 2 is from the source alone, with no JVM-blessed row below activated version 2.
 
 ### Curve / group predefs
 
@@ -595,7 +613,7 @@ The per-`Expr`-arm cost model (the method-call surface is in the registry table 
 | `ByteArrayToBigInt` | 30 | A | signed BE → bigint, range-checked to i256 |
 | `Xor` | `addPerItemCost(10, 2, 128, Math.min(leftLen, rightLen))` | B | truncating-zip, sized by the shorter operand (`data/shared/src/main/scala/sigma/ast/trees.scala:1021-1025`: `math.min(ls.length, rs.length)`); output length `min(left, right)`; cost charged before the loop, so a per-pair unbox refusal in the min-length range keeps the cost paid; no length-mismatch error |
 | `DecodePoint` | 300 | A | reuses `crypto/secp256k1.ts:decodePoint`; ANY 0x00-lead ⇒ identity (memory `reference_decodepoint_zero_lead_identity`) |
-| `SubstConstants` | `addPerItemCost(100, 100, 1, template.constants.length)` | B | CONSENSUS-CRITICAL bytes-in/bytes-out; cost sized by the TEMPLATE's constants.length (`subst_const.rs:221-283`); serializer-level (`substituteConstantsBytes`) — copies the tree body verbatim, mirroring JVM `ErgoTreeSerializer.substituteConstants`; out-of-range positions are a no-op, duplicate positions first-wins |
+| `SubstConstants` | `addPerItemCost(100, 100, 1, template.constants.length)` | B | CONSENSUS-CRITICAL bytes-in/bytes-out; the cost is sized by the TEMPLATE's `constants.length` and is added after the lift and the substitution (`CErgoTreeEvaluator.scala:399-415`), so a refused call adds nothing; every `newValues` item is lifted to a constant by its class, and a named constant is compared and written by its item's lifted type (see `'subst-constants-error'`); the byte work is `substituteConstantsBytes`, which copies the tree body verbatim as the JVM's `ErgoTreeSerializer.substituteConstants` does; out-of-range positions name nothing, duplicate positions first-wins |
 | `MultiplyGroup` | 40 | A | group op = point ADDITION (`ec_point.rs:74-80` `Mul = ProjectivePoint::add`); reuses `pointAdd` |
 | `Exponentiate` | 900 | A | scalar mult; REQUIRES explicit identity-base guard (`@noble/curves` `Point.multiply` does not short-circuit on `Point.ZERO`); mirrors sigma-rust `ec_point.rs:111-119` (identity guard `ec_point.rs:113-118`) |
 | `SigmaPropIsProven` | (none) | — | structural throw `'sigma-prop-is-proven-no-eval'`; no eval of `e.input`, no cost (the JVM has no eval for it either, `transformers.scala:321-329`) |
