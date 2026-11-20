@@ -20,12 +20,16 @@
  *
  * Error codes:
  *   'sigma-prop-coll-elem-not-sigma-prop' — any item eval didn't return SigmaProp
+ *   'sigma-node-no-items'                 — the node holds no items (`COR.normalized` requires a
+ *                                           non-empty list, core/shared/src/main/scala/sigma/data/SigmaBoolean.scala:201,
+ *                                           sigma-state 6.0.7)
  *   'cost-limit-exceeded'                 — cost exceeds jitCostLimit
  */
 
 import type { SigmaOr, SValue } from '../mir/types'
 import type { Env } from './env'
 import type { EvalContext } from './eval-context'
+import { EvalError } from './eval-context'
 import { evalExpr } from './eval'
 import { corNormalized } from '../mir/sigma-boolean-normalize'
 import { expectSigmaProp } from './_sigma-helpers'
@@ -38,6 +42,12 @@ export function evalSigmaOr(e: SigmaOr, env: Env, ctx: EvalContext): SValue {
   // Step 2: eval each item → extract SigmaBoolean via expectSigmaProp.
   // Source: sigma_or.rs:20-23 — try_mapped_ref (sequential) then try_extract_into::<SigmaProp>
   const items = e.items.map((item) => expectSigmaProp(evalExpr(item, env, ctx), 'SigmaOr'))
+
+  // A node with no items is refused: `COR.normalized` begins with `require(items.nonEmpty)`
+  // (SigmaBoolean.scala:201, sigma-state 6.0.7).
+  if (items.length === 0) {
+    throw new EvalError('SigmaOr: the node holds no items', 'sigma-node-no-items')
+  }
 
   // Step 3: reduce via Cor::normalized — TrivialProp(false) absorbed (identity),
   // TrivialProp(true) absorbing, single item unwrapped, empty → TrivialProp(false).

@@ -81,6 +81,15 @@ describe('SigmaOr eval arm — fixture-driven', () => {
 // ---------------------------------------------------------------------------
 
 describe('SigmaOr eval arm — inline error cases', () => {
+  // JVM-blessed: SANTA `vectors/eval/v5/authored/SigmaOr.item_by_item.json` at commit 0f2fc79, row
+  // `SigmaOr-empty-none-v0-a2#102`, the tree `00eb00`: `COR.normalized` requires a non-empty list
+  // (core/shared/src/main/scala/sigma/data/SigmaBoolean.scala:201, sigma-state 6.0.7).
+  it("SigmaOr-empty-none-v0-a2#102: a node with no items parses and is 'sigma-node-no-items' when evaluated", () => {
+    const tree = parseTree(hexToBytes('00eb00'))
+    const err = captureEvalError(() => evaluateWith(tree, makeContext({ treeVersion: 0 })))
+    expect(err.code).toBe('sigma-node-no-items')
+  })
+
   it('throws sigma-prop-coll-elem-not-sigma-prop when an item evaluates to non-SigmaProp', () => {
     // Hand-build SigmaOr node with an Int Const as one item (not SigmaProp).
     const mirNode: SigmaOr = {
