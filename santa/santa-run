@@ -1,0 +1,39 @@
+#!/usr/bin/env bash
+# santa-run <impl-path> <vectors-dir> <out-dir>  — Dasher (ergots, pure-TS).
+#
+# Self-provision the runner's toolchain (presence-as-state: runners/dasher/mise.toml).
+# We re-exec once under `mise exec` so node is on PATH for the whole build subtree
+# (ts-runner/ + the cloned ergots), which `mise` alone wouldn't cover by cwd. The
+# orchestrator stays toolchain-agnostic — it only invokes santa-run. `mise` on PATH is
+# the one bootstrap dep. santa-run trusts its own co-located config: the toml and this
+# script live together, so an attacker who could edit one could edit the other — no new
+# surface. Per-runner (not a shared union) so two same-language runners can pin different
+# versions.
+set -euo pipefail
+here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd)"
+if [ -z "${SANTA_MISE_ACTIVE:-}" ]; then
+  mise trust "$here/mise.toml" >/dev/null
+  mise --cd "$here" install
+  exec env SANTA_MISE_ACTIVE=1 mise --cd "$here" exec -- "$0" "$@"
+fi
+# --- toolchain (node) now on PATH ---
+impl="$(cd "$1" && pwd)"
+VECTORS="$(realpath "$2")"
+OUT="$(realpath -m "$3")"; mkdir -p "$OUT"
+ROOT="$(cd "$(dirname "$0")/../.." && pwd)"   # runners/dasher -> repo root
+TS="$ROOT/ts-runner"
+(cd "$impl/ergots" && npm install --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1)
+# @ergots/transaction is NOT in the monorepo's root `build` script (which builds only
+# scorex/avltree/nipopow/ergoscript), so its dist/ is missing and dasher's tx arm can't
+# import it. Build it explicitly when the package is present (the tx branches); a pre-tx
+# master has no such package, so this is skipped. A real build failure still aborts (set -e).
+if [ -d "$impl/ergots/packages/transaction" ]; then
+  (cd "$impl/ergots" && npm run build -w @ergots/transaction >/dev/null 2>&1)
+fi
+ln -sfn "$impl/ergots" "$TS/ergots-impl"
+(cd "$TS" && npm install --no-audit --no-fund >/dev/null 2>&1 && npm run build >/dev/null 2>&1)
+# One node per file, stopping at the first that fails (as under set -e); under santa-bound when SANTA_BOUND is set.
+# --max-old-space-size: node sizes V8's heap to about half its cgroup's memory, so inside a bounded unit a row within
+# the budget would abort at the heap limit (graded panicked); a large ceiling leaves the bound to the cgroup.
+${SANTA_BOUND:+"$SANTA_BOUND"} bash -c 'for f in "$1"/*.json; do node --max-old-space-size=65536 "$0" "$f" "$2/$(basename "$f")" || exit $?; done' \
+  "$TS/dist/runner.js" "$VECTORS" "$OUT"
