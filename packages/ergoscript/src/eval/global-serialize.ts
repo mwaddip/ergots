@@ -9,24 +9,21 @@
  * JVM primitive before the byte write, then serializeSValue produces the bytes.
  * This decouples cost from the byte-validated serializer (see spec §Cost).
  *
- * Type resolution: the JVM `serialize_eval` writes by the argument's STATIC type,
- * `mc.args(0).tpe` (`sigma/ast/methods.scala:1982`). ergots does the same in
- * the two cases where the type a value carries diverges from the JVM:
- *   - the static type is the JVM's `SAny` (`SANY_JVM`, told by object
- *     identity), which the writer's catch-all refuses
- *     (`core/shared/src/main/scala/sigma/serialization/CoreDataSerializer.scala:89-91`);
- *   - the static type holds a tuple of another arity than two at any depth —
- *     a non-pair tuple writes through `Evaluation.fromDslTuple`
- *     (`core/shared/src/main/scala/sigma/Evaluation.scala:91-96`) with its
- *     length assertion (`CoreDataSerializer.scala:74`), which a `Slice` of a
- *     3-tuple whose range gives two items fails.
- * Every other argument stays at its value-derived type: an unresolved
- * `MethodCall` / `PropertyCall` types as ergots' own `SAny` (a fresh object;
- * residual 1 of `facts/ergoscript-wire.md`), which the JVM's writer catch-all
- * would also refuse, but the value behind it is concrete (`sigma-rust-vs-jvm`
- * memory `reference_sany_type_checks_skip_not_fail`); and a runtime `Coll`,
- * `Option` or the runtime kinds without an on-wire encoding carry their own
- * concrete `elem` / `value` types — `sValueType` reads them.
+ * Type resolution: the JVM `serialize_eval` writes by the argument's STATIC
+ * type, `mc.args(0).tpe` (`sigma/ast/methods.scala:1982`). ergots is handed
+ * that static type whenever it carries the information the writer reads; the
+ * value-derived type (through `sValueType`) is the fallback only where the
+ * static type holds ergots' own `SAny` at any depth — a fresh
+ * `{ tag: 'SAny' }` object the method typing builds for a method the signature
+ * catalog does not resolve (residual 1 of `facts/ergoscript-wire.md`); there
+ * the concrete runtime value carries the elem / value information. The JVM's
+ * `SAny` (`SANY_JVM`, told from ergots' own by object identity) is kept on the
+ * static path: the writer's catch-all refuses it
+ * (`CoreDataSerializer.scala:89-91`, `CheckSerializableTypeCode`). A tuple
+ * type at any arity on the static path writes through `fromDslTuple`
+ * (`Evaluation.scala:91-96`): the pair case takes a `Coll[Any]` whose
+ * `tItem == AnyType`, so a two-item `tupleColl` under a pair-typed read
+ * writes the pair's bytes.
  *
  * Output: Coll[Byte] containing the raw data bytes (no type prefix), matching
  * the JVM DataSerializer.serialize output — confirmed by verifyCases:
@@ -51,31 +48,32 @@ import { SANY_JVM } from '../mir/types'
 
 /**
  * The static type the writer is handed, following the JVM's `serialize_eval`
- * (`sigma/ast/methods.scala:1982`): `mc.args(0).tpe` when it is the JVM's
- * `SAny` or holds a tuple of another arity than two at any depth; the
- * value-derived type otherwise.
+ * (`sigma/ast/methods.scala:1982`): `mc.args(0).tpe` unless that type holds
+ * ergots' own `SAny` at any depth (a `{ tag: 'SAny' }` object that is not
+ * `SANY_JVM`; the fresh object the method typing builds for a method the
+ * signature catalog does not resolve, residual 1 of
+ * `facts/ergoscript-wire.md`), in which case the value-derived type is used:
+ * the concrete runtime value carries the information behind ergots' own
+ * `SAny`.
  */
 function serializeType(value: SValue, mc: MethodCall, treeVersion: number): SType {
   const argExpr = mc.args[0]!
   const staticTpe = exprTpe(argExpr, treeVersion)
-  if (staticTpe === SANY_JVM || holdsNonPairTuple(staticTpe)) {
-    return staticTpe
-  }
-  return sValueType(value)
+  if (holdsOwnSAny(staticTpe)) return sValueType(value)
+  return staticTpe
 }
 
 /**
- * `tpe` contains an `STuple` whose arity is not two, at any depth (through
- * collections, options and nested tuples). The non-pair-tuple arm of the
- * writer walks it through `fromDslTuple`.
+ * `tpe` contains an `SAny` leaf that is NOT `SANY_JVM`, at any depth (through
+ * collections, options, tuples and function types). ergots' own `SAny` is
+ * told from the JVM's by object identity (`SANY_JVM`, `mir/types.ts`).
  */
-function holdsNonPairTuple(tpe: SType): boolean {
-  if (tpe.tag === 'STuple') {
-    if (tpe.items.length !== 2) return true
-    return tpe.items.some(holdsNonPairTuple)
-  }
-  if (tpe.tag === 'SColl') return holdsNonPairTuple(tpe.elem)
-  if (tpe.tag === 'SOption') return holdsNonPairTuple(tpe.elem)
+function holdsOwnSAny(tpe: SType): boolean {
+  if (tpe.tag === 'SAny') return tpe !== SANY_JVM
+  if (tpe.tag === 'SColl') return holdsOwnSAny(tpe.elem)
+  if (tpe.tag === 'SOption') return holdsOwnSAny(tpe.elem)
+  if (tpe.tag === 'STuple') return tpe.items.some(holdsOwnSAny)
+  if (tpe.tag === 'SFunc') return tpe.args.some(holdsOwnSAny) || holdsOwnSAny(tpe.result)
   return false
 }
 
