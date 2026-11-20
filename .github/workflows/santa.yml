@@ -1,0 +1,14 @@
+name: SANTA
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  santa:
+    runs-on: ubuntu-latest
+    timeout-minutes: 90
+    steps:
+      - uses: actions/checkout@v6
+        with:
+          fetch-depth: 0 # the base and head are graded from this checkout
+      - uses: mwaddip/santa/.github/actions/santa-pr@main
