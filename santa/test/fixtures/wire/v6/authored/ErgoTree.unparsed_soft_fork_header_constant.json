@@ -1,0 +1,19 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "ErgoTree.unparsed_soft_fork_header_constant",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "unparsed-soft-fork-header-constant-reject#0",
+      "kind" : "ErgoTree",
+      "source" : "santa:authored-unparsed-soft-fork-header-constant",
+      "description" : "Size-flagged ErgoTree (header 0x1a = v2 + size + const-seg) with one segregated constant of type SHeader (typeCode 0x68 = 104): unlike the SOption typecode (rule 1009's special case → soft-fork degrade), SHeader is neither == OptionTypeCode nor > LastDataType (111), so rule 1009 does NOT fire — a direct SerializerException (\"Not defined DataSerializer for type SHeader\") ESCAPES the UnparsedErgoTree fallback and the JVM REJECTS, even size-flagged. The REJECT side of the rule-1009 boundary (twin of unparsed_soft_fork_option_constant). An impl that instead degrades it to Unparsed (round-trips, produces bytes) OVER-ACCEPTS a tree the JVM rejects.",
+      "bytes_hex" : "1adb01016802000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000c0843d0000000000000000000000000000000000000000000000000000000000000000070239b8010000000000000000000000000000000000000000000000000000000000000000000000000000000001000000017300",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 2
+      }
+    }
+  ]
+}

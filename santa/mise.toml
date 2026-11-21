@@ -1,0 +1,3 @@
+# The runner's toolchain. santa-run provisions it with `mise exec`.
+[tools]
+node = "22.19.0"

@@ -1,0 +1,134 @@
+{
+  "schema": "santa-eval/v2",
+  "op": "Global.deserializeTo_Box_type_var_name_range",
+  "blessed_by": "jvm:sigma-state-6.0.7",
+  "source": "santa:authored-writer-count-range",
+  "entries": [
+    {
+      "name": "dto-unsized-just-ff85-a3#0",
+      "script": "[dto|unsized|just|ff85] `Global.deserializeTo[Box]` of a box whose tree (unsized, v0) names a type variable with 85 bytes of FF, read as 85 U+FFFD: a text of 255 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 274. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b8f01dc6a04dd010e8601c0843d00d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d00d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 274,
+        "error": null
+      }
+    },
+    {
+      "name": "dto-sized-just-ff85-a3#11",
+      "script": "[dto|sized|just|ff85] `Global.deserializeTo[Box]` of a box whose tree (sized, v3) names a type variable with 85 bytes of FF, read as 85 U+FFFD: a text of 255 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 274. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b9001dc6a04dd010e8701c0843d0b5ed193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d0b5ed193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 274,
+        "error": null
+      }
+    },
+    {
+      "name": "dto-unsized-just-mix256-a3#22",
+      "script": "[dto|unsized|just|mix256] `Global.deserializeTo[Box]` of a box whose tree (unsized, v0) names a type variable with 253 `a` and one FF: a text of 256 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 434. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0bb802dc6a04dd010eaf02c0843d00d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d00d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 434,
+        "error": null
+      }
+    },
+    {
+      "name": "dto-sized-just-mix256-a3#33",
+      "script": "[dto|sized|just|mix256] `Global.deserializeTo[Box]` of a box whose tree (sized, v3) names a type variable with 253 `a` and one FF: a text of 256 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 434. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0bba02dc6a04dd010eb102c0843d0b8702d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d0b8702d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 434,
+        "error": null
+      }
+    },
+    {
+      "name": "dto-unsized-just-ff86-a3#44",
+      "script": "[dto|unsized|just|ff86] `Global.deserializeTo[Box]` of a box whose tree (unsized, v0) names a type variable with 86 bytes of FF: a text of 258 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 274. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b9001dc6a04dd010e8701c0843d00d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d00d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 274,
+        "error": null
+      }
+    },
+    {
+      "name": "dto-sized-just-ff86-a3#55",
+      "script": "[dto|sized|just|ff86] `Global.deserializeTo[Box]` of a box whose tree (sized, v3) names a type variable with 86 bytes of FF: a text of 258 bytes, then the box itself (its value: the bytes it was read from) — <box> at cost 274. CONTROL: nothing writes the name: the box's bytes as read are kept.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b9101dc6a04dd010e8801c0843d0b5fd193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff040001000011111111111111111111111111111111111111111111111111111111111111110063",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": {
+          "kind": "Box",
+          "bytes_hex": "c0843d0b5fd193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100"
+        },
+        "cost": 274,
+        "error": null
+      }
+    }
+  ]
+}

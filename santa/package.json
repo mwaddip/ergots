@@ -1,0 +1,29 @@
+{
+  "name": "@ergots/santa-runner",
+  "version": "0.1.0",
+  "private": true,
+  "description": "SANTA conformance runner over the @ergots/* packages",
+  "type": "module",
+  "scripts": {
+    "build": "tsup",
+    "test": "vitest run",
+    "test:watch": "vitest",
+    "typecheck": "tsc --noEmit"
+  },
+  "dependencies": {
+    "@ergots/avltree": "*",
+    "@ergots/ergoscript": "*",
+    "@ergots/nipopow": "*",
+    "@ergots/scorex": "*",
+    "@ergots/transaction": "*"
+  },
+  "devDependencies": {
+    "@types/node": "^22.0.0",
+    "tsup": "^8.5.1",
+    "typescript": "^5.5.0",
+    "vitest": "^2.0.0"
+  },
+  "engines": {
+    "node": ">=20"
+  }
+}

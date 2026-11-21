@@ -1,0 +1,1592 @@
+{
+  "schema": "santa-eval/v2",
+  "op": "Coll.declared_count_at_parse_v6",
+  "blessed_by": "jvm:sigma-state-6.0.7",
+  "source": "santa:authored-collection-length-limit",
+  "entries": [
+    {
+      "name": "parse-SigmaAnd-100000-v0-a3#0",
+      "script": "[parse: SigmaAnd|100000|v0] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00eaa08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaAnd-100000-v3-a3#1",
+      "script": "[parse: SigmaAnd|100000|v3] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 6 out of bounds for length 6). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04eaa08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-100000-v0-a3#2",
+      "script": "[parse: SigmaOr|100000|v0] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00eba08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-100000-v3-a3#3",
+      "script": "[parse: SigmaOr|100000|v3] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 6 out of bounds for length 6). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04eba08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-100000-v0-a3#4",
+      "script": "[parse: BlockValue|100000|v0] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 5 out of bounds for length 5). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d8a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-100000-v3-a3#5",
+      "script": "[parse: BlockValue|100000|v3] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 6 out of bounds for length 6). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04d8a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-100000-v0-a3#6",
+      "script": "[parse: FuncValue|100000|v0] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d9a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-100000-v3-a3#7",
+      "script": "[parse: FuncValue|100000|v3] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04d9a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-100000-v0-a3#8",
+      "script": "[parse: Apply|100000|v0] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 11 out of bounds for length 11). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dad90101047201a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-100000-v3-a3#9",
+      "script": "[parse: Apply|100000|v3] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 12 out of bounds for length 12). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0adad90101047201a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-100000-v0-a3#10",
+      "script": "[parse: MethodCallArgs|100000|v0] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 9 out of bounds for length 9). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dc0c090e00a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-100000-v3-a3#11",
+      "script": "[parse: MethodCallArgs|100000|v3] `<refused at parse>` — REFUSED AT PARSE (ArrayIndexOutOfBoundsException: Index 10 out of bounds for length 10). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b08dc0c090e00a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-100000-v0-a3#12",
+      "script": "[parse: Coll|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0083a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-100000-v3-a3#13",
+      "script": "[parse: Coll|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0483a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-100000-v0-a3#14",
+      "script": "[parse: BoolColl|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0085a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-100000-v3-a3#15",
+      "script": "[parse: BoolColl|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0485a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaAnd-100001-v0-a3#16",
+      "script": "[parse: SigmaAnd|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00eaa18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaAnd-100001-v3-a3#17",
+      "script": "[parse: SigmaAnd|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04eaa18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-100001-v0-a3#18",
+      "script": "[parse: SigmaOr|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00eba18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-100001-v3-a3#19",
+      "script": "[parse: SigmaOr|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04eba18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-100001-v0-a3#20",
+      "script": "[parse: BlockValue|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.BlockItem with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d8a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-100001-v3-a3#21",
+      "script": "[parse: BlockValue|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.BlockItem with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04d8a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-100001-v0-a3#22",
+      "script": "[parse: FuncValue|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of scala.Tuple2 with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d9a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-100001-v3-a3#23",
+      "script": "[parse: FuncValue|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of scala.Tuple2 with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b04d9a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-100001-v0-a3#24",
+      "script": "[parse: Apply|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dad90101047201a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-100001-v3-a3#25",
+      "script": "[parse: Apply|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0adad90101047201a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-100001-v0-a3#26",
+      "script": "[parse: MethodCallArgs|100001|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dc0c090e00a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-100001-v3-a3#27",
+      "script": "[parse: MethodCallArgs|100001|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 100001 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b08dc0c090e00a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-100001-v0-a3#28",
+      "script": "[parse: Coll|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0083a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-100001-v3-a3#29",
+      "script": "[parse: Coll|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0483a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-100001-v0-a3#30",
+      "script": "[parse: BoolColl|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0085a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-100001-v3-a3#31",
+      "script": "[parse: BoolColl|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0485a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaAnd-2147483647-v0-a3#32",
+      "script": "[parse: SigmaAnd|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00eaffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaAnd-2147483647-v3-a3#33",
+      "script": "[parse: SigmaAnd|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b06eaffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-2147483647-v0-a3#34",
+      "script": "[parse: SigmaOr|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00ebffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-SigmaOr-2147483647-v3-a3#35",
+      "script": "[parse: SigmaOr|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b06ebffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-2147483647-v0-a3#36",
+      "script": "[parse: BlockValue|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.BlockItem with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d8ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BlockValue-2147483647-v3-a3#37",
+      "script": "[parse: BlockValue|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.BlockItem with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b06d8ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-2147483647-v0-a3#38",
+      "script": "[parse: FuncValue|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of scala.Tuple2 with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00d9ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-FuncValue-2147483647-v3-a3#39",
+      "script": "[parse: FuncValue|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of scala.Tuple2 with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b06d9ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-2147483647-v0-a3#40",
+      "script": "[parse: Apply|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dad90101047201ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Apply-2147483647-v3-a3#41",
+      "script": "[parse: Apply|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0cdad90101047201ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-2147483647-v0-a3#42",
+      "script": "[parse: MethodCallArgs|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "00dc0c090e00ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-MethodCallArgs-2147483647-v3-a3#43",
+      "script": "[parse: MethodCallArgs|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (RuntimeException: Cannot allocate array of sigma.ast.Value with 2147483647 items: max limit is 100000). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0adc0c090e00ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-2147483647-v0-a3#44",
+      "script": "[parse: Coll|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 2147483647 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0083ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-Coll-2147483647-v3-a3#45",
+      "script": "[parse: Coll|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 2147483647 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0683ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-2147483647-v0-a3#46",
+      "script": "[parse: BoolColl|2147483647|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 2147483647 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0085ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-BoolColl-2147483647-v3-a3#47",
+      "script": "[parse: BoolColl|2147483647|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 2147483647 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0685ffffffff07",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-65535-v0-a3#48",
+      "script": "[parse: data|bytes|65535|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: Not enough bytes in the buffer: 65535). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000effff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-65535-v3-a3#49",
+      "script": "[parse: data|bytes|65535|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: Not enough bytes in the buffer: 65535). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040effff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-65535-v0-a3#50",
+      "script": "[parse: data|bools|65535|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: Not enough bytes in the buffer: 8192). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000dffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-65535-v3-a3#51",
+      "script": "[parse: data|bools|65535|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: Not enough bytes in the buffer: 8192). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040dffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-65535-v0-a3#52",
+      "script": "[parse: data|ints|65535|v0] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0010ffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-65535-v3-a3#53",
+      "script": "[parse: data|ints|65535|v3] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0410ffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-65535-v0-a3#54",
+      "script": "[parse: data|pairs|65535|v0] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000c58ffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-65535-v3-a3#55",
+      "script": "[parse: data|pairs|65535|v3] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b050c58ffff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-65535-v0-a3#56",
+      "script": "[parse: data|collbytes|65535|v0] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "001affff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-65535-v3-a3#57",
+      "script": "[parse: data|collbytes|65535|v3] `<refused at parse>` — REFUSED AT PARSE (BufferUnderflowException). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b041affff03",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-65536-v0-a3#58",
+      "script": "[parse: data|bytes|65536|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000e808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-65536-v3-a3#59",
+      "script": "[parse: data|bytes|65536|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040e808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-65536-v0-a3#60",
+      "script": "[parse: data|bools|65536|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000d808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-65536-v3-a3#61",
+      "script": "[parse: data|bools|65536|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040d808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-65536-v0-a3#62",
+      "script": "[parse: data|ints|65536|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0010808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-65536-v3-a3#63",
+      "script": "[parse: data|ints|65536|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0410808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-65536-v0-a3#64",
+      "script": "[parse: data|pairs|65536|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000c58808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-65536-v3-a3#65",
+      "script": "[parse: data|pairs|65536|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b050c58808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-65536-v0-a3#66",
+      "script": "[parse: data|collbytes|65536|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "001a808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-65536-v3-a3#67",
+      "script": "[parse: data|collbytes|65536|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 65536 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b041a808004",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-100000-v0-a3#68",
+      "script": "[parse: data|bytes|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000ea08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-100000-v3-a3#69",
+      "script": "[parse: data|bytes|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040ea08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-100000-v0-a3#70",
+      "script": "[parse: data|bools|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000da08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-100000-v3-a3#71",
+      "script": "[parse: data|bools|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040da08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-100000-v0-a3#72",
+      "script": "[parse: data|ints|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0010a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-100000-v3-a3#73",
+      "script": "[parse: data|ints|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0410a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-100000-v0-a3#74",
+      "script": "[parse: data|pairs|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000c58a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-100000-v3-a3#75",
+      "script": "[parse: data|pairs|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b050c58a08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-100000-v0-a3#76",
+      "script": "[parse: data|collbytes|100000|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "001aa08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-100000-v3-a3#77",
+      "script": "[parse: data|collbytes|100000|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100000 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b041aa08d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-100001-v0-a3#78",
+      "script": "[parse: data|bytes|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000ea18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bytes-100001-v3-a3#79",
+      "script": "[parse: data|bytes|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040ea18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-100001-v0-a3#80",
+      "script": "[parse: data|bools|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000da18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-bools-100001-v3-a3#81",
+      "script": "[parse: data|bools|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b040da18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-100001-v0-a3#82",
+      "script": "[parse: data|ints|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "0010a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-ints-100001-v3-a3#83",
+      "script": "[parse: data|ints|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b0410a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-100001-v0-a3#84",
+      "script": "[parse: data|pairs|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "000c58a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-pairs-100001-v3-a3#85",
+      "script": "[parse: data|pairs|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b050c58a18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-100001-v0-a3#86",
+      "script": "[parse: data|collbytes|100001|v0] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v0, activated 3",
+      "tree_bytes_hex": "001aa18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 0
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    },
+    {
+      "name": "parse-data-collbytes-100001-v3-a3#87",
+      "script": "[parse: data|collbytes|100001|v3] `<refused at parse>` — REFUSED AT PARSE (IllegalArgumentException: requirement failed: 100001 is out of unsigned short range). THE DECLARED COUNT of a collection at a parse site (an expression's item count, or a data collection's): refused at parse.  // tree v3, activated 3",
+      "tree_bytes_hex": "0b041aa18d06",
+      "input": {
+        "kind": "Int",
+        "value": 0
+      },
+      "version": {
+        "activated": 3,
+        "ergoTree": 3
+      },
+      "expected": {
+        "value": null,
+        "cost": null,
+        "error": "errored"
+      }
+    }
+  ]
+}

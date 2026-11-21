@@ -1,0 +1,1965 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Constant",
+  "blessed_by" : "jvm:sigma-state-6.0.3",
+  "entries" : [
+    {
+      "name" : "bool_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bool_0",
+      "bytes_hex" : "0101",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bool_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bool_1",
+      "bytes_hex" : "0100",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "byte_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant byte_0",
+      "bytes_hex" : "0201",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "byte_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant byte_1",
+      "bytes_hex" : "0202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "byte_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant byte_2",
+      "bytes_hex" : "024c",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "byte_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant byte_3",
+      "bytes_hex" : "027f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "byte_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant byte_4",
+      "bytes_hex" : "0280",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "short_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant short_0",
+      "bytes_hex" : "0302",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "short_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant short_1",
+      "bytes_hex" : "0303",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "short_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant short_2",
+      "bytes_hex" : "0322",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "short_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant short_3",
+      "bytes_hex" : "03feff03",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "short_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant short_4",
+      "bytes_hex" : "03ffff03",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_0",
+      "bytes_hex" : "0400",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_1",
+      "bytes_hex" : "0401",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_2",
+      "bytes_hex" : "0402",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_3",
+      "bytes_hex" : "0405",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_4",
+      "bytes_hex" : "0414",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_5",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_5",
+      "bytes_hex" : "042d",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_6",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_6",
+      "bytes_hex" : "04800f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_7",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_7",
+      "bytes_hex" : "04808008",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_8",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_8",
+      "bytes_hex" : "04808023",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_9",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_9",
+      "bytes_hex" : "04feffffffffffffffff01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "int_10",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant int_10",
+      "bytes_hex" : "04ffffffffffffffffff01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_0",
+      "bytes_hex" : "0500",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_1",
+      "bytes_hex" : "0501",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_2",
+      "bytes_hex" : "0502",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_3",
+      "bytes_hex" : "0503",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_4",
+      "bytes_hex" : "0513",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_5",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_5",
+      "bytes_hex" : "05800f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_6",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_6",
+      "bytes_hex" : "05800f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_7",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_7",
+      "bytes_hex" : "05807d",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_8",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_8",
+      "bytes_hex" : "05808084af5f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_9",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_9",
+      "bytes_hex" : "05808084af5f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_10",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_10",
+      "bytes_hex" : "05808087a70e",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_11",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_11",
+      "bytes_hex" : "058080808ae213",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_12",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_12",
+      "bytes_hex" : "0580808ca1fa60",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_13",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_13",
+      "bytes_hex" : "05808091f3ad04",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_14",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_14",
+      "bytes_hex" : "0580808bd0fda201",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_15",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_15",
+      "bytes_hex" : "0580808bad9bc718",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_16",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_16",
+      "bytes_hex" : "0580808592e78878",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_17",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_17",
+      "bytes_hex" : "0580809d80d0bf9901",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_18",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_18",
+      "bytes_hex" : "058080cba684a68201",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_19",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_19",
+      "bytes_hex" : "058080b4ccd4dfc603",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_20",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_20",
+      "bytes_hex" : "058080a0f6f4acdbe01b",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_21",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_21",
+      "bytes_hex" : "05feffffffffffffffff01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "long_22",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant long_22",
+      "bytes_hex" : "05ffffffffffffffffff01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_0",
+      "bytes_hex" : "060104",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_1",
+      "bytes_hex" : "06011a",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_2",
+      "bytes_hex" : "06017a",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_3",
+      "bytes_hex" : "0602040f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_4",
+      "bytes_hex" : "060400c1f4a5",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_5",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_5",
+      "bytes_hex" : "060519debd01c7",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_6",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_6",
+      "bytes_hex" : "06060102b36211c7",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_7",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_7",
+      "bytes_hex" : "060f9c2404f2634ef40afccc320eed30b3",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_8",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_8",
+      "bytes_hex" : "060fa48aae0a58c333fcb45c22eb77423f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_9",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_9",
+      "bytes_hex" : "060fdd1c7569871f783f9e7c9489215a93",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_10",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_10",
+      "bytes_hex" : "060ff0be3a08b885a5c09b96aee8797fef",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_11",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_11",
+      "bytes_hex" : "060fb5c30093fd377e9986d2cb46a6aa80",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_12",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_12",
+      "bytes_hex" : "060fcbc5a938f002f37a8784120c51000e",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_13",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_13",
+      "bytes_hex" : "06100080c2a6bf0e86c4b39aaf5b72bf25cf",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_14",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_14",
+      "bytes_hex" : "061000844935789da1a1015e411873fd04a3",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_15",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_15",
+      "bytes_hex" : "06100085a44d9646705fedbf146bcd80d8ef",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_16",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_16",
+      "bytes_hex" : "061000c04e5372d5aec10adf40f09f9695ab",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_17",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_17",
+      "bytes_hex" : "061000c1152c6ecd3042dd7af6d46b4c5e9f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_18",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_18",
+      "bytes_hex" : "061000fb98488ddf56996aeb9434f5803b8f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_19",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_19",
+      "bytes_hex" : "061000fec346162748f0e3c268260919f73f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_20",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_20",
+      "bytes_hex" : "061000ff0aed27d915df669709f890468527",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_21",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_21",
+      "bytes_hex" : "06104b3b4ca85a86c47a098a223fffffffff",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_22",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_22",
+      "bytes_hex" : "0610fd399ad011430f3cf1173d88e0157d88",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_23",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_23",
+      "bytes_hex" : "0610efcb7de64abd55fa4a07b00ffcc80e04",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_24",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_24",
+      "bytes_hex" : "0610f7ee0f9e6b31e5b8bf79c0103cd98a94",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_25",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_25",
+      "bytes_hex" : "0610e568d66fc6ef02311087197a516bfd08",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_26",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_26",
+      "bytes_hex" : "0610ea4b448df22c343557e9d34980ecd344",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_27",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_27",
+      "bytes_hex" : "0610ed8d2982d73cf954ca90f09eebd46697",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_28",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_28",
+      "bytes_hex" : "0610f6a12915ff35fbfdc0de719c2b44239f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_29",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_29",
+      "bytes_hex" : "0610e730b99d5580f36594530fd961844c3d",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_30",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_30",
+      "bytes_hex" : "0610f51c7da6efcc5267e609d013e6464820",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_31",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_31",
+      "bytes_hex" : "0610eb5839c44ec0be3d5b95d4c9522d72ca",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_32",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_32",
+      "bytes_hex" : "0610f7ce9e56ef64e15237a2ab2d91aa1f6b",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_33",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_33",
+      "bytes_hex" : "0610d3d187be808cd61d4215be07445d3179",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_34",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_34",
+      "bytes_hex" : "0610edad8f7090c4b7782c4d8e563c3e731c",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_35",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_35",
+      "bytes_hex" : "0610f34e21b2b957ed470b2baabc227286a0",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_36",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_36",
+      "bytes_hex" : "0610da31d4846523942d30bf81311ed324e8",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_37",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_37",
+      "bytes_hex" : "0610eee296791bc9b5bc269844845d3d5eec",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_38",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_38",
+      "bytes_hex" : "0610f43d7dea14e4619a1e2e43774e908e20",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_39",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_39",
+      "bytes_hex" : "0610ec6afd4980220003c03b50fee83e697f",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "bigint_40",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant bigint_40",
+      "bytes_hex" : "061913aaf504e4bc1e62173f87a4378c37b49c8ccff196ce3f0ad2",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "groupElement_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant groupElement_0",
+      "bytes_hex" : "07000000000000000000000000000000000000000000000000000000000000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "groupElement_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant groupElement_1",
+      "bytes_hex" : "0702000031a06023f7d372f748a816db1765b4e4f1989cf89791c021a37ce09dae37",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "groupElement_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant groupElement_2",
+      "bytes_hex" : "0702000574ed4686be3f2be5a345f48774039820a2a830efd3d8f2cecb6ec28901b6",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sigmaProp_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sigmaProp_0",
+      "bytes_hex" : "08cd0200205e052506a4bc22dd580b721bfa994fe954ada92e8e9469636b47f57d9477",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sigmaProp_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sigmaProp_1",
+      "bytes_hex" : "08cd0200a4bffdc39c74ce1f31346dd4f47795b9dcd8cd256aab68828a4582e84d4c0e",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sigmaProp_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sigmaProp_2",
+      "bytes_hex" : "08cd0200c662d546939237a0195ef8be81fb0f939285c374b3589cc5d7172c98e33b22",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_0",
+      "bytes_hex" : "0d0c010e",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_1",
+      "bytes_hex" : "0d0c0101",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_2",
+      "bytes_hex" : "0d400e01020a0b010202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_3",
+      "bytes_hex" : "0e0a46656d616c6520233035",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_4",
+      "bytes_hex" : "0e0130",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_5",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_5",
+      "bytes_hex" : "0e00",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_6",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_6",
+      "bytes_hex" : "0efe0b476f6c6420686173206265656e20612073746f7265206f66207765616c746820666f722074686f7573616e6473206f6620796561727320616e6420686173206f75746c6173746564207468652063757272656e63696573206f6620766172696f757320656d706972657320616e64206e6174696f6e2d7374617465732074686174206861766520636f6d6520616e6420676f6e652e20497420697320657374696d6174656420746861742077652068617665206c657373207468616e2035352c30303020746f6e73206f6620676f6c64206c65667420746f20646973636f7665722e20476f6c64206d696e696e67206973206f6e65206f6620746865206d6f737420646573747275637469766520696e647573747269657320696e2074686520776f726c642e2049742063616e20646973706c61636520636f6d6d756e69746965732c20636f6e74616d696e617465206472696e6b696e672077617465722c206875727420776f726b6572732c20616e642064657374726f79207072697374696e6520656e7669726f6e6d656e74732e20497420706f6c6c7574657320776174657220616e64206c616e642077697468206d65726375727920616e64206379616e6964652c20656e64616e676572696e6720746865206865616c7468206f662070656f706c6520616e642065636f73797374656d732e0a4f757220556e6465727374616e64696e67206f66206120547261646974696f6e616c20417373657420486173204368616e6765642e0a416e20617373657420697320616e797468696e67206f662076616c7565206f722061207265736f75726365206f662076616c756520746861742063616e20626520636f6e76657274656420696e746f20636173682e20536f20616e206173736574e28099732076616c75652077696c6c20646570656e64206f6e2074686520636f6c6c6563746976652062656c69656620616e64207472757374206f66207468652070656f706c65206465616c696e6720776974682069742e200a5468652067726f77746820696e20746865206e756d626572206f662063727970746f63757272656e63696573206973206368616e67696e6720616c6c206f6620746869732c20616e642074686520666169746820706c6163656420696e207468656d20627920696e766573746f72732069732064726976696e6720636f6e666964656e636520696e207468656d20617320616e20617373657420636c6173732e20496620696e766573746f727320636f6e74696e756520746f2062656c6965766520696e207468652076616c7565206f6620676f6c642062656361757365206f74686572732062656c6965766520696e2069742c2069742077696c6c2072656d61696e20616e2061737365742e2054686520646966666572656e6365206265747765656e2063727970746f63757272656e6369657320746f64617920616e6420676f6c6420696e207468652070617374206973207468657265666f7265206d696e696d616c2e0a4974206973206e6f74206120736563726574207468617420426974636f696e20697320746865206d6f73742076616c75656420616e64207468657265627920617474726163746976652063727970746f63757272656e6379206f6e20746865206d61726b65742e20457870657274732068617665206c617267656c79206372656469746564207468697320746f206974732073636172636974792e200a536361726369747920696e63726561736573207468652076616c7565206f6620616e2061737365742c207468657265666f726520746865204572676f6c64207175616e74697479206973737565642077696c6c20626520636170706564206174203535206d696c6c696f6e2e20546865206e756d626572206f66206b696c6f6772616d73206f6620676f6c64206c65667420746f20626520646973636f76657265642e200a4c65742773207265647563652074686520656e7669726f6e6d656e74616c20696d7061637420616e64206d616b652069747320707261637469636573206d6f7265207375737461696e61626c6520776974682074686520626c6f636b636861696e20746563686e6f6c6f67792e",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_7",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_7",
+      "bytes_hex" : "0e9a027b22373231223a7b226572676f61742d3030333436223a7b22696e646578223a3334362c2267656e65726174696f6e223a312c226261636b67726f756e64223a2250737963686f222c226261636b5f6163636573736f7279223a22477265656e20506172726f74222c22626f6479223a22507572706c65222c22636c6f74686573223a225768697465204552476f6174205368697274222c226d6f757468223a2247726974746564205465657468222c2265796573223a22416e67727920526564222c227769656c64223a225370697269742047756e222c226163636573736f7279223a2253696c766572204d6564616c222c2268656164223a22436f77626f7920486174222c2265617272696e67223a224e6f6e65227d7d7d",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_8",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_8",
+      "bytes_hex" : "0f00",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_9",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_9",
+      "bytes_hex" : "0f0102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_10",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_10",
+      "bytes_hex" : "0f020000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_11",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_11",
+      "bytes_hex" : "0f020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_12",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_12",
+      "bytes_hex" : "0f0204a00b",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_13",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_13",
+      "bytes_hex" : "0f0208cd02",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_14",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_14",
+      "bytes_hex" : "0f020e10",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_15",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_15",
+      "bytes_hex" : "0f023636",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_16",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_16",
+      "bytes_hex" : "0f03000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_17",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_17",
+      "bytes_hex" : "0f03043603",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_18",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_18",
+      "bytes_hex" : "0f03363636",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_19",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_19",
+      "bytes_hex" : "0f050202000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_20",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_20",
+      "bytes_hex" : "0f050804020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_21",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_21",
+      "bytes_hex" : "0f0702020000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_22",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_22",
+      "bytes_hex" : "0f0706040602040204",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_23",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_23",
+      "bytes_hex" : "0f1a3200b40132b80364e807c8019811f403c8011eea0332cc08649213fa01e601009c0400b009008c1500",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_24",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_24",
+      "bytes_hex" : "0f200202020202020202020202020202020202020202020202020202020202020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_25",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_25",
+      "bytes_hex" : "0f60020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_26",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_26",
+      "bytes_hex" : "0f7002020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020201010101010101010101010101010101",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_27",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_27",
+      "bytes_hex" : "0f7f02020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020201010101010101010101010101010101010101010101010101010101010101",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_28",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_28",
+      "bytes_hex" : "1000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_29",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_29",
+      "bytes_hex" : "100102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_30",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_30",
+      "bytes_hex" : "10020000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_31",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_31",
+      "bytes_hex" : "10020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_32",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_32",
+      "bytes_hex" : "100204a00b",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_33",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_33",
+      "bytes_hex" : "100208cd02",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_34",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_34",
+      "bytes_hex" : "10020e10",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_35",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_35",
+      "bytes_hex" : "10023636",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_36",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_36",
+      "bytes_hex" : "1003000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_37",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_37",
+      "bytes_hex" : "1003043603",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_38",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_38",
+      "bytes_hex" : "1003363636",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_39",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_39",
+      "bytes_hex" : "10050202000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_40",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_40",
+      "bytes_hex" : "10050804020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_41",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_41",
+      "bytes_hex" : "100702020000000000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_42",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_42",
+      "bytes_hex" : "100702020000000600",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_43",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_43",
+      "bytes_hex" : "100706040602040204",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_44",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_44",
+      "bytes_hex" : "101a3200b40132b80364e807c8019811f403c8011eea0332cc08649213fa01e601009c0400b009008c1500",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_45",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_45",
+      "bytes_hex" : "10200202020202020202020202020202020202020202020202020202020202020202",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_46",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_46",
+      "bytes_hex" : "107f02020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020202020201010101010101010101010101010101010101010101010101010101010101",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_47",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_47",
+      "bytes_hex" : "110100",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_48",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_48",
+      "bytes_hex" : "110102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_49",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_49",
+      "bytes_hex" : "110124",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_50",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_50",
+      "bytes_hex" : "11018080e1eb17",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_51",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_51",
+      "bytes_hex" : "11018081c3b5df03",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_52",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_52",
+      "bytes_hex" : "11018081f0e5dd60",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_53",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_53",
+      "bytes_hex" : "110182d2ad9dce60",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_54",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_54",
+      "bytes_hex" : "12010100",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_55",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_55",
+      "bytes_hex" : "1202010106018271d5b481",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_56",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_56",
+      "bytes_hex" : "12010112",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_57",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_57",
+      "bytes_hex" : "12020500bebc2000050efb586040",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_58",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_58",
+      "bytes_hex" : "1202050efb5860400500bebc2000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_59",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_59",
+      "bytes_hex" : "1201060182ee5e0040",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_60",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_60",
+      "bytes_hex" : "120206018271d5b48106018271d5b481",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_61",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_61",
+      "bytes_hex" : "1a031c4c657427732063656c656272617465204572676f526166666c6521201c4c657427732063656c656272617465204572676f526166666c65212020e730bbae0463346f8ce72be23ab8391d1e7a58f48ed857fcf4ee9aecf6915307",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_62",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_62",
+      "bytes_hex" : "0c0c1a00",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_63",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_63",
+      "bytes_hex" : "0c0c1a0101010201ff",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_64",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_64",
+      "bytes_hex" : "0c400504b40180febe81027880d4d4ab015a80bfdf80013c80aaea55",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_65",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_65",
+      "bytes_hex" : "0c4c0e01240008cd0302122c332fd4e3c901f045ac18f559dcecf8dc61f6f94fbb34d0c7c3aac71fb714",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_66",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_66",
+      "bytes_hex" : "0c4c0e03240008cd026d9d81d27185efa93c148f700839183a882aae3a4de1f984faff69eeed37202706240008cd026dd353119c75189796b3fb01c60289399f5fa2e7e115f4d8e3ffcc0a4ba5326906240008cd0287352ce40ff53154c5b3751a661908d3ca99edbb198e7ebb63d1d00e580f2efd06",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_67",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_67",
+      "bytes_hex" : "0c4c0e01240008cd0315a5d99a010bf189b1abae2d9f21be6f3438803aca1e6aac739fbee31150d62700",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_68",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_68",
+      "bytes_hex" : "0c3c0e0e02240008cd03f2d7187f56156cbedde84dffd873f59db7c0e16408c475145a0415317d85cf573339694a6b696558536f6f6b4c74615972384a5a3841386e4b75657639647a524d77786b476a75795165626e5167436a387a6443240008cd02d481d399b808586e94dfd907439b2671999e1d7a97b1705d3363707930a6ec59333967386569796970477666557a675239586a6761423577597641426f447a535969716a754a6b39676769446b334a533476454a",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "coll_69",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant coll_69",
+      "bytes_hex" : "0c0c580202020406080208060402",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_0",
+      "bytes_hex" : "580404",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_1",
+      "bytes_hex" : "40050002",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_2",
+      "bytes_hex" : "40060205029d6f084b",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_3",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_3",
+      "bytes_hex" : "40020e01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_4",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_4",
+      "bytes_hex" : "400e02020a0c",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_5",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_5",
+      "bytes_hex" : "3c0e0e0350525011596f7572206c6f616e204a616e75617279",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_6",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_6",
+      "bytes_hex" : "480e0102020a0c0102",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_7",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_7",
+      "bytes_hex" : "4f0e208743542e50d2195907ce017595f8adf1f496c796d9bcc1148ff9ec94d0bf5006036ebe10da76e99b081b5893635db7518a062bd0f89b07fc056ad9b77c2abce607",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_8",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_8",
+      "bytes_hex" : "3c0c3c0e0e3c0c3c0e580c3c0e58010301020303040506010301020314160103040506181a",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "tuple_9",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant tuple_9",
+      "bytes_hex" : "3c0c3c0e0e3c0c3c0e580c3c0e58060a6261636b67726f756e6404626c75650570756e6b730361706505626561726409626967206265617264056d6f757468066d6f6465737407676c617373657302767203746f700a7065616b207370696b650000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sBox_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sBox_0",
+      "bytes_hex" : "63c0843d0008cd038d39af8c37583609ff51c6a577efe60684119da2fbd0d75f9c72372886a58a63cdee330150fdc80e168c153e472bd7e3dd18a4a0b9e90c550206fdbdb789ee8afdd3b1a90100ae11d207f0989945f63909d2f703b2640acf4f654a8fdadd23570a640f9d12ee00",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sBox_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sBox_1",
+      "bytes_hex" : "63caf0ca330008cd038d39af8c37583609ff51c6a577efe60684119da2fbd0d75f9c72372886a58a639fbf3318de5ee573c6a492c129d51119649bfeaedfc9afa6f54af576e62e1f7f3bbd42078e87f9f1051fd6e032e8476c4aa54c18c1a308dce83940e8f4a28f576440513ed7326ad4898a993d03faf2cb329f2e90d6d23b58d91bbb6c046aa143261cc21f52fbe2824bfcbf043274251ce2cb4eb2024a1a155e19ad1d1f58ff8b9e6eb034a3bb1fd58802757d2380a0b787e905003bd19d0187117f130b62e1bcab0939929ff5c7709f843c5c4dd158949285d00136aba4b4a97b65be491cf9f5ca57b5408b0da8d0194f30ec8330d1e8946161c103c5d6629329285b14ed3eac1dba0e07dbd1e61ee332c2039a7a9c04e8be0cb74eb6f6b1c7ae03a3b3fa62124ef52209a46121e3f93ca98d7fc24198009e90fde8205ef9d3fc330100bd762484086cf560d3127eb53f0769d76244d9737636b2699d55c56cd470bfa589015a34d53ca483924b9a6aa0c771f11888881b516a8d1a9cdc535d063fe26d065e21d601123e8838b95cdaebe24e594276b2a89cd38e98add98405bb5327520ecf6cacf2cb07bf59773def7e08375a553be4cbd862de85f66e6dd3dccb8f87f53158f9255bf59582a6efc79e84911102f31739e2e4937bb9afb552943753d1e3e9cdd1a5e5661949cb0cef93f907eade9e0d30974274078845f263b4f21787e33cc99e9ec19a17ad85a5bc6da2cca91c5a2ec7c98b8c850b0cd8c9f416e5b1ca9f986a7f10a84191dfb85941619e49e53c0dc30ebf83324bfc1c1c51c3a53abfe87e6db9a03c649e8360f255ffc4bd34303d30fc7db23ae551db9c04fbbaac7337d051c10fc3da0ccb864f4d32d40027551e1c3ea3ce361f39b91e40c10fef802b475c06189fdbf844153cdc1d449a5ba87cce13d11bb47b5a539f27f12bfdecfad1f82a472c3d4ecaa08fb7392ff041ee2e6af75f4a558810a74b28600549d5392810e880ade204bf2afb01fde7e373e22f24032434a7b883913bd87a23b62ee8b43eba53c9f6c201bf337a2ce726259ad31e043c5b3d432e31b403fc6686691171e0e0a319b9ae7a0100b1e236b60b95c2c6f8007a9d89bc460fc9e78f98b09faec9449007b40bccf3888124d71693c49a84fbbecd4908c94813b46514b18b67a99952dc1e6e4791556de413db0eee105e8290b090a773b7c56756507d45a76743d73bce54e8a915e95d9eb97360b681e596010089b758cfed2b9eac6721fb4576d8ba016202fdd939f32425aa7e2aefcbdde32e01",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "sBox_2",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant sBox_2",
+      "bytes_hex" : "63c0843d0008cd02200a1c1b8fa17ec82de54bcaef96f23d7b34196c0410f6f578abdbf163b14b258abd33010cd8c9f416e5b1ca9f986a7f10a84191dfb85941619e49e53c0dc30ebf83324b0100b66aab1e43874ad8c5583f685a7d6d947238c373f615aee1d04ee604ba2c934000",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "avlTree_0",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant avlTree_0",
+      "bytes_hex" : "643100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c803601800100",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    },
+    {
+      "name" : "avlTree_1",
+      "kind" : "Constant",
+      "source" : "fleet:serializer/_test-vectors",
+      "description" : "Fleet Constant avlTree_1",
+      "bytes_hex" : "643100d2e101ff01fc047c7f6f00ff80129df69a5090012f01ffca99f5bfff0c80360180010115",
+      "version" : {
+        "activated" : 2,
+        "ergoTree" : 2
+      }
+    }
+  ]
+}

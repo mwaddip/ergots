@@ -1,0 +1,433 @@
+{
+  "schema" : "santa-wire/v1",
+  "op" : "Transaction.type_var_name_write_range",
+  "blessed_by" : "jvm:sigma-state-6.0.7",
+  "entries" : [
+    {
+      "name" : "type-var-name-write-range-tree-unsized-a255#0",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|a255] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 36fb578df910b7bd32dfaabe8f31f3d91f2fbcb76a3ceaaf91e2b61d6f658fe9.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-a255#1",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|a255] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: d35a7470b47cb6ecd1a4e089f6bc03540c537c5ac4a64f7ada4a68b0445f24e6.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8802d193b1830067ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-a255#2",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|a255] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 305b64a1f0eff45495a80ca450ba07d6bb10545d22c14c874e92dce415fd6965.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088802d193b1830067ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-unsized-ff85#3",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|ff85] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 3ec2f2e1a9f8037227e644c147f89b4de0939245dc8abd6b19da8be14eb08c94.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-ff85#4",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|ff85] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: cddcc8ffb82f038f012dd02f511861113e5d87b369d0a3ac36b6c30c9fb387e3.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b5ed193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8802d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-ff85#5",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|ff85] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 14e575e4c9fa0abc1e63b81e723540c90346da8a1e430d7cbf676d1117ea5c84.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03085ed193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088802d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-unsized-mix255#6",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|mix255] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 31fce9db68dfe7e1ac96c68eb630f9c6db273ff94c93d464d165d1a3d8aec31f.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-mix255#7",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|mix255] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 831e21638493f2a5552c2e6d1f4c43e996686b07790778396a7d8ffabbc6f100.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8602d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8802d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-mix255#8",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|mix255] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 5e062480b0768d6adb25b9dafd71d9f5b993f135409c3ebf3a22a2cf10abd571.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088602d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088802d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd0400010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-unsized-mix256#9",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|mix256] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-mix256#10",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|mix256] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8702d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-mix256#11",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|mix256] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088702d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-unsized-ff86#12",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|ff86] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-ff86#13",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|ff86] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b5fd193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-ff86#14",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|ff86] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03085fd193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-unsized-ff255#15",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-unsized|ff255] A transaction with an output whose tree (unsized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc0300d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v3-ff255#16",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v3|ff255] A transaction with an output whose tree (sized, v3) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030b8802d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-tree-sized-v0-ff255#17",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|tree-sized-v0|ff255] A transaction with an output whose tree (sized, v0) is `sigmaProp(Coll[<name>]().size == 0)`, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc03088802d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-a255#18",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|a255] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: de45d3b74b1dbb9df9b360ec312fba2ff041d32cdb3205fd5f3f5526cb443c67.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-a255#19",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|a255] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: fdedcd64ad96547a667a4d2de29dc0afeee229887ce13c671cd1df3e96c6abe5.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067ff61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616104000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-a255#20",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|a255] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 255 `a` (a text of 255 bytes). Written back as read. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: f02fa5e80218bfb288a495c3164124856a6a64a479589186da7feb3fdc44ea96.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067ff6161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161610400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-ff85#21",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|ff85] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: b37ca0dab86ba7a9388968bd1f054922228f1e76112f6f3871676dc996546d4f.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-ff85#22",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|ff85] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 1bd2d08dd7d62299d6b117a3cd1ebfe2c9d9b85f88cfff3f3e27d000aacd8831.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-ff85#23",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|ff85] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 85 bytes of FF, read as 85 U+FFFD (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: bb08dd923ffbbe487bd94e35d02ba33473e7b8eb742b4ffae27c613f71345df9.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b183006755ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067ffefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbdefbfbd0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-mix255#24",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|mix255] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 1c74b2509828031bc2f371e4b4fbebc6d0ab33fa7c3fdc24ea56cdeee4bbb1bc.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-mix255#25",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|mix255] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: 5cc4bee4a12983ffeb0956ccd5db5c71f7f5a276d9d48668ca9c72dcdbd64fc2.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-mix255#26",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|mix255] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 252 `a` and one FF (a text of 255 bytes). Written back with the name's text (each FF as `EF BF BD`): `expected_bytes_hex`. CONTROL: a text of 255 bytes fits `putUByte`. The JVM's id: ffce2a4ae89ca4afbe8ee9f81b9ae7c3769fac9f74b41a3ff31e28d1c2f610ca.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067fd616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "expected_bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067ff616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161efbfbd0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-mix256#27",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|mix256] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-mix256#28",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|mix256] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-mix256#29",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|mix256] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 253 `a` and one FF (a text of 256 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 256 is past `putUByte` (`requirement failed: 256 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067fe61616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161616161ff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-ff86#30",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|ff86] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-ff86#31",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|ff86] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-ff86#32",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|ff86] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 86 bytes of FF (a text of 258 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 258 is past `putUByte` (`requirement failed: 258 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b183006756ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-box-ff255#33",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-box|ff255] A transaction with an output whose R4 is a Box constant, that box's tree naming the type variable, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d301000163c0843d00d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-ext-box-ff255#34",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|ext-box|ff255] A transaction with an input whose context extension holds a Box, that box's tree naming the type variable, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00010163c0843d00d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff04000100001111111111111111111111111111111111111111111111111111111111111111000000018094ebdc030008d3010000",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    },
+    {
+      "name" : "type-var-name-write-range-r4-collbox-ff255#35",
+      "kind" : "Transaction",
+      "source" : "santa:authored-writer-count-range",
+      "description" : "[tx|r4-collbox|ff255] A transaction with an output whose R4 is a Coll[Box], its box's tree naming the type variable, the name 255 bytes of FF (a text of 765 bytes). Read (sigmastate's ErgoLikeTransaction reads it, its id lazy; ergo's ErgoTransaction computes the id at the read and refuses there), and REFUSED when written back: 765 is past `putUByte` (`requirement failed: 765 is out of unsigned byte range`). WRITER REFUSES: a port that writes the length modulo 256 writes bytes, the over-accept.",
+      "bytes_hex" : "01a05d90c50251aea28100ccaa1da38004fb5a04154bfa300a600f3c10d130816a00000000018094ebdc030008d30100010c6301c0843d00d193b1830067ffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffffff0400010000111111111111111111111111111111111111111111111111111111111111111100",
+      "error" : "errored",
+      "version" : {
+        "activated" : 3,
+        "ergoTree" : 3
+      }
+    }
+  ]
+}
