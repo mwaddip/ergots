@@ -40,7 +40,6 @@ quiet() {
 cd "$root"
 quiet npm install --no-audit --no-fund
 quiet npm run build
-quiet npm run build -w @ergots/santa-runner
 
 # --max-old-space-size: a bounded file's child runs under the same flags, and V8's own default heap limit could stop
 # a row within its budget; a large ceiling leaves the bound to the runner's watchdog (src/harness/bounds.ts).

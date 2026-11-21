@@ -11,8 +11,10 @@
 #   actuals/      ergots' raw answer to every entry, at the vector file's path under vectors/
 #
 # The clone is $ERGOTS_SANTA_DIR, by default ergots/santa under $XDG_CACHE_HOME (or under .cache in the home
-# directory); the results go to --out, by default santa-out beside the clone. Needs git, mise and jq. The vector
-# files that carry a budget run under the runner's own watchdog, which reads /proc: Linux only.
+# directory); the results go to --out, by default santa-out beside the clone. A results directory carries the marker
+# file .santa-grade: the script clears one it made before a run, and refuses a directory that holds anything else.
+# Needs git, mise and jq. The vector files that carry a budget run under the runner's own watchdog, which reads
+# /proc: Linux only.
 #
 # Exits non-zero when the runner could not build or run; santa-run's own message says why.
 set -euo pipefail
@@ -41,8 +43,14 @@ git -C "$santa" checkout --quiet --force --detach "$commit"
 out="$(realpath -m "${out:-$(dirname "$santa")/santa-out}")"
 echo "SANTA $ref @ $(git -C "$santa" rev-parse --short HEAD), grading $root" >&2
 
-# what an earlier run left in the results directory
-rm -rf "$out/results.json" "$out/reds.tsv" "$out/actuals"
+# A results directory is one this script made (it holds the marker); what an earlier run left there goes.
+if [ -e "$out" ] && [ ! -e "$out/.santa-grade" ] && [ -n "$(ls -A "$out" 2>/dev/null)" ]; then
+  echo "santa/grade: $out holds files and is not a results directory of this script; name another --out" >&2
+  exit 2
+fi
+mkdir -p "$out"
+: > "$out/.santa-grade"
+rm -rf "$out/results.json" "$out/reds.tsv" "$out/actuals" "$out/.children"
 "$here/santa-run" - "$santa" "$out"
 jq -r '.slices[].red[] | [.file, .entry, .dim, .expected, .got, (.note // "")] | @tsv' "$out/results.json" > "$out/reds.tsv"
 echo "red entries: $(jq '.totals.red' "$out/results.json"), of them not implemented: $(jq '.totals.not_implemented' "$out/results.json")"

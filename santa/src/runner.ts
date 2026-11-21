@@ -1,4 +1,4 @@
-import { readFileSync, writeFileSync } from 'node:fs'
+import { readFileSync, realpathSync, writeFileSync } from 'node:fs'
 import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   parseTree, serializeTree, isUnparsedTree, evaluateWith, makeContext, EvalError,
@@ -1048,7 +1048,7 @@ export function runDocument(raw: RawVector): Record<string, unknown> {
 const perFile: RunFile = (_path, doc) => runDocument(doc as RawVector) as Record<string, HarnessJson>
 
 /** A bounded file's child: this script, under the same Node flags, as `one`. */
-const child = (santa: string): ChildCommand => (_budget, rel, out) =>
+export const child = (santa: string): ChildCommand => (_budget, rel, out) =>
   [process.execPath, ...process.execArgv, fileURLToPath(import.meta.url), 'one', santa, rel, out]
 
 export function main(argv: string[]): void | Promise<void> {
@@ -1072,10 +1072,13 @@ export function main(argv: string[]): void | Promise<void> {
   }
 }
 
-// Run main only when invoked as the bin (not when imported). pathToFileURL resolves a
-// relative argv path to an absolute file URL so the comparison is robust. A run that cannot
+// Run main only when invoked as the bin (not when imported): the script Node was given, by its real
+// path (a relative path or a link to this file is this file), is this module. A run that cannot
 // proceed (an oracle not reproduced, a checkout it cannot read) says why and exits 1.
-if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
+const invoked = (): boolean => {
+  try { return import.meta.url === pathToFileURL(realpathSync(process.argv[1])).href } catch { return false }
+}
+if (process.argv[1] && invoked()) {
   (async () => main(process.argv))().catch((e) => {
     console.error(`santa-runner: ${e instanceof Error ? e.message : String(e)}`)
     process.exit(1)

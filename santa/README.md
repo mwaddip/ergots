@@ -23,11 +23,12 @@ uncommitted edits included. It prints one line per slice (tier / version / prove
 graded in every dimension, then the totals and the path of the results:
 
 - `results.json`: per slice, the counts, and every red entry with its dimension, what SANTA expects and what ergots
-  answered;
+  answered (each cut at 200 characters);
 - `reds.tsv`: the red entries, one per line;
-- `actuals/`: ergots' raw answer to every entry, at the vector file's path under `vectors/`.
+- `actuals/`: ergots' raw answer to every entry, whole, at the vector file's path under `vectors/`.
 
-It needs `git`, [`mise`](https://mise.jdx.dev) and `jq`. The vector files that carry a budget run under the runner's
+The results directory carries a marker file; the script clears a directory it made and refuses one that holds
+anything else. It needs `git`, [`mise`](https://mise.jdx.dev) and `jq`. The vector files that carry a budget run under the runner's
 own watchdog, which reads `/proc`, so a full grade runs on Linux. The script exits non-zero when the runner could
 not build or run.
 
@@ -96,7 +97,8 @@ santa/
 ├── grade            grade this checkout locally
 ├── src/
 │   ├── runner.ts    the arms, `runDocument`, and the CLI (`run`, `one`, and one vector file's actuals)
-│   ├── harness/     selection, the grading interpreter, the oracle checks, the watchdog, results.json
+│   ├── harness/     selection, the grading interpreter, the oracle checks, the watchdog, results.json, and
+│   │                the verbs `mainRun` / `mainOne`
 │   └── …            decode.ts / encode.ts (SANTA's JSON values to and from ergots'), binding.ts (context
 │                    bindings), codec-errors.ts (which throws are refusals)
 └── test/            unit tests of the arms and the CLI; test/fixtures/ holds the SANTA entries they read
@@ -104,12 +106,12 @@ santa/
 ```
 
 `src/harness/` and `test/harness/` are the harness of SANTA's TypeScript runner `santa-comet`
-(`mwaddip/santa-comet`, `package/src/harness/` and `package/test/harness/`), byte-identical to it: Node's standard
-library only. A fix to it goes to SANTA, which carries it to every copy.
+(`mwaddip/santa-comet`, `package/src/harness/` and `package/test/harness/`), byte-identical to it. The modules use
+Node's standard library only. A fix to it goes to SANTA, which carries it to every copy.
 
 The directory is the workspace `@ergots/santa-runner` (private). `npm test` and `npm run typecheck` at the repo
-root run its tests and typecheck with the packages'. Two of the harness's test files (`oracle.spec.ts`,
-`run.spec.ts`) read a SANTA checkout; they run when `SANTA_DIR` names one:
+root run its tests and typecheck with the packages', and `npm run build` builds it after them. Two of the
+harness's test files (`oracle.spec.ts`, `run.spec.ts`) read a SANTA checkout; they run when `SANTA_DIR` names one:
 
 ```bash
 SANTA_DIR=<a SANTA checkout> npm run test -w @ergots/santa-runner

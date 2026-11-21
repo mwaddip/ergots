@@ -1,8 +1,9 @@
-import { afterAll, describe, it, expect } from 'vitest'
+import { afterAll, beforeAll, describe, it, expect } from 'vitest'
 import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from 'node:fs'
 import { tmpdir } from 'node:os'
+import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { main } from '../src/runner'
+import { child, main } from '../src/runner'
 
 // A SANTA checkout in miniature: the two oracles, the grading rules, and one vector file each for the eval and the
 // wire tier, plus an eval file of a schema the runner does not read. The runner's `run` verb is given this tree as
@@ -75,9 +76,9 @@ const runnerJson = put('runner.json', { version: 'v6', tiers: ['eval', 'wire'], 
 
 describe('the CLI\'s `run` verb: the self-contained runner over a SANTA checkout', () => {
   const out = path.join(root, 'out')
+  beforeAll(async () => { await main(['node', 'runner.js', 'run', runnerJson, santa, out]) })
 
-  it('grades every selected file of every tier and writes results.json', async () => {
-    await main(['node', 'runner.js', 'run', runnerJson, santa, out])
+  it('grades every selected file of every tier and writes results.json', () => {
     const results = get(path.join(out, 'results.json')) as {
       schema: string; scope: unknown; totals: unknown
       slices: Record<string, { files: string[]; dims: unknown; not_implemented: number; red: { entry: string; dim: string }[] }>
@@ -128,5 +129,20 @@ describe('the CLI\'s `one` verb: a bounded file\'s child', () => {
     await main(['node', 'runner.js', 'one', santa, 'wire/v6/authored/Constant.json', outFile])
     expect(get(outFile)).toStrictEqual({ c: { bytes_hex: '090105', error: null } })
     expect(Number(readFileSync(`${outFile}.peak`, 'utf8'))).toBeGreaterThan(0)
+  })
+})
+
+describe('the command of a bounded file\'s child', () => {
+  it('is this script as `one`, under the Node flags the runner itself runs under', () => {
+    const script = path.resolve(path.dirname(fileURLToPath(import.meta.url)), '../src/runner.ts')
+    process.execArgv.push('--max-old-space-size=4096')
+    try {
+      const argv = child('/a/santa')({ memoryMb: 1024, wallS: 10 }, 'eval/v6/authored/X.json', '/an/out/0.json')
+      expect(argv).toContain('--max-old-space-size=4096')
+      expect(argv).toStrictEqual(
+        [process.execPath, ...process.execArgv, script, 'one', '/a/santa', 'eval/v6/authored/X.json', '/an/out/0.json'])
+    } finally {
+      process.execArgv.pop()
+    }
   })
 })
