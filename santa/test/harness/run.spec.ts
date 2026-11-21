@@ -148,3 +148,43 @@ describe("a run clears the previous results first", () => {
     expect(existsSync(join(out, "actuals"))).toBe(false);
   });
 });
+
+/** A small SANTA checkout: SANTA's oracle/ and grading.json, and the given vector files (relative path, body). */
+function smallSanta(tag: string, files: [string, string][] = []): string {
+  const t = scratch(tag);
+  mkdirSync(join(t, "vectors"), { recursive: true });
+  cpSync(join(santa, "oracle"), join(t, "oracle"), { recursive: true });
+  copyFileSync(join(santa, "vectors/grading.json"), join(t, "vectors/grading.json"));
+  for (const [rel, body] of files) {
+    mkdirSync(join(t, "vectors", rel, ".."), { recursive: true });
+    writeFileSync(join(t, "vectors", rel), body);
+  }
+  return t;
+}
+const chainRunner = (d: string): string => { const rj = join(d, "runner.json"); writeFileSync(rj, `{"version": "v4", "tiers": ["chain"]}`); return rj; };
+
+describe("round 3: what a run refuses and leaves behind", () => {
+  it("a vector file whose entries repeat a name stops the run, naming it", async () => {
+    const doc = { schema: "santa-chain/v1", entries: [{ name: "a", expected: {} }, { name: "a", expected: {} }] };
+    const t = smallSanta("repeated", [["chain/v4/spec/Twice.json", JSON.stringify(doc)]]);
+    const d = scratch("repeated-out");
+    await expect(mainRun(chainRunner(d), t, join(d, "out"), honest, () => ["false"])).rejects.toThrow(/Twice\.json.*used twice: a/);
+  });
+
+  it("a run that fails part-way leaves no .children/", async () => {
+    const t = smallSanta("broken", [["chain/v4/spec/Broken.json", "not json"]]);
+    const d = scratch("broken-out"), out = join(d, "out");
+    await expect(mainRun(chainRunner(d), t, out, honest, () => ["false"])).rejects.toThrow();
+    expect(existsSync(join(out, ".children"))).toBe(false);
+  });
+
+  it("an out-dir in the SANTA checkout's tree is refused; conform's .santa/<r>/out passes", async () => {
+    const t = smallSanta("out-in-tree");
+    const d = scratch("out-in-tree-rj");
+    for (const out of [t, join(t, "vectors/out"), join(t, "oracle"), join(t, "vectors", ".", "x")])
+      await expect(mainRun(chainRunner(d), t, out, honest, () => ["false"]), out).rejects.toThrow("inside the SANTA checkout");
+    expect(existsSync(join(t, "results.json")) || existsSync(join(t, "actuals"))).toBe(false);
+    await mainRun(chainRunner(d), t, join(t, ".santa/r/out"), honest, () => ["false"]);
+    expect(existsSync(join(t, ".santa/r/out/results.json"))).toBe(true);
+  });
+});

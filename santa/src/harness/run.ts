@@ -4,9 +4,9 @@
 // mainOne the runner's per-file function. Node's standard library only.
 
 import { execFileSync } from "node:child_process";
-import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
 import { constants } from "node:os";
-import { dirname, join } from "node:path";
+import { basename, dirname, join, resolve, sep } from "node:path";
 import { type Budget, budget, runChild } from "./bounds.js";
 import { Grading, type Json, type JsonObject, type Verdict, isObject } from "./grading.js";
 import { checkOracles } from "./oracle.js";
@@ -68,7 +68,35 @@ async function runBounded(f: VectorFile, doc: Json, b: Budget, dir: string, n: n
   return each({ error: "panicked", note: "the bounded child wrote no actuals" });
 }
 
+/** The entry names a vector file uses more than once, in order of first repeat. */
+function repeatedNames(doc: Json): string[] {
+  const seen = new Set<string>(), twice: string[] = [];
+  for (const n of entriesOf(doc).map(nameOf)) {
+    if (seen.has(n) && !twice.includes(n)) twice.push(n);
+    seen.add(n);
+  }
+  return twice;
+}
+
+/** `<out-dir>` may be neither the SANTA checkout itself nor inside the data the runner reads (`vectors/`, `oracle/`):
+ *  a runner never writes into the checkout's tree (runner-integration §3). conform's own out-dirs, under the
+ *  checkout's ignored `.santa/`, are fine. Compared by real path; the out-dir need not exist yet. */
+function checkOutDir(santa: string, out: string): void {
+  const real = (p: string): string => {
+    // the nearest existing ancestor by its real path, the rest appended
+    let base = resolve(p);
+    const rest: string[] = [];
+    while (!existsSync(base) && dirname(base) !== base) { rest.unshift(basename(base)); base = dirname(base); }
+    return join(existsSync(base) ? realpathSync(base) : base, ...rest);
+  };
+  const s = real(santa), o = real(out);
+  const within = (dir: string): boolean => o === dir || o.startsWith(dir + sep);
+  if (o === s || within(join(s, "vectors")) || within(join(s, "oracle")))
+    throw new Error(`${out}: the out-dir is inside the SANTA checkout's own tree (its root, vectors/ or oracle/); a runner never writes there`);
+}
+
 export async function mainRun(runnerJson: string, santa: string, out: string, runFile: RunFile, child: ChildCommand): Promise<void> {
+  checkOutDir(santa, out);
   // before anything else: a run that fails leaves no earlier run's results behind (runner-integration §4.3)
   rmSync(join(out, "results.json"), { force: true });
   rmSync(join(out, "actuals"), { recursive: true, force: true });
@@ -82,30 +110,36 @@ export async function mainRun(runnerJson: string, santa: string, out: string, ru
   const children = join(out, ".children");
   mkdirSync(children, { recursive: true });
   const tally = new Tally();
-  for (const [n, f] of files.entries()) {
-    const doc = readJson(join(vectors, f.rel));
-    let b: Budget | null;
-    try { b = budget(doc); } catch (e) { throw new Error(`vectors/${f.rel}: ${(e as Error).message}`); }
-    let actuals: Record<string, Json>;
-    if (b !== null) {
-      if (process.platform !== "linux")
-        throw new Error(`vectors/${f.rel}: a bounded file needs Linux (the watchdog reads /proc); this platform cannot bound it`);
-      actuals = await runBounded(f, doc, b, children, n, child);
-    } else actuals = await runFile(join(vectors, f.rel), doc);
-    // graded as written: the JSON the canary re-grades (an `undefined` field is absent there, a NaN is null)
-    actuals = JSON.parse(JSON.stringify(actuals)) as Record<string, Json>;
-    writeJson(join(out, "actuals", f.rel), actuals);
-    const label = grading.labelFor(f.tier, doc);
-    tally.addFile(f);
-    for (const e of entriesOf(doc)) {
-      const has = Object.prototype.hasOwnProperty.call(actuals, nameOf(e));
-      const actual = has ? actuals[nameOf(e)] : undefined;
-      let v: Verdict;
-      try { v = grading.grade(label, e, actual, doc, scope.cost); } catch (err) { throw new Error(`vectors/${f.rel}: ${(err as Error).message}`); }
-      tally.addVerdict(f, e, actual, v);
+  // the files run inside try/finally, so `.children/` goes whether the run ends or fails
+  try {
+    for (const [n, f] of files.entries()) {
+      const doc = readJson(join(vectors, f.rel));
+      const twice = repeatedNames(doc);
+      if (twice.length > 0) throw new Error(`vectors/${f.rel}: entry names used twice: ${twice.join(", ")} (actuals are keyed by name)`);
+      let b: Budget | null;
+      try { b = budget(doc); } catch (e) { throw new Error(`vectors/${f.rel}: ${(e as Error).message}`); }
+      let actuals: Record<string, Json>;
+      if (b !== null) {
+        if (process.platform !== "linux")
+          throw new Error(`vectors/${f.rel}: a bounded file needs Linux (the watchdog reads /proc); this platform cannot bound it`);
+        actuals = await runBounded(f, doc, b, children, n, child);
+      } else actuals = await runFile(join(vectors, f.rel), doc);
+      // graded as written: the JSON the canary re-grades (an `undefined` field is absent there, a NaN is null)
+      actuals = JSON.parse(JSON.stringify(actuals)) as Record<string, Json>;
+      writeJson(join(out, "actuals", f.rel), actuals);
+      const label = grading.labelFor(f.tier, doc);
+      tally.addFile(f);
+      for (const e of entriesOf(doc)) {
+        const has = Object.prototype.hasOwnProperty.call(actuals, nameOf(e));
+        const actual = has ? actuals[nameOf(e)] : undefined;
+        let v: Verdict;
+        try { v = grading.grade(label, e, actual, doc, scope.cost); } catch (err) { throw new Error(`vectors/${f.rel}: ${(err as Error).message}`); }
+        tally.addVerdict(f, e, actual, v);
+      }
     }
+  } finally {
+    rmSync(children, { recursive: true, force: true });
   }
-  rmSync(children, { recursive: true, force: true });
   writeJson(join(out, "results.json"), tally.resultsJson(santaCommit(santa), scope));
   for (const l of tally.summary()) console.log(l);
 }
