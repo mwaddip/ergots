@@ -53,7 +53,9 @@ async function runBounded(f: VectorFile, doc: Json, b: Budget, dir: string, n: n
     for (const s of TRAPPED) process.off(s, onSignal);
   }
   if (o.kind === "interrupted") {
-    // the child's group is gone: the runner now dies of the signal it was sent (no listener left to catch it)
+    // the child's group is gone; .children/ goes too (mainRun's own cleanup never runs past the signal); then the
+    // runner dies of the signal it was sent (no listener left to catch it)
+    rmSync(dir, { recursive: true, force: true });
     process.kill(process.pid, o.signal);
     await new Promise((r) => setTimeout(r, 1000));
     process.exit(128 + constants.signals[o.signal]);
@@ -78,8 +80,9 @@ function repeatedNames(doc: Json): string[] {
   return twice;
 }
 
-/** `<out-dir>` may be neither the SANTA checkout itself nor inside the data the runner reads (`vectors/`, `oracle/`):
- *  a runner never writes into the checkout's tree (runner-integration §3). conform's own out-dirs, under the
+/** `<out-dir>` may be neither the SANTA checkout itself nor inside the data the runner reads (`vectors/`, `oracle/`),
+ *  nor contain the checkout: a runner never writes into the checkout's tree, and never clears it (runner-integration
+ *  §3). conform's own out-dirs, under the
  *  checkout's ignored `.santa/`, are fine. Compared by real path; the out-dir need not exist yet. */
 function checkOutDir(santa: string, out: string): void {
   const real = (p: string): string => {
@@ -93,6 +96,8 @@ function checkOutDir(santa: string, out: string): void {
   const within = (dir: string): boolean => o === dir || o.startsWith(dir + sep);
   if (o === s || within(join(s, "vectors")) || within(join(s, "oracle")))
     throw new Error(`${out}: the out-dir is inside the SANTA checkout's own tree (its root, vectors/ or oracle/); a runner never writes there`);
+  // the run's first step clears <out-dir>/actuals and .children: a checkout under the out-dir could be among them
+  if (s.startsWith(o + sep)) throw new Error(`${out}: the out-dir contains the SANTA checkout (${s})`);
 }
 
 export async function mainRun(runnerJson: string, santa: string, out: string, runFile: RunFile, child: ChildCommand): Promise<void> {
@@ -100,6 +105,7 @@ export async function mainRun(runnerJson: string, santa: string, out: string, ru
   // before anything else: a run that fails leaves no earlier run's results behind (runner-integration §4.3)
   rmSync(join(out, "results.json"), { force: true });
   rmSync(join(out, "actuals"), { recursive: true, force: true });
+  rmSync(join(out, ".children"), { recursive: true, force: true });
   const scope = readScope(runnerJson);
   let grading: Grading;
   try { grading = Grading.parse(readJson(join(santa, "vectors", "grading.json"))); }

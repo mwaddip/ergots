@@ -178,6 +178,15 @@ describe("round 3: what a run refuses and leaves behind", () => {
     expect(existsSync(join(out, ".children"))).toBe(false);
   });
 
+  it("an out-dir containing the SANTA checkout is refused, and the checkout survives", async () => {
+    const d = scratch("out-contains"), out = join(d, "out"), inner = join(out, "actuals");
+    mkdirSync(join(inner, "vectors"), { recursive: true });
+    cpSync(join(santa, "oracle"), join(inner, "oracle"), { recursive: true });
+    copyFileSync(join(santa, "vectors/grading.json"), join(inner, "vectors/grading.json"));
+    await expect(mainRun(chainRunner(d), inner, out, honest, () => ["false"])).rejects.toThrow("contains the SANTA checkout");
+    expect(existsSync(join(inner, "vectors/grading.json"))).toBe(true);
+  });
+
   it("an out-dir in the SANTA checkout's tree is refused; conform's .santa/<r>/out passes", async () => {
     const t = smallSanta("out-in-tree");
     const d = scratch("out-in-tree-rj");
