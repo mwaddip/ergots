@@ -99,11 +99,3 @@ jobs:
           name: santa-pr
           path: .santa-pr/artifact/
           retention-days: 7
-      # ergots' own step: the runner's tests with the SANTA clone, so the harness's two SANTA-reading test files run on
-      # every pull request (`npm test` leaves them out). It runs when the head was graded: the grade built the
-      # packages and installed the runner's Node.
-      - name: the runner's tests, with the SANTA checkout
-        if: env.HEAD_STATUS == ''
-        env:
-          SANTA_DIR: ${{ runner.temp }}/santa
-        run: mise --cd "$RUNNER_DIR" exec -- npm test

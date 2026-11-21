@@ -23,7 +23,6 @@ if [ -z "${SANTA_MISE_ACTIVE:-}" ]; then
   mise --cd "$here" install
   exec env SANTA_MISE_ACTIVE=1 mise --cd "$here" exec -- "$here/santa-run" "$1" "$SANTA" "$OUT"
 fi
-mkdir -p "$OUT"
 root="$(cd "$here/.." && pwd -P)"
 
 # A build step prints nothing when it succeeds and its whole output when it fails.
