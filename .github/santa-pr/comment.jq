@@ -8,7 +8,8 @@
 # The layout is SANTA's santa-delta's: the counts, newly red and now green one row per vector file (the largest
 # first), red another way folded, still red counted, files graded on one side only with their red entries. Every
 # cell is escaped, so a name cannot break the table or open a tag. The comment is cut at 60,000 characters (GitHub's
-# limit is 65,536), the job summary at 1,000,000 bytes (its limit is 1 MiB).
+# limit is 65,536), the job summary at 1,000,000 bytes (its limit is 1 MiB). Written for jq 1.7 and 1.8 alike: a binding inside
+# an operand (`A + (B as $x | C)`) is always parenthesized, because jq 1.8 binds `A + B as $x | C` as `(A + B) as $x`.
 
 def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;") | gsub("\\|"; "&#124;")
   | gsub("[\n\r]"; " ");
@@ -71,7 +72,7 @@ def block($cap):
          (if $d.scope_changed then
             "**Scope changed:** base \($d.scope_changed.base | code) → head \($d.scope_changed.head | code)\n\n"
           else "" end)
-         + (([$d.newly_red, $d.now_green, $d.changed] | map(length) | add) > 0) as $moved
+         + ((([$d.newly_red, $d.now_green, $d.changed] | map(length) | add) > 0) as $moved
          | (($d.files.only_base + $d.files.only_head | length) > 0) as $files_moved
          | if ($moved | not) and ($files_moved | not) then
              "No change: \($d.still_red | plural("entry"; "entries")) still red, as at base.\n\n"
@@ -85,7 +86,7 @@ def block($cap):
              + (if ($d.changed | length) > 0 then
                   "<details><summary>\(heading($d; "changed"))</summary>\n\n\($d.changed | table("changed"; $cap))\n</details>\n\n"
                 else "" end)
-           end
+           end)
        end);
 
 # the job summary's tail: every entry of a section, grouped by file, with its answers
