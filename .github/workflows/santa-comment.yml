@@ -10,6 +10,10 @@ on:
 permissions:
   actions: read # download the check's artifact
   pull-requests: write # post or update the comment
+concurrency:
+  # one at a time per pull request branch: two runs finishing together cannot both post a first comment
+  group: santa-comment-${{ github.event.workflow_run.head_repository.full_name }}-${{ github.event.workflow_run.head_branch }}
+  cancel-in-progress: false
 jobs:
   comment:
     if: github.event.workflow_run.event == 'pull_request' && github.event.workflow_run.conclusion == 'success'
@@ -42,7 +46,12 @@ jobs:
           # the event's pull_requests empty, so the number has to come from the artifact.)
           pr=$(jq -r '.number' santa-pr/pr.json)
           [[ "$pr" =~ ^[0-9]+$ ]] || { echo "no pull request number in the artifact"; exit 1; }
-          head=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '.head.sha')
+          info=$(gh api "repos/$GITHUB_REPOSITORY/pulls/$pr" --jq '[.state, .head.sha] | join(" ")')
+          state=${info%% *} head=${info#* }
+          if [ "$state" != "open" ]; then
+            echo "pull request #$pr is $state: not posting"
+            exit 0
+          fi
           if [ "$head" != "$HEAD_SHA" ]; then
             echo "pull request #$pr's head is $head, the check ran on $HEAD_SHA: not posting"
             exit 0
