@@ -32,6 +32,24 @@ anything else. It needs `git`, [`mise`](https://mise.jdx.dev) and `jq`. The vect
 own watchdog, which reads `/proc`, so a full grade runs on Linux. The script exits non-zero when the runner could
 not build or run.
 
+## The pull request check
+
+`.github/workflows/santa.yml` runs on every pull request with a read-only token. It clones SANTA at `main` into the
+runner's temporary directory, grades the pull request merged into its base with `santa/santa-run`, grades the base
+from a git worktree with the base's own copy of the runner, and compares the two `results.json` files with the two
+`jq` programs in `.github/santa-pr/` (`delta.jq`, `comment.jq`). An entry is compared by its set of red dimensions:
+newly red, now green, red another way, still red, one row per vector file; a file graded on one side only is listed
+apart. The job summary has every entry with its answers. Its last step runs this runner's tests with the SANTA
+clone as `SANTA_DIR`.
+
+`.github/workflows/santa-comment.yml` runs from `master` when that check completes: it reads the check's artifact as
+text and posts the comparison as one comment on the pull request, updated on every push. It runs nothing from the
+pull request.
+
+The check grades the head with the head's own runner, workflow and `jq` programs, so a pull request that changes
+any of them decides what its comment says; such a change is reviewed like any other code. The two workflows and the
+two `jq` programs are SANTA's template (`pr-check/` in its repository), with the test step added to `santa.yml`.
+
 ## What SANTA calls
 
 SANTA's board runs the same entry point: `santa-run <impl-path> <santa-dir> <out-dir>` (SANTA's
