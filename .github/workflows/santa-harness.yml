@@ -1,0 +1,37 @@
+# The two harness test files that read a SANTA checkout (santa/test/harness/oracle.spec.ts and run.spec.ts), on every
+# pull request, against SANTA's current vectors and oracles. `npm test` leaves them out, so that it needs no SANTA
+# checkout. A workflow of its own: its result is its own check, apart from the SANTA check and its comment.
+name: SANTA harness
+on:
+  pull_request:
+permissions:
+  contents: read
+jobs:
+  harness:
+    runs-on: ubuntu-latest
+    timeout-minutes: 20
+    env:
+      SANTA_REF: main # SANTA's vectors and oracles: main, or a commit to hold them still
+    steps:
+      - uses: actions/checkout@d23441a48e516b6c34aea4fa41551a30e30af803 # v6.1.0
+        with:
+          persist-credentials: false # nothing after the checkout talks to GitHub with git
+      - name: install mise (the binary; santa/mise.toml pins Node)
+        uses: jdx/mise-action@c2a87611a18de5b3828c5652fe268e992400cb5c # v4.3.0
+        with:
+          version: 2026.5.18
+          install: false
+      - name: fetch SANTA, outside this repository's tree
+        run: |
+          santa="$RUNNER_TEMP/santa"
+          git -c init.defaultBranch=santa init -q "$santa"
+          git -C "$santa" fetch -q --depth 1 https://github.com/mwaddip/santa.git "$SANTA_REF"
+          git -C "$santa" checkout -q --detach FETCH_HEAD
+      - name: install Node and the dependencies
+        run: |
+          mise --cd santa install
+          mise --cd santa exec -- npm install --prefix "$GITHUB_WORKSPACE" --no-audit --no-fund
+      - name: the harness's tests that read the SANTA checkout
+        env:
+          SANTA_DIR: ${{ runner.temp }}/santa
+        run: mise --cd santa exec -- npx vitest run test/harness/oracle.spec.ts test/harness/run.spec.ts
