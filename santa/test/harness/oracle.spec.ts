@@ -1,5 +1,5 @@
 import { execFileSync } from "node:child_process";
-import { copyFileSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
+import { copyFileSync, existsSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
@@ -7,11 +7,11 @@ import { Grading, type Json, type JsonObject } from "../../src/harness/grading.j
 import { checkOracles } from "../../src/harness/oracle.js";
 import { santaCommit } from "../../src/harness/run.js";
 import { parseScope } from "../../src/harness/selection.js";
-import { santaDir } from "./santa.js";
+import { santaDir, scratchDirs } from "./santa.js";
 
 const santa = santaDir();
 const grading = (): Grading => Grading.parse(JSON.parse(readFileSync(join(santa, "vectors/grading.json"), "utf8")) as Json);
-const temp = (tag: string): string => mkdtempSync(join(tmpdir(), `comet-harness-${tag}-`));
+const temp = scratchDirs("comet-harness");
 
 describe("the oracle checks", () => {
   it("reproduce every verdict and selection case of SANTA's oracle", () => {
@@ -42,6 +42,21 @@ describe("the oracle checks", () => {
       writeFileSync(join(fake, "oracle/x.json"), body);
       expect(() => checkOracles(fake, grading()), body).toThrow(why);
     }
+  });
+
+  it("refuse a selection path that leaves the tree, before anything is written", () => {
+    const name = `comet-escape-${process.pid}.json`;
+    const escape = join(tmpdir(), name);
+    const abs = join(temp("abs"), "abs.json");
+    for (const rel of [`../../${name}`, abs]) {
+      const fake = temp("leaves");
+      mkdirSync(join(fake, "oracle"));
+      writeFileSync(join(fake, "oracle/x.json"), JSON.stringify({ schema: "santa-oracle-selection/v1", files: [{ path: rel }], cases: [] }));
+      expect(() => checkOracles(fake, grading()), rel).toThrow("leaves the tree");
+    }
+    const wrote = existsSync(escape) || existsSync(abs);
+    rmSync(escape, { force: true });
+    expect(wrote).toBe(false);
   });
 
   it("refuse an unknown oracle schema", () => {

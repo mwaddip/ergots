@@ -34,10 +34,16 @@ function verdicts(doc: JsonObject, g: Grading): void {
 
 /** The selection cases over a fresh temporary tree built from `files` (runner-integration §4.1). */
 function selections(doc: JsonObject): void {
+  const files = list(doc, "files");
+  const want = cases(doc);
+  // a path the tree cannot hold (absolute, or climbing out with `..`) is refused before anything is written
+  const leaves = (rel: string): boolean => rel === "" || rel.startsWith("/") || rel.split("/").some((p) => p === "" || p === "." || p === "..");
+  const bad = files.map((f) => (typeof f.path === "string" ? f.path : "")).find(leaves);
+  if (bad !== undefined) throw new Error(`a file path that leaves the tree: ${JSON.stringify(bad)}`);
   const root = mkdtempSync(join(tmpdir(), "santa-selection-"));
   try {
     const vectors = join(root, "vectors");
-    for (const f of list(doc, "files")) {
+    for (const f of files) {
       const rel = typeof f.path === "string" ? f.path : "";
       const path = join(vectors, rel);
       mkdirSync(dirname(path), { recursive: true });
@@ -52,7 +58,7 @@ function selections(doc: JsonObject): void {
       writeFileSync(path, body);
     }
     const all = discover(vectors);
-    for (const c of cases(doc)) {
+    for (const c of want) {
       const name = typeof c.name === "string" ? c.name : "?";
       let got: string[];
       try { got = select(all, vectors, parseScope(c.scope ?? null)).map((f) => f.rel); }

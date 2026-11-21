@@ -1,5 +1,18 @@
-import { existsSync } from "node:fs";
+import { existsSync, mkdtempSync, rmSync } from "node:fs";
+import { tmpdir } from "node:os";
 import { dirname, join, resolve } from "node:path";
+import { afterAll } from "vitest";
+
+/** A spec file's scratch directories, removed after its tests: call once at the top of the file. */
+export function scratchDirs(prefix: string): (tag: string) => string {
+  const made: string[] = [];
+  afterAll(() => { for (const d of made) rmSync(d, { recursive: true, force: true }); });
+  return (tag) => {
+    const d = mkdtempSync(join(tmpdir(), `${prefix}-${tag}-`));
+    made.push(d);
+    return d;
+  };
+}
 
 /** The SANTA checkout the harness tests read: $SANTA_DIR, else the nearest ancestor (of the working directory or of
  *  this file) holding vectors/grading.json. Fails loudly: a skipped oracle check would pass silently. */

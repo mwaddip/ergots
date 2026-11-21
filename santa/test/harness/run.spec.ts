@@ -1,14 +1,14 @@
 import { execFileSync } from "node:child_process";
-import { cpSync, existsSync, mkdirSync, mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { copyFileSync, cpSync, existsSync, mkdirSync, readFileSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type Json, type JsonObject, isObject } from "../../src/harness/grading.js";
 import { type ChildCommand, type RunFile, mainOne, mainRun } from "../../src/harness/run.js";
 import { checkResultsShape } from "./results-shape.js";
-import { santaDir } from "./santa.js";
+import { santaDir, scratchDirs } from "./santa.js";
 
 const santa = santaDir();
+const scratch = scratchDirs("comet-run");
 
 /** A wire answer that is right by construction: the reject arm errored, else the blessed bytes. */
 const honest: RunFile = (_path, doc) => {
@@ -22,7 +22,7 @@ const honest: RunFile = (_path, doc) => {
 
 describe("mainRun", () => {
   it("an honest run writes results.json and one actuals file per selected file, with no reds", async () => {
-    const d = mkdtempSync(join(tmpdir(), "comet-run-"));
+    const d = scratch("run");
     const rj = join(d, "runner.json");
     writeFileSync(rj, `{"name": "t", "version": "v5", "tiers": ["wire"], "kinds": ["Box"]}`);
     const out = join(d, "out");
@@ -50,7 +50,7 @@ describe("mainRun", () => {
 /** A temp SANTA tree: SANTA's oracle/ and grading.json, and one bounded file (a real one, its budget set to 256 MiB). */
 const BOUNDED = "eval/v6/authored/Global.serialize_shared_nested_bounded_G_size_only_32768x4096.json";
 function boundedTree(): string {
-  const t = mkdtempSync(join(tmpdir(), "comet-bounded-"));
+  const t = scratch("bounded");
   cpSync(join(santa, "oracle"), join(t, "oracle"), { recursive: true });
   mkdirSync(join(t, "vectors", "eval/v6/authored"), { recursive: true });
   cpSync(join(santa, "vectors/grading.json"), join(t, "vectors/grading.json"));
@@ -76,7 +76,7 @@ const noFile: RunFile = () => { throw new Error("a bounded file must run as a ch
 
 describe("bounded files", () => {
   it("run as children of the runner, their honest answers graded nice", async () => {
-    const t = boundedTree(), d = mkdtempSync(join(tmpdir(), "comet-bounded-run-")), out = join(d, "out");
+    const t = boundedTree(), d = scratch("bounded-run"), out = join(d, "out");
     await mainRun(evalRunner(d), t, out, noFile, childOf(t, 0));
     const r = JSON.parse(readFileSync(join(out, "results.json"), "utf8")) as JsonObject;
     checkResultsShape(r);
@@ -88,7 +88,7 @@ describe("bounded files", () => {
   });
 
   it("past their budget are exceeded memory, a red each", async () => {
-    const t = boundedTree(), d = mkdtempSync(join(tmpdir(), "comet-bounded-over-")), out = join(d, "out");
+    const t = boundedTree(), d = scratch("bounded-over"), out = join(d, "out");
     await mainRun(evalRunner(d), t, out, noFile, childOf(t, 400));
     const r = JSON.parse(readFileSync(join(out, "results.json"), "utf8")) as JsonObject;
     checkResultsShape(r);
@@ -102,7 +102,7 @@ describe("bounded files", () => {
 
 describe("mainOne", () => {
   it("writes the file's actuals and its own peak", async () => {
-    const out = join(mkdtempSync(join(tmpdir(), "comet-one-")), "a.json");
+    const out = join(scratch("one"), "a.json");
     await mainOne(santa, "wire/v5/vendored/Box.json", out, honest);
     const a = JSON.parse(readFileSync(out, "utf8")) as JsonObject;
     expect(Object.keys(a).length).toBeGreaterThan(0);
@@ -112,7 +112,7 @@ describe("mainOne", () => {
 
 describe("grading what is written", () => {
   it("an actual's undefined field is graded as the JSON the canary reads (absent), not as present", async () => {
-    const d = mkdtempSync(join(tmpdir(), "comet-undefined-"));
+    const d = scratch("undefined");
     const rj = join(d, "runner.json");
     writeFileSync(rj, `{"name": "t", "version": "v5", "tiers": ["wire"], "kinds": ["Box"]}`);
     const sloppy: RunFile = async (path, doc) => {
@@ -123,5 +123,28 @@ describe("grading what is written", () => {
     await mainRun(rj, santa, join(d, "out"), sloppy, () => ["false"]);
     const r = JSON.parse(readFileSync(join(d, "out", "results.json"), "utf8")) as JsonObject;
     expect(r.totals).toEqual({ red: 0, not_implemented: 0 });
+  });
+});
+
+describe("a run clears the previous results first", () => {
+  it("so one that fails leaves no earlier results.json or actuals/", async () => {
+    const fake = scratch("wrong-oracle");
+    mkdirSync(join(fake, "vectors"));
+    mkdirSync(join(fake, "oracle"));
+    copyFileSync(join(santa, "vectors/grading.json"), join(fake, "vectors/grading.json"));
+    copyFileSync(join(santa, "oracle/selection.json"), join(fake, "oracle/selection.json"));
+    const doc = JSON.parse(readFileSync(join(santa, "oracle/verdicts-grading.json"), "utf8")) as JsonObject;
+    const cases = doc.cases as JsonObject[];
+    doc.cases = [{ ...cases[0], verdict: { outcome: "panicked" } }, ...cases.slice(1)];
+    writeFileSync(join(fake, "oracle/verdicts-grading.json"), JSON.stringify(doc));
+    const d = scratch("clears"), out = join(d, "out");
+    mkdirSync(join(out, "actuals/wire/v5/vendored"), { recursive: true });
+    writeFileSync(join(out, "results.json"), "{}");
+    writeFileSync(join(out, "actuals/wire/v5/vendored/Old.json"), "{}");
+    const rj = join(d, "runner.json");
+    writeFileSync(rj, `{"version": "v5", "tiers": ["wire"]}`);
+    await expect(mainRun(rj, fake, out, honest, () => ["false"])).rejects.toThrow();
+    expect(existsSync(join(out, "results.json"))).toBe(false);
+    expect(existsSync(join(out, "actuals"))).toBe(false);
   });
 });

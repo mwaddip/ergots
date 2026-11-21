@@ -1,12 +1,14 @@
-import { mkdirSync, mkdtempSync, symlinkSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { mkdirSync, symlinkSync, writeFileSync } from "node:fs";
 import { join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { discover } from "../../src/harness/selection.js";
+import { scratchDirs } from "./santa.js";
+
+const scratch = scratchDirs("comet-discover");
 
 describe("discover", () => {
   it("follows a symlinked directory and lists a dangling *.json link (its read fails loudly later)", () => {
-    const root = mkdtempSync(join(tmpdir(), "comet-discover-"));
+    const root = scratch("tree");
     const vectors = join(root, "vectors");
     mkdirSync(join(vectors, "eval/v6/authored"), { recursive: true });
     writeFileSync(join(vectors, "eval/v6/authored/A.json"), "{}");

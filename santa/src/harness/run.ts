@@ -5,6 +5,7 @@
 
 import { execFileSync } from "node:child_process";
 import { mkdirSync, readFileSync, realpathSync, rmSync, writeFileSync } from "node:fs";
+import { constants } from "node:os";
 import { dirname, join } from "node:path";
 import { type Budget, budget, runChild } from "./bounds.js";
 import { Grading, type Json, type JsonObject, type Verdict, isObject } from "./grading.js";
@@ -37,9 +38,26 @@ export function santaCommit(santa: string): string | null {
   } catch { return null; }
 }
 
+/** The signals that end a runner: while a bounded child runs, they kill its group first (bounds.ts), then the runner. */
+const TRAPPED: NodeJS.Signals[] = ["SIGINT", "SIGTERM", "SIGHUP"];
+
 async function runBounded(f: VectorFile, doc: Json, b: Budget, dir: string, n: number, child: ChildCommand): Promise<Record<string, Json>> {
   const outFile = join(dir, `${n}.json`);
-  const o = await runChild(child(b, f.rel, outFile), b, join(dir, `${n}.stderr`), `${outFile}.peak`);
+  const ac = new AbortController();
+  const onSignal = (s: NodeJS.Signals): void => ac.abort(s);
+  for (const s of TRAPPED) process.on(s, onSignal);
+  let o: Awaited<ReturnType<typeof runChild>>;
+  try {
+    o = await runChild(child(b, f.rel, outFile), b, join(dir, `${n}.stderr`), `${outFile}.peak`, ac.signal);
+  } finally {
+    for (const s of TRAPPED) process.off(s, onSignal);
+  }
+  if (o.kind === "interrupted") {
+    // the child's group is gone: the runner now dies of the signal it was sent (no listener left to catch it)
+    process.kill(process.pid, o.signal);
+    await new Promise((r) => setTimeout(r, 1000));
+    process.exit(128 + constants.signals[o.signal]);
+  }
   const each = (a: Json): Record<string, Json> => Object.fromEntries(entriesOf(doc).map((e) => [nameOf(e), a]));
   if (o.kind === "exceeded") return each({ error: "exceeded", limit: o.limit });
   if (o.kind === "crashed") return each({ error: "panicked", note: o.note });
@@ -51,6 +69,9 @@ async function runBounded(f: VectorFile, doc: Json, b: Budget, dir: string, n: n
 }
 
 export async function mainRun(runnerJson: string, santa: string, out: string, runFile: RunFile, child: ChildCommand): Promise<void> {
+  // before anything else: a run that fails leaves no earlier run's results behind (runner-integration §4.3)
+  rmSync(join(out, "results.json"), { force: true });
+  rmSync(join(out, "actuals"), { recursive: true, force: true });
   const scope = readScope(runnerJson);
   let grading: Grading;
   try { grading = Grading.parse(readJson(join(santa, "vectors", "grading.json"))); }

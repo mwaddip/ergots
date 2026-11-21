@@ -1,13 +1,15 @@
-import { mkdtempSync, readFileSync, writeFileSync } from "node:fs";
-import { tmpdir } from "node:os";
+import { existsSync, readFileSync, writeFileSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { describe, expect, it } from "vitest";
 import { type Outcome, budget, runChild } from "../../src/harness/bounds.js";
 import type { Json } from "../../src/harness/grading.js";
+import { scratchDirs } from "./santa.js";
+
+const scratch = scratchDirs("comet-bounds");
 
 /** A bash script in a fresh directory; children run as `bash <script>`. */
 const script = (tag: string, body: string): string => {
-  const s = join(mkdtempSync(join(tmpdir(), `comet-bounds-${tag}-`)), "run.sh");
+  const s = join(scratch(tag), "run.sh");
   writeFileSync(s, `#!/usr/bin/env bash\n${body}\n`);
   return s;
 };
@@ -52,9 +54,26 @@ describe("the bounded-file watchdog", () => {
     expect(alive(readFileSync(join(dirname(s), "child.pid"), "utf8"))).toBe(false);
   });
 
+  it("an interrupted run kills the child's group and says which signal", async () => {
+    const s = script("interrupted", `sleep 30 &\necho $! > "$(dirname "$0")/child.pid"\nsleep 30`);
+    const pidFile = join(dirname(s), "child.pid");
+    const ac = new AbortController();
+    const outcome = runChild(["bash", s], { memoryMb: 1024, wallS: 30 }, join(dirname(s), "stderr"), null, ac.signal);
+    const t0 = Date.now();
+    while (!existsSync(pidFile)) {
+      expect(Date.now() - t0).toBeLessThan(10_000);
+      await new Promise((r) => setTimeout(r, 20));
+    }
+    ac.abort("SIGINT");
+    expect(await outcome).toEqual({ kind: "interrupted", signal: "SIGINT" });
+    await new Promise((r) => setTimeout(r, 200));
+    expect(alive(readFileSync(pidFile, "utf8"))).toBe(false);
+  });
+
   it("a crash is its exit status or its signal", async () => {
     expect(await run(script("exit", "exit 101"), 1024, 30)).toEqual({ kind: "crashed", note: "process exit status 101" });
-    expect(await run(script("segv", "kill -SEGV $$"), 1024, 30)).toEqual({ kind: "crashed", note: "process killed by signal 11" });
+    // through bash, exit status 128 + N and death by signal N read the same: the note names both
+    expect(await run(script("segv", "kill -SEGV $$"), 1024, 30)).toEqual({ kind: "crashed", note: "process exit status 139 (killed by signal 11?)" });
   });
 
   it("a reported peak past the budget is exceeded memory", async () => {
