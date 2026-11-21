@@ -43,4 +43,5 @@ quiet npm run build
 
 # --max-old-space-size: a bounded file's child runs under the same flags, and V8's own default heap limit could stop
 # a row within its budget; a large ceiling leaves the bound to the runner's watchdog (src/harness/bounds.ts).
-node --max-old-space-size=65536 "$here/dist/runner.js" run "$here/runner.json" "$SANTA" "$OUT"
+# exec: the runner takes this script's place, so a signal sent to santa-run reaches the runner and its bounded child.
+exec node --max-old-space-size=65536 "$here/dist/runner.js" run "$here/runner.json" "$SANTA" "$OUT"
