@@ -36,7 +36,7 @@
     "typecheck": "tsc --noEmit"
   },
   "dependencies": {
-    "@ergots/avltree": "0.2.0",
+    "@ergots/avltree": "0.7.0",
     "@ergots/scorex": "0.3.0",
     "@noble/curves": "2.2.0",
     "@noble/hashes": "2.2.0"

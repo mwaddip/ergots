@@ -36,9 +36,17 @@ Inspect the dry-run tarball listing:
 
 ## Cross-package version coupling
 
-`@ergots/ergoscript` declares `@ergots/avltree: "0.2.0"` as a runtime dependency. **Bumping avltree without simultaneously updating the dep range in ergoscript breaks the workspace alias.** Bump both together when the avltree API changes.
+`@ergots/ergoscript` declares `@ergots/avltree` as a runtime dependency, pinned exactly to the workspace's avltree version (`0.7.0`). With the two equal, npm links the workspace package, and ergoscript builds, tests and is graded against it.
 
-**Release-time step, open as of 2026-10-01:** that pin is out of step. ergoscript still declares avltree `0.2.0`, while the workspace avltree is `0.6.0` (published), and ergoscript's tests run against the workspace's `0.6.0` through the root `node_modules` link. A published ergoscript would depend on avltree `0.2.0`, and a fresh `npm install` may resolve that version for it instead of the workspace link. Before releasing ergoscript, set the pin to exactly the avltree version its tests pass against, run `npm install`, and rerun the gates. The pin is left unchanged until then.
+**When the pin and the workspace's avltree version differ**, npm installs the pinned version from the registry under `packages/ergoscript/node_modules/@ergots/avltree`, and ergoscript resolves that copy ahead of the workspace link: its tests then run against the registry's avltree, whatever `packages/avltree` holds. So bump the two together: set the pin to the new avltree version in the same commit that bumps `packages/avltree/package.json`, then `npm install` and check the resolution before running the gates:
+
+```bash
+ls packages/ergoscript/node_modules/@ergots 2>/dev/null   # prints nothing: no registry copy
+(cd packages/ergoscript && node --input-type=module -e "console.log(import.meta.resolve('@ergots/avltree'))")
+# prints .../packages/avltree/dist/index.js
+```
+
+A registry copy left by an earlier install stays on disk after the pin changes; remove `packages/ergoscript/node_modules/@ergots/avltree` and run `npm install` again.
 
 `@ergots/transaction` pins `@ergots/ergoscript` and `@ergots/scorex` exactly, and tsup leaves both external, so the published transaction imports whatever the registry holds at those versions. When transaction starts using a new export of either, as it did with ergoscript's `violatesCheckV6Type` and `sValueStructuralEq` (2026-09-27), publishing transaction alone breaks it at module load. Release in dependency order:
 
