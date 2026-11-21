@@ -51,7 +51,7 @@ export function evalDecodePoint(
   env: Env,
   ctx: EvalContext,
 ): SValue {
-  ctx.addCost(300) // Pattern A: charge BEFORE eval-child
+  ctx.addCost(301) // Pattern A: charge BEFORE eval-child
   const inputV = evalExpr(e.input, env, ctx)
   const bytes = collByteToUint8Array(inputV, 'DecodePoint')
   let point: ReturnType<typeof decodePoint>
