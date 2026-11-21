@@ -11,8 +11,11 @@
 # limit is 65,536), the job summary at 1,000,000 bytes (its limit is 1 MiB). Written for jq 1.7 and 1.8 alike: a binding inside
 # an operand (`A + (B as $x | C)`) is always parenthesized, because jq 1.8 binds `A + B as $x | C` as `(A + B) as $x`.
 
-def esc: gsub("&"; "&amp;") | gsub("<"; "&lt;") | gsub(">"; "&gt;") | gsub("\""; "&quot;") | gsub("\\|"; "&#124;")
-  | gsub("[\n\r]"; " ");
+# a cell's text, inert: no tag (<, >, &, "), no table split (|), no markdown (* _ ` [ ] ~ \\), no @mention (the text
+# comes from the pull request's own artifact, and the bot would notify the account), on one line. One pass.
+def escapes: {"&": "&amp;", "<": "&lt;", ">": "&gt;", "\"": "&quot;", "|": "&#124;", "@": "&#64;", "\\": "&#92;",
+  "`": "&#96;", "*": "&#42;", "_": "&#95;", "[": "&#91;", "]": "&#93;", "~": "&#126;", "\n": " ", "\r": " "};
+def esc: gsub("(?<c>[&<>\"|@\\\\`*_\\[\\]~\n\r])"; escapes[.c]);
 def code: "<code>\(esc)</code>";
 def brief: if type == "string" then . else tojson end;
 def plural($one; $many): "\(.) \(if . == 1 then $one else $many end)";

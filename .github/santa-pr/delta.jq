@@ -11,11 +11,19 @@
 # with its red entries there.
 # Writes delta.json (santa-pr-delta/v1); comment.jq renders it.
 
-# a results.json this program can read: santa-runner-results/v1 with the fields it uses
+# a results.json this program and comment.jq can read: santa-runner-results/v1 with every field either of them
+# uses, of the type it uses it as. The single definition: the workflow only checks a side's file is JSON at all, and
+# anything else unreadable is a side that could not run, never a crash.
+def strings: type == "array" and all(.[]; type == "string");
 def readable:
-  type == "object" and .schema == "santa-runner-results/v1" and (.scope | type) == "object"
-  and (.scope.tiers | type) == "array" and (.slices | type) == "object"
-  and all(.slices[]; type == "object" and (.files | type) == "array" and (.red | type) == "array");
+  type == "object" and .schema == "santa-runner-results/v1" and (.santa | type == "string" or type == "null")
+  and (.scope | type == "object" and (.version | type) == "string" and (.tiers | strings)
+       and (.cost | type) == "boolean" and (.kinds | . == null or strings)
+       and (.activation | . == null or type == "boolean"))
+  and (.slices | type == "object"
+       and all(.[]; type == "object" and (.files | strings) and (.red | type) == "array"
+               and all(.red[]; type == "object" and (.file | type) == "string" and (.entry | type) == "string"
+                       and (.dim | type) == "string" and (.note | . == null or type == "string"))));
 
 # the side as given, or why it could not be compared
 def side($r; $status):
