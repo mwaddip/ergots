@@ -1,31 +1,29 @@
 #!/usr/bin/env bash
-# grade [--santa <ref>] [--delta <base-ref>]: grade this checkout against SANTA's vectors.
+# grade [--santa <ref>] [--out <dir>]: grade this checkout against SANTA's vectors.
 #
-# Fetches SANTA (`mwaddip/santa`, `main` unless --santa names another branch, tag or commit) into a clone of its own,
-# checks that commit out over whatever the clone held, then runs the clone's `./conform --hosted` on this checkout:
-# the working tree in place, uncommitted edits included, with this checkout's santa-run. conform prints one line per slice (tier/version/provenance); this script then
-# prints the number of red entries and where the full results are:
-#   results.json  conform's results, every red entry with its dimension, what SANTA expects and what ergots answered
-#   reds.tsv      one line per red entry: slice, op, entry, dimension, expected, got, note
-#
-# --delta <base-ref> runs `./santa-pr` in place of `./conform`, as the pull request check does: it grades <base-ref>
-# (a branch, tag or commit of this repository, taken as the commit it names here) with that commit's own runner,
-# then the working tree, and writes the comparison (comment.md, summary.md, delta.json) beside the working tree's
-# results.
-#
-# Exits 1 when the runner could not build or run: conform's line for it says why, and nothing is graded.
+# Fetches SANTA (`mwaddip/santa`, `main` unless --santa names another branch, tag or commit) into a clone of its own
+# and checks that commit out over whatever the clone held. The clone is data: its vectors/, its grading rules and its
+# oracle/. Then santa-run grades the working tree, uncommitted edits included, and prints one line per slice
+# (tier/version/provenance). This script then prints the totals and where the results are:
+#   results.json  per slice, the count graded and right in every dimension, and every red entry with its dimension,
+#                 what SANTA expects and what ergots answered
+#   reds.tsv      one line per red entry: file, entry, dimension, expected, got, note
+#   actuals/      ergots' raw answer to every entry, at the vector file's path under vectors/
 #
 # The clone is $ERGOTS_SANTA_DIR, by default ergots/santa under $XDG_CACHE_HOME (or under .cache in the home
-# directory). Needs git, mise, jq and, for SANTA's resource bound, a systemd user manager on cgroup v2: Linux only.
+# directory); the results go to --out, by default santa-out beside the clone. Needs git, mise and jq. The vector
+# files that carry a budget run under the runner's own watchdog, which reads /proc: Linux only.
+#
+# Exits non-zero when the runner could not build or run; santa-run's own message says why.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
 root="$(cd "$here/.." && pwd -P)"
-usage() { echo "usage: santa/grade [--santa <ref>] [--delta <base-ref>]" >&2; exit 2; }
-ref=main base=
+usage() { echo "usage: santa/grade [--santa <ref>] [--out <dir>]" >&2; exit 2; }
+ref=main out=
 while [ $# -gt 0 ]; do
   case $1 in
     --santa) [ $# -ge 2 ] || usage; ref=$2; shift 2 ;;
-    --delta) [ $# -ge 2 ] || usage; base=$2; shift 2 ;;
+    --out) [ $# -ge 2 ] || usage; out=$2; shift 2 ;;
     *) usage ;;
   esac
 done
@@ -40,28 +38,14 @@ commit="$(git -C "$santa" rev-parse --verify --quiet "origin/$ref^{commit}" \
   || git -C "$santa" rev-parse --verify --quiet "$ref^{commit}")" \
   || { echo "santa/grade: SANTA has no branch, tag or commit '$ref'" >&2; exit 2; }
 git -C "$santa" checkout --quiet --force --detach "$commit"
+out="$(realpath -m "${out:-$(dirname "$santa")/santa-out}")"
 echo "SANTA $ref @ $(git -C "$santa" rev-parse --short HEAD), grading $root" >&2
 
-if [ -n "$base" ]; then
-  base_commit="$(git -C "$root" rev-parse --verify --quiet "$base^{commit}")" \
-    || { echo "santa/grade: this repository has no branch, tag or commit '$base'" >&2; exit 2; }
-  "$santa/santa-pr" "$root" "$base_commit"
-  results="$santa/.santa/pr/head.json"
-else
-  "$santa/conform" --hosted "$root"
-  results="$santa/.santa/results.json"
-fi
-if [ "$(jq -r '.runners[0].mark // "errored"' "$results")" = errored ]; then
-  echo "santa/grade: the runner could not build or run (conform's line for it, above, says why); nothing is graded" >&2
-  exit 1
-fi
-reds="$(dirname "$results")/reds.tsv"
-jq -r '(.runners[0].slices // {}) | to_entries[] | .key as $slice | .value.red[]
-       | [$slice, .op, .entry, .dim, .expected, .got, (.note // "")] | map(tostring) | @tsv' "$results" > "$reds"
-echo "red entries: $(jq '.runners[0].red_total' "$results")"
-echo "  $results"
-echo "  $reds"
-if [ -n "$base" ]; then
-  echo "  $santa/.santa/pr/comment.md (summary.md and delta.json beside it)"
-  cat "$santa/.santa/pr/comment.md"
-fi
+# what an earlier run left in the results directory
+rm -rf "$out/results.json" "$out/reds.tsv" "$out/actuals"
+"$here/santa-run" - "$santa" "$out"
+jq -r '.slices[].red[] | [.file, .entry, .dim, .expected, .got, (.note // "")] | @tsv' "$out/results.json" > "$out/reds.tsv"
+echo "red entries: $(jq '.totals.red' "$out/results.json"), of them not implemented: $(jq '.totals.not_implemented' "$out/results.json")"
+echo "  $out/results.json"
+echo "  $out/reds.tsv"
+echo "  $out/actuals/"

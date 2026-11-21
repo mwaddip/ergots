@@ -1,25 +1,28 @@
 #!/usr/bin/env bash
-# santa-run <impl-path> <vectors-dir> <out-dir>: ergots' SANTA runner (SANTA runner-integration §3).
+# santa-run <impl-path> <santa-dir> <out-dir>: ergots' SANTA runner (SANTA runner-integration §3).
 #
-# Builds the @ergots/* packages and the runner in the checkout this script is part of, then writes one actuals file
-# per vector of <vectors-dir> to <out-dir>. The checkout is the parent of this script's directory, at its real path;
-# <impl-path>/<repo-name>, SANTA's name for the checkout, is the same tree.
+# Builds the @ergots/* packages and the runner in the checkout this script is part of, then runs the runner over the
+# SANTA checkout <santa-dir>. The runner checks its grader and its selection against the checkout's oracle/, selects
+# the vector files of runner.json's scope, runs every entry (a file with a budget as a child process under that
+# budget) and grades it by vectors/grading.json, and writes <out-dir>/results.json and <out-dir>/actuals/. It reads
+# <santa-dir> and writes nothing there.
+#
+# The checkout it grades is the parent of this script's directory, at its real path; <impl-path>/<repo-name>, SANTA's
+# name for the checkout, is the same tree.
 #
 # The toolchain is the mise.toml beside this script: the script runs itself once more under `mise exec`, so node is
 # on PATH for the build and for the run. `mise` on PATH is the one thing it needs.
 set -euo pipefail
 here="$(cd "$(dirname "${BASH_SOURCE[0]}")" && pwd -P)"
+[ $# -eq 3 ] || { echo "usage: santa-run <impl-path> <santa-dir> <out-dir>" >&2; exit 2; }
+# `mise --cd` and the build move the working directory, so the two directories are made absolute first.
+SANTA="$(realpath "$2")"
+OUT="$(realpath -m "$3")"
 if [ -z "${SANTA_MISE_ACTIVE:-}" ]; then
-  [ $# -eq 3 ] || { echo "usage: santa-run <impl-path> <vectors-dir> <out-dir>" >&2; exit 2; }
-  # `mise --cd` moves the working directory, so the two directories are made absolute first.
-  vectors="$(realpath "$2")"
-  out="$(realpath -m "$3")"
   mise trust "$here/mise.toml" >/dev/null
   mise --cd "$here" install
-  exec env SANTA_MISE_ACTIVE=1 mise --cd "$here" exec -- "$here/santa-run" "$1" "$vectors" "$out"
+  exec env SANTA_MISE_ACTIVE=1 mise --cd "$here" exec -- "$here/santa-run" "$1" "$SANTA" "$OUT"
 fi
-VECTORS="$(realpath "$2")"
-OUT="$(realpath -m "$3")"
 mkdir -p "$OUT"
 root="$(cd "$here/.." && pwd -P)"
 
@@ -39,8 +42,6 @@ quiet npm install --no-audit --no-fund
 quiet npm run build
 quiet npm run build -w @ergots/santa-runner
 
-# One node per vector file, stopping at the first that fails; under santa-bound when SANTA_BOUND is set.
-# --max-old-space-size: node sizes V8's heap to about half its cgroup's memory, so inside a bounded unit a row within
-# the budget would abort at the heap limit and grade `panicked`; a large ceiling leaves the bound to the cgroup.
-${SANTA_BOUND:+"$SANTA_BOUND"} bash -c 'for f in "$1"/*.json; do node --max-old-space-size=65536 "$0" "$f" "$2/$(basename "$f")" || exit $?; done' \
-  "$here/dist/runner.js" "$VECTORS" "$OUT"
+# --max-old-space-size: a bounded file's child runs under the same flags, and V8's own default heap limit could stop
+# a row within its budget; a large ceiling leaves the bound to the runner's watchdog (src/harness/bounds.ts).
+node --max-old-space-size=65536 "$here/dist/runner.js" run "$here/runner.json" "$SANTA" "$OUT"

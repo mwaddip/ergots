@@ -1,5 +1,5 @@
 import { readFileSync, writeFileSync } from 'node:fs'
-import { pathToFileURL } from 'node:url'
+import { fileURLToPath, pathToFileURL } from 'node:url'
 import {
   parseTree, serializeTree, isUnparsedTree, evaluateWith, makeContext, EvalError,
   parseSValue, serializeSValue, parseSType, serializeSType, STypeParseError, SValueParseError, SValueSerializeError, ErgoTreeParseError, ErgoTreeSerializeError, type SType,
@@ -17,6 +17,8 @@ import {
 } from '@ergots/transaction'
 import { serializeProof } from '@ergots/nipopow'
 import { prove, updateInterlinks, makePopowHeader, ProofBuildError } from '@ergots/nipopow/prover'
+import type { Json as HarnessJson } from './harness/grading'
+import { mainOne, mainRun, type ChildCommand, type RunFile } from './harness/run'
 import { decodeSValue } from './decode'
 import { extensionBinding, registerBinding, BindingRefused, NoExtensionReader, type ExtensionReader } from './binding'
 import { isWireCodecError } from './codec-errors'
@@ -1035,11 +1037,28 @@ export function runDocument(raw: RawVector): Record<string, unknown> {
   return unread(raw)
 }
 
-// ---- CLI: runner <vector.json> [actuals-out.json] (mirrors Runner.scala) ----
-export function main(argv: string[]): void {
+// ---- CLI ----
+//   runner run <runner.json> <santa-dir> <out-dir>   the self-contained runner (SANTA runner-integration §3), through
+//                                                    the harness (src/harness/): the oracle checks, selection, every
+//                                                    selected file run and graded, results.json and actuals/
+//   runner one <santa-dir> <relpath> <out-file>      a bounded file's child (runner-integration §3a)
+//   runner <vector.json> [<actuals-out.json>]        one vector file's actuals, ungraded
+
+/** The per-file function the harness calls: a vector file of any tier → its actuals, through `runDocument`. */
+const perFile: RunFile = (_path, doc) => runDocument(doc as RawVector) as Record<string, HarnessJson>
+
+/** A bounded file's child: this script, under the same Node flags, as `one`. */
+const child = (santa: string): ChildCommand => (_budget, rel, out) =>
+  [process.execPath, ...process.execArgv, fileURLToPath(import.meta.url), 'one', santa, rel, out]
+
+export function main(argv: string[]): void | Promise<void> {
+  const verb = argv[2] === 'run' || argv[2] === 'one'
+  if (argv[2] === 'run' && argv.length === 6) return mainRun(argv[3], argv[4], argv[5], perFile, child(argv[4]))
+  if (argv[2] === 'one' && argv.length === 6) return mainOne(argv[3], argv[4], argv[5], perFile)
   const vecPath = argv[2]
-  if (!vecPath) {
-    console.error('usage: node dist/runner.js <vector.json> [<actuals-out.json>]')
+  if (verb || !vecPath || argv.length > 4) {
+    console.error('usage: node dist/runner.js run <runner.json> <santa-dir> <out-dir>'
+      + ' | one <santa-dir> <relpath> <out-file> | <vector.json> [<actuals-out.json>]')
     process.exit(2)
   }
   const actuals = runDocument(JSON.parse(readFileSync(vecPath, 'utf8')) as RawVector)
@@ -1054,7 +1073,11 @@ export function main(argv: string[]): void {
 }
 
 // Run main only when invoked as the bin (not when imported). pathToFileURL resolves a
-// relative argv path to an absolute file URL so the comparison is robust.
+// relative argv path to an absolute file URL so the comparison is robust. A run that cannot
+// proceed (an oracle not reproduced, a checkout it cannot read) says why and exits 1.
 if (process.argv[1] && import.meta.url === pathToFileURL(process.argv[1]).href) {
-  main(process.argv)
+  (async () => main(process.argv))().catch((e) => {
+    console.error(`santa-runner: ${e instanceof Error ? e.message : String(e)}`)
+    process.exit(1)
+  })
 }

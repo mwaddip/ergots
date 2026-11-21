@@ -1,48 +1,55 @@
 # ergots' SANTA runner
 
 [SANTA](https://github.com/mwaddip/santa) holds conformance vectors for Ergo implementations: inputs, each with the
-answer the JVM reference gives. A runner feeds those inputs to one implementation and writes down what it answers;
-SANTA's `conform` compares the answers with the reference's and grades every entry.
+answer the JVM reference gives, and the rules by which an answer is graded. This directory is the runner for ergots:
+given a SANTA checkout, it selects the vector files in its scope, feeds every entry to ergots, grades the answers and
+writes the results. It takes SANTA's repository as data only: the vectors, the grading rules
+(`vectors/grading.json`) and the oracle files (`oracle/`) that prove a grader and a selection.
 
-This directory is the runner for ergots. It belongs to the commit it sits in: SANTA grades any ergots commit with
-that commit's own copy, so a change to a package's API and the runner change it needs land together.
+The runner belongs to the commit it sits in: any ergots commit is graded with that commit's own copy, so a change to
+a package's API and the runner change it needs land together.
 
 ## Grading a checkout
 
 ```bash
 santa/grade                     # this working tree, against SANTA main
 santa/grade --santa <ref>       # against another SANTA branch, tag or commit
-santa/grade --delta <base-ref>  # also grade <base-ref>, and print what changed between the two
+santa/grade --out <dir>         # the results directory (default: santa-out beside the clone)
 ```
 
 `santa/grade` fetches SANTA into a clone of its own (`$ERGOTS_SANTA_DIR`, by default `ergots/santa` under the user
-cache directory), checks the chosen commit out over whatever the clone held, and runs the clone's
-`./conform --hosted` on this checkout, uncommitted edits included. It prints
-one line per slice (tier / version / provenance) with its counts, then the number of red entries and the path of
-two files:
+cache directory), checks the chosen commit out over whatever the clone held, and runs `santa-run` on this checkout,
+uncommitted edits included. It prints one line per slice (tier / version / provenance) with the count right and
+graded in every dimension, then the totals and the path of the results:
 
-- `results.json`: every red entry with its dimension, what SANTA expects and what ergots answered;
-- `reds.tsv`: the same, one line per red entry.
+- `results.json`: per slice, the counts, and every red entry with its dimension, what SANTA expects and what ergots
+  answered;
+- `reds.tsv`: the red entries, one per line;
+- `actuals/`: ergots' raw answer to every entry, at the vector file's path under `vectors/`.
 
-`--delta <base-ref>` runs SANTA's `./santa-pr`, the comparison the pull request check posts: entries newly red, now
-green, red another way and still red, one row per vector file. `<base-ref>` is a branch, tag or commit of this
-repository. The script exits 1 when the runner could not build or run.
-
-It needs `git`, [`mise`](https://mise.jdx.dev), `jq` and a systemd user manager on cgroup v2 (SANTA bounds each run's
-memory and time with it), so it runs on Linux.
-
-## The pull request check
-
-`.github/workflows/santa.yml` runs SANTA's action on every pull request: it grades the pull request's base and the
-pull request merged into it, each with its own copy of this runner, on SANTA's current vectors.
-`.github/workflows/santa-comment.yml` posts the comparison as one comment on the pull request and updates it on
-every push. The full per-entry list is in the check run's job summary.
+It needs `git`, [`mise`](https://mise.jdx.dev) and `jq`. The vector files that carry a budget run under the runner's
+own watchdog, which reads `/proc`, so a full grade runs on Linux. The script exits non-zero when the runner could
+not build or run.
 
 ## What SANTA calls
 
-`santa-run <impl-path> <vectors-dir> <out-dir>` (SANTA's `docs/contract/runner-integration.md`, §3) builds the
-`@ergots/*` packages and this runner in the checkout it is part of, then runs `dist/runner.js` once per vector file
-and writes one actuals file per vector. `mise.toml` pins the Node version it runs under.
+SANTA's board runs the same entry point: `santa-run <impl-path> <santa-dir> <out-dir>` (SANTA's
+`docs/contract/runner-integration.md`, §3). It builds the `@ergots/*` packages and this runner in the checkout it is
+part of, then runs `dist/runner.js run`:
+
+1. **The oracle checks.** The grader reproduces every verdict case, and the selection every selection case, of the
+   checkout's `oracle/`; when either differs the run stops, naming the case, and nothing is graded.
+2. **Selection.** The files of `runner.json`'s scope, by tier, version and, for wire files, kind.
+3. **The run.** Every entry of every selected file goes through the arm of the file's schema (below). A file with a
+   `limits` budget runs as a child process in a process group of its own; the runner polls the group's memory every
+   10 ms and ends it past the budget's memory or wall time, and the entry's answer is then
+   `{"error": "exceeded", "limit": "memory" | "time"}`.
+4. **Grading.** Each answer is graded against the entry's expectation by the grading type `vectors/grading.json`
+   assigns to its file.
+5. **The outputs.** `<out-dir>/results.json` (`santa-runner-results/v1`) and `<out-dir>/actuals/`.
+
+SANTA then re-grades the raw answers with its own grader and shows where the two disagree. `mise.toml` pins the Node
+version `santa-run` uses.
 
 The runner picks its arm by the vector's `schema`, by exact name and version:
 
@@ -60,11 +67,11 @@ An entry's outcome is ergots' own: a value (with its cost), `errored` when ergot
 typed errors, `not-implemented` when ergots has no handler for the operation, and `panicked` (with the message in
 `note`) for any other throw. In the transaction arm, any failure to read the transaction, its boxes or its headers
 is `errored`, and a refusal by `validateStateful` is a rejection (`valid: false`, with ergots' error code as the
-reason). The runner compares nothing; grading is SANTA's.
+reason).
 
 ## The scope it declares
 
-`runner.json` tells SANTA which vectors to stage for this runner. Each key states what ergots' API offers:
+`runner.json` says which vectors the runner grades. Each key states what ergots' API offers:
 
 | Key | Value | Reason |
 |---|---|---|
@@ -76,21 +83,34 @@ reason). The runner compares nothing; grading is SANTA's.
 | | `nipopow` | `@ergots/nipopow` derives a header's interlinks and builds NiPoPoW proofs. |
 | `cost` | `true` | An evaluation reports its JIT cost and `validateStateful` returns the transaction's block cost. |
 
-`kinds` and `activation` are left at SANTA's defaults: every wire kind is staged, and vectors that turn on a rule of
-the activated script version are staged too, since ergots' parsers and evaluator apply those rules.
+`kinds` and `activation` are left at SANTA's defaults: every wire kind is selected, and so are the vectors that turn
+on a rule of the activated script version, since ergots' parsers and evaluator apply those rules.
 
 ## Layout and tests
 
 ```
 santa/
-├── santa-run        SANTA's entry point
+├── santa-run        the entry point: build, then `runner.js run`
 ├── runner.json      the declared scope
 ├── mise.toml        the Node version santa-run uses
 ├── grade            grade this checkout locally
-├── src/             the runner: runner.ts (the arms and the CLI), decode.ts / encode.ts (SANTA's JSON values
-│                    to and from ergots'), binding.ts (context bindings), codec-errors.ts (which throws are refusals)
-└── test/            unit tests of the adapter; test/fixtures/ holds the SANTA entries they read
+├── src/
+│   ├── runner.ts    the arms, `runDocument`, and the CLI (`run`, `one`, and one vector file's actuals)
+│   ├── harness/     selection, the grading interpreter, the oracle checks, the watchdog, results.json
+│   └── …            decode.ts / encode.ts (SANTA's JSON values to and from ergots'), binding.ts (context
+│                    bindings), codec-errors.ts (which throws are refusals)
+└── test/            unit tests of the arms and the CLI; test/fixtures/ holds the SANTA entries they read
+    └── harness/     the harness's own tests
 ```
 
+`src/harness/` and `test/harness/` are the harness of SANTA's TypeScript runner `santa-comet`
+(`mwaddip/santa-comet`, `package/src/harness/` and `package/test/harness/`), byte-identical to it: Node's standard
+library only. A fix to it goes to SANTA, which carries it to every copy.
+
 The directory is the workspace `@ergots/santa-runner` (private). `npm test` and `npm run typecheck` at the repo
-root run its tests and typecheck with the packages'.
+root run its tests and typecheck with the packages'. Two of the harness's test files (`oracle.spec.ts`,
+`run.spec.ts`) read a SANTA checkout; they run when `SANTA_DIR` names one:
+
+```bash
+SANTA_DIR=<a SANTA checkout> npm run test -w @ergots/santa-runner
+```
