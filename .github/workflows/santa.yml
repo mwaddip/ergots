@@ -28,7 +28,11 @@ jobs:
           version: 2026.5.18
           install: false
       - name: install jq, pinned (the image's jq can change under the programs, as 1.7 → 1.8 did)
-        run: echo "JQ=$(mise x jq@1.8.1 -- which jq)" >> "$GITHUB_ENV"
+        run: |
+          # fails here, not two steps on: a failed mise, or anything but the path, must not become $JQ
+          jq=$(mise x jq@1.8.1 -- which jq)
+          [ -f "$jq" ] && [ -x "$jq" ] || { echo "mise gave no jq executable: $jq"; exit 1; }
+          echo "JQ=$jq" >> "$GITHUB_ENV"
       - name: fetch SANTA, outside this repository's tree
         run: |
           # the vectors and the oracles, read as data; $RUNNER_TEMP is outside the checkout and empty at the start
