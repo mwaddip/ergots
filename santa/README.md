@@ -138,3 +138,4 @@ harness's test files (`oracle.spec.ts`, `run.spec.ts`) read a SANTA checkout; th
 ```bash
 SANTA_DIR=<a SANTA checkout> npm run test -w @ergots/santa-runner
 ```
+
