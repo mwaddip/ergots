@@ -49,6 +49,16 @@ export class ByteReader {
   // maxTreeDepth defaults to MAX_TREE_DEPTH (110); a forked sub-reader inherits it.
   constructor(bytes: Uint8Array, maxTreeDepth?: number)
 
+  // The activated script version this reader's trees are parsed under: the first half of the JVM's
+  // VersionContext (`core/shared/src/main/scala/sigma/VersionContext.scala:17`). The JVM's signed Byte,
+  // an integer from -128 to 127, or `undefined` for a reader outside any version context (the JVM's
+  // default (1, 1), `VersionContext.scala:58-61`). The setter takes any of those values; any other
+  // (NaN, a fraction, 128, a string) throws `TypeError` and preserves the field's prior value: such
+  // a value would compare as nothing in `@ergots/ergoscript`'s tree-version check and the tree would parse
+  // (facts/ergoscript-wire.md, "The tree-version check"). `forkSubReader` copies it onto the sub-reader.
+  get activatedVersion(): number | undefined
+  set activatedVersion(v: number | undefined)
+
   get position(): number          // current cursor offset
   set position(p: number)         // the JVM position_= (CoreByteReader.scala:114): a plain assignment
                                   // that throws ReaderError('position-out-of-range') unless p is an
@@ -71,7 +81,8 @@ export class ByteReader {
   exitDepth(): void               // --level. The JVM lowers the level only when a frame returns normally,
                                   // so a caught error keeps it raised; @ergots/ergoscript's parsers do the
                                   // same (facts/ergoscript-wire.md, "Reader depth after a degrade")
-  // Fork a sub-reader over `bytes` INHERITING this reader's level + maxTreeDepth.
+  // Fork a sub-reader over `bytes` INHERITING this reader's level, maxTreeDepth
+  // and activatedVersion.
   // Stays public, but @ergots/ergoscript no longer uses it: since 2026-09-28 it parses
   // a size-flagged ErgoTree body on the reader the tree arrives on, as the JVM does, so
   // its levels and windows need no fork (facts/ergoscript-wire.md, "parseTreeFromReader").
