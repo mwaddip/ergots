@@ -25,3 +25,103 @@ describe('runTransactionVector — santa-transaction/v1 (bytes-anchored tx arm)'
     })
   })
 })
+
+// The tx arm's parse context comes from the voted block version: `blockVersionContext(
+// e.parameters.blockVersion ?? e.preHeader.version)` (ergo BlockTransactions.scala:184-202).
+// From block version 4 it is (blockVersion - 1, blockVersion - 1); below that (1, 1). Hand-written
+// entries below pin that mapping and the pre-header fallback; a captured entry carries both halves
+// in agreement, so this covers the branch SANTA's captured vectors cannot.
+describe('runTransactionVector — the transaction arm reads the voted block version for the parse context', () => {
+  // A transaction with one input (box id 0x11 * 32, empty proof, empty extension), no data inputs,
+  // no tokens, and one output: value 1000000, a size-flagged v4 tree `0c 02 08 d3`
+  // (SigmaProp(true)), creation height 1, no tokens, no registers. The output tree's version is
+  // what the parse gates on under its context.
+  const V4_OUTPUT_TX =
+    '01' + '11'.repeat(32) + '0000' + '00' + '00' +
+    '01' + 'c0843d' + '0c0208d3' + '01' + '00' + '00'
+  // Its v3 twin: `0b 02 08 d3`. Parses under (3, 3).
+  const V3_OUTPUT_TX =
+    '01' + '11'.repeat(32) + '0000' + '00' + '00' +
+    '01' + 'c0843d' + '0b0208d3' + '01' + '00' + '00'
+  // A minimal input box: value 1000000, a v0 tree 00 08 d3 (SigmaProp(true)), creation height 1,
+  // no tokens, no registers, tx id 0x00 * 32, index 00. Its id is not 0x11 * 32, so validateStateful
+  // throws `input-box-id-mismatch` — the result is {valid: false, error: null, reason} when the
+  // transaction's parse itself succeeds.
+  // Layout: value(c0843d=3) | tree(0008d3=3) | height(01=1) | tokens(00=1) | registers(00=1) |
+  // txId(00*32=32) | index(00=1) = 42 bytes = 84 hex chars.
+  const INPUT_BOX_HEX =
+    'c0843d' + '0008d3' + '01' + '00' + '00' + '00'.repeat(32) + '00'
+
+  const baseEntry = (opts: { txBytesHex: string; blockVersion?: number; preHeaderVersion: number }) => ({
+    name: `block-version=${opts.blockVersion ?? 'unset'}, preHeader=${opts.preHeaderVersion}`,
+    tx_bytes_hex: opts.txBytesHex,
+    input_boxes_hex: [INPUT_BOX_HEX],
+    data_input_boxes_hex: [],
+    headers_hex: [],
+    preHeader: {
+      version: opts.preHeaderVersion,
+      parentId: '00'.repeat(32),
+      timestamp: '0',
+      nBits: 0,
+      height: 1,
+      minerPk: '00'.repeat(33),
+      votes: '000000',
+    },
+    parameters: {
+      maxBlockCost: 1_000_000, storageFeeFactor: 1_250_000, minValuePerByte: 360,
+      inputCost: 2000, dataInputCost: 100, outputCost: 100, tokenAccessCost: 100,
+      ...(opts.blockVersion !== undefined ? { blockVersion: opts.blockVersion } : {}),
+    },
+    version: { activated: 3, ergoTree: 3 },
+  })
+
+  const run = (e: ReturnType<typeof baseEntry>) =>
+    runTransactionVector({ schema: 'santa-transaction/v1',
+      entries: [e as unknown as Parameters<typeof runTransactionVector>[0]['entries'][number]] })[e.name]
+
+  it('parameters.blockVersion 3 gives parse context (1, 1): a v4 output tree parses, validateStateful rejects it on the mismatched input id', () => {
+    // Under (3, 3) the v4 tree would reject at the parse; the fallback to (1, 1) at block version 3
+    // lets it parse. The runner then calls validateStateful, which throws on the mismatched input
+    // box id — so a parsed transaction shows as {valid: false, error: null} rather than `errored`.
+    const r = run(baseEntry({ txBytesHex: V4_OUTPUT_TX, blockVersion: 3, preHeaderVersion: 4 }))
+    expect(r.error).toBeNull()
+    expect(r.valid).toBe(false)
+    expect(r.reason).toBe('input-box-id-mismatch')
+  })
+
+  it('parameters.blockVersion 4 gives parse context (3, 3): the v4 output tree is refused at parseTransaction', () => {
+    // The same transaction at block version 4: the context is (3, 3), and a v4 output tree is
+    // above the activated version — the parse throws, the arm reports `errored`.
+    const r = run(baseEntry({ txBytesHex: V4_OUTPUT_TX, blockVersion: 4, preHeaderVersion: 4 }))
+    expect(r.error).toBe('errored')
+    expect(r.reason).toMatch(/tree-version-above-activated|tree version 4/)
+  })
+
+  it('without parameters.blockVersion the arm falls back to the pre-header version', () => {
+    // No `blockVersion` in parameters, pre-header version 5: the fallback gives (4, 4), under which
+    // the v4 output tree parses. validateStateful then rejects on the input id mismatch.
+    const parsed = run(baseEntry({ txBytesHex: V4_OUTPUT_TX, preHeaderVersion: 5 }))
+    expect(parsed.error).toBeNull()
+    expect(parsed.reason).toBe('input-box-id-mismatch')
+    // Pre-header version 4: the fallback gives (3, 3), and the v4 tree is refused at parse.
+    const refused = run(baseEntry({ txBytesHex: V4_OUTPUT_TX, preHeaderVersion: 4 }))
+    expect(refused.error).toBe('errored')
+    expect(refused.reason).toMatch(/tree-version-above-activated|tree version 4/)
+    // Pre-header version 3: the fallback gives (1, 1), the v4 tree parses.
+    const belowFour = run(baseEntry({ txBytesHex: V4_OUTPUT_TX, preHeaderVersion: 3 }))
+    expect(belowFour.error).toBeNull()
+    expect(belowFour.reason).toBe('input-box-id-mismatch')
+  })
+
+  it('a v3 output tree parses at every pair the arm can build', () => {
+    for (const opts of [
+      { blockVersion: 3, preHeaderVersion: 4 },   // (1, 1)
+      { blockVersion: 4, preHeaderVersion: 4 },   // (3, 3)
+      { blockVersion: 5, preHeaderVersion: 4 },   // (4, 4)
+    ] as const) {
+      const r = run(baseEntry({ txBytesHex: V3_OUTPUT_TX, ...opts }))
+      expect(r.error, `${opts.blockVersion}`).toBeNull()
+      expect(r.reason).toBe('input-box-id-mismatch')
+    }
+  })
+})

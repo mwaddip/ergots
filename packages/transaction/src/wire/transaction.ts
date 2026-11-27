@@ -66,9 +66,9 @@ const U32_MAX = 0xffffffff;
  * and context-extension values are read at `versions.ergoTree`.
  *
  * Bytes after the transaction are ignored, as the JVM's `parseBytes` ignores
- * them (avldb ErgoSerializer.scala:27-30; probed row X5). A pair the JVM
- * cannot build (ergoTree above activated once activated is 2 or more), a half
- * that is no signed byte, or a missing pair is a `RangeError`.
+ * them (avldb ErgoSerializer.scala:27-30). A pair the JVM cannot build
+ * (ergoTree above activated once activated is 2 or more), a half that is
+ * no signed byte, or a missing pair is a `RangeError`.
  */
 export function parseTransaction(bytes: Uint8Array, versions: VersionContext): ErgoLikeTransaction {
   assertVersionContext(versions, 'parseTransaction');
@@ -161,7 +161,7 @@ export function parseTransactionFromReader(r: ByteReader, versions: VersionConte
   // Bytes after the transaction are ignored: ErgoSerializer.parseBytes reads
   // the transaction and looks at nothing after it (avldb ErgoSerializer.scala:27-30);
   // a node takes a peer's transaction on its id, computed from the parsed
-  // content (ErgoNodeViewSynchronizer.scala:830-832; probed row X5).
+  // content (ErgoNodeViewSynchronizer.scala:830-832).
 
   return { inputs, dataInputs, outputCandidates };
 }

@@ -23,7 +23,7 @@
  * This is IDENTICAL to the standalone box body (`@ergots/ergoscript`'s
  * `serializeBoxBytesWithoutRef`) EXCEPT the token section: the standalone form
  * writes the inline 32-byte token id, the in-tx form writes a VLQ index into a
- * transaction-wide digest table built by the envelope (Task 6). So this codec
+ * transaction-wide digest table built by the shared envelope writer. So this codec
  * takes the table as a parameter — parse resolves id-by-index; serialize maps
  * id→index.
  *
@@ -69,7 +69,7 @@ const ERGO_BOX_MAX_SIZE = 4096;
  * 32-byte id from `tokenTable` by the on-wire VLQ index.
  *
  * `tokenTable` is the transaction-wide ordered digest table (built by the
- * envelope, Task 6); `tokenTable[idx]` is the id for wire index `idx`.
+ * shared envelope writer); `tokenTable[idx]` is the id for wire index `idx`.
  *
  * `treeVersion` is the version in force outside any tree: the registers are
  * read at it (ErgoBoxCandidate.scala:231). A node parsing a block's section

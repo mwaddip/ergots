@@ -6,7 +6,7 @@
 import { describe, it, expect } from 'vitest';
 
 import {
-  ErgoTreeParseError, STypeParseError,
+  ErgoTreeParseError, STypeParseError, SValueParseError,
 } from '@ergots/ergoscript';
 import { ByteReader } from '@ergots/scorex';
 
@@ -198,27 +198,43 @@ const V_SHELL = (regConstHex: string): string =>
   // a tx carrying one output whose registers is 01 <regConstHex>
   '01a315b8786a410b622b1123562327f4f2fd8db5769cdbfef65ef7473e28c9b66e0000000001c0843d0008d3010001' + regConstHex;
 
-interface VRow { name: string; txHex: string; version: VersionContext; parsed: boolean }
+type ErrorClass = new (...args: never[]) => Error;
+interface VRefusal { cls: ErrorClass; code: string }
+type VRow =
+  | { name: string; txHex: string; version: VersionContext; parsed: true }
+  | { name: string; txHex: string; version: VersionContext; parsed: false; refusal: VRefusal };
+
+// Under (3, 3) the type parses (every 6.0 type exists at tree version 3) and rule 1019 CheckV6Type
+// fires on the parsed register: a SValueParseError with code 'register-v6-type'. Under (1, 1) the
+// type reader rejects the type code before the value is read: a STypeParseError with code
+// 'type-code-primitive-unknown' (ergots' one code for rule 1007 / rule 1017 on code 9), except for
+// Option[Int], where the SOption container itself is readable at every version (the version-gated
+// elements are inside) and the value still refuses on rule 1019.
+const REGISTER_V6_TYPE: VRefusal = { cls: SValueParseError, code: 'register-v6-type' };
+const TYPE_CODE_PRIM_UNKNOWN: VRefusal = { cls: STypeParseError, code: 'type-code-primitive-unknown' };
+
 const V_ROWS: VRow[] = [
-  // V1: R4 = UnsignedBigInt 1 (0c 70 01 04 04 ...; wait the encoding is simpler: type 0xdc (SUnsignedBigInt) ... but the probe batch's bytes show the register as `09 01 01`). Use the batch bytes verbatim.
-  // The batch's shell differs, so pull each V-row's register hex from the evidence file's outputs
-  // (010001 means 1 register), substituting after R4.
-  // R4 = UnsignedBigInt 1 under (3,3) and (1,1).
-  { name: 'V1 R4 = UnsignedBigInt 1 under (3, 3): refused',
-    txHex: V_SHELL('0901'), version: { activated: 3, ergoTree: 3 }, parsed: false },
-  { name: 'V2 R4 = UnsignedBigInt 1 under (1, 1): refused',
-    txHex: V_SHELL('0901'), version: { activated: 1, ergoTree: 1 }, parsed: false },
-  // R4 = Option[Int] Some(1): type 28 01 02, value 01 02 (Some, Int 1 = zigzag 02). Batch bytes: 2801021d.
-  { name: 'V3 R4 = Option[Int] Some(1) under (3, 3): refused',
-    txHex: V_SHELL('280102'), version: { activated: 3, ergoTree: 3 }, parsed: false },
-  { name: 'V4 R4 = Option[Int] Some(1) under (1, 1): refused',
-    txHex: V_SHELL('280102'), version: { activated: 1, ergoTree: 1 }, parsed: false },
-  // R4 = Coll[UnsignedBigInt] empty: 0c 09 00.
-  { name: 'V5 R4 = Coll[UnsignedBigInt] empty under (3, 3): refused',
-    txHex: V_SHELL('0c0900'), version: { activated: 3, ergoTree: 3 }, parsed: false },
-  { name: 'V6 R4 = Coll[UnsignedBigInt] empty under (1, 1): refused',
-    txHex: V_SHELL('0c0900'), version: { activated: 1, ergoTree: 1 }, parsed: false },
-  // V7, V8: R4 = Int 1 (04 02 — type 04 SInt, value zigzag 02): the control.
+  // R4 = UnsignedBigInt 1: type 09, body 01 01.
+  { name: 'V1 R4 = UnsignedBigInt 1 under (3, 3): refused by rule 1019',
+    txHex: V_SHELL('090101'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
+  { name: 'V2 R4 = UnsignedBigInt 1 under (1, 1): refused at the type (code 9 is no primitive below v3)',
+    txHex: V_SHELL('090101'), version: { activated: 1, ergoTree: 1 }, parsed: false, refusal: TYPE_CODE_PRIM_UNKNOWN },
+  // R4 = Option[Int] Some(1): type 28 (OPTION_CONSTR_ID * 12 + SInt), value 01 02 (Some, Int 1 = ZigZag 2).
+  { name: 'V3 R4 = Option[Int] Some(1) under (3, 3): refused by rule 1019',
+    txHex: V_SHELL('280102'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
+  // At (1, 1) the SOption type itself parses (no version gate in the type reader), and the value
+  // reader refuses the Some tag below tree version 3: a SValueParseError with code
+  // 'soption-tree-version-too-low'. This is ergots' direct refusal before rule 1019 CheckV6Type
+  // would fire, and it stands in for the JVM's rule 1007 / 1009 verdict that the batch records.
+  { name: 'V4 R4 = Option[Int] Some(1) under (1, 1): the value reader refuses Option below v3',
+    txHex: V_SHELL('280102'), version: { activated: 1, ergoTree: 1 }, parsed: false,
+    refusal: { cls: SValueParseError, code: 'soption-tree-version-too-low' } },
+  // R4 = Coll[UnsignedBigInt] empty: type 0c 09, body 00.
+  { name: 'V5 R4 = Coll[UnsignedBigInt] empty under (3, 3): refused by rule 1019',
+    txHex: V_SHELL('0c0900'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
+  { name: 'V6 R4 = Coll[UnsignedBigInt] empty under (1, 1): refused at the type (the elem code 9 fails below v3)',
+    txHex: V_SHELL('0c0900'), version: { activated: 1, ergoTree: 1 }, parsed: false, refusal: TYPE_CODE_PRIM_UNKNOWN },
+  // V7, V8: R4 = Int 1 (04 02 — type 04 SInt, value ZigZag 2): the control.
   { name: 'V7 R4 = Int 1 under (3, 3): parsed',
     txHex: V_SHELL('0402'), version: { activated: 3, ergoTree: 3 }, parsed: true },
   { name: 'V8 R4 = Int 1 under (1, 1): parsed',
@@ -232,7 +248,9 @@ describe('the other 6.0 types in a register are refused at either version (rows 
         expect(bytesToHex(serializeTransaction(parseTransaction(hexToBytes(r.txHex), r.version))))
           .toBe(r.txHex);
       } else {
-        expect(() => parseTransaction(hexToBytes(r.txHex), r.version)).toThrow();
+        const err = errorOf(() => parseTransaction(hexToBytes(r.txHex), r.version));
+        expect(err, `${r.name}: expected a refusal`).toBeInstanceOf(r.refusal.cls);
+        expect((err as { code?: string }).code).toBe(r.refusal.code);
       }
     });
   }
