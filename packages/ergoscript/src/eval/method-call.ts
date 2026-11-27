@@ -360,17 +360,12 @@ function registerHandlers(): void {
   // Pattern A cost 20 (charged before obj check). Returns 0-based index of
   // ctx.selfBox in ctx.inputs, OR -1 for blocks with activated_script_version < V2.
   //
-  // Activated-script-version gate (JVM bug #603 compat): the JVM's pre-v5
-  // selfBoxIndex used reference-equality `eq` instead of value-equality `==`
-  // in CostingDataContext.scala, always returning -1. The bug was fixed
-  // globally in v5.x — ALL scripts in v5+ blocks get the correct index.
-  // Gate is on BLOCK version, not tree version (see ergo-node-rust memory
-  // feedback_tree_version_gate.md — session 22b broke block 942,664 by
-  // gating on tree_version). sigma-rust derives activated_script_version
-  // as `preHeader.version - 1` (saturating); see chain/context.rs:66-68.
-  //
-  // First exercised on mainnet at block 342,964 — the same block where
-  // sigma-rust originally diverged from JVM (fixed in their v0.2.0).
+  // Activated-script-version gate (JVM bug #603 compat): below V2 this arm returns -1
+  // unconditionally (the JVM's CostingDataContext.scala reference-equality `eq` branch,
+  // which never finds SELF in inputs); at V2 and above it returns the real index. Gate
+  // is on BLOCK version, not tree version. The activated version comes from the context
+  // (its own field, else `preHeader.version - 1` wrapped as a signed byte); see
+  // `_activated-version.ts`. From mainnet block 342,964 this arm is reachable.
   //
   // Box equality: validate-tx.ts sets `ctx.selfBox = inputBoxes[inputIndex]`
   // (same object reference as the corresponding entry in `ctx.inputs`), so

@@ -86,6 +86,10 @@ export function buildInputContext(args: {
    *  v6 `getVarFromInput` (SContext 101:12), which reads
    *  `ctx.inputExtensions[inputIdx]`. `inputExtensions[selfIndex]` ≡ `extension`. */
   inputExtensions: ContextExtension[];
+  /** The JVM's `ErgoLikeContext.activatedScriptVersion`, a signed byte; the pair's first half the
+   *  reduction runs under (sigma/VersionContext.scala:17). `validateStateful` sets it from
+   *  `activatedVersionOfBlock(parameters.blockVersion)`. */
+  activatedScriptVersion: number;
 }) {
   return makeContext({
     height: args.height,
@@ -106,5 +110,6 @@ export function buildInputContext(args: {
     jitCostLimit: args.jitCostLimit,
     treeVersion: args.treeVersion,
     constants: args.constants,
+    activatedScriptVersion: args.activatedScriptVersion,
   });
 }

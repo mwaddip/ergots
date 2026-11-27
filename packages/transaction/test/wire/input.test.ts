@@ -9,7 +9,7 @@ describe('Input codec', () => {
     // boxId(32) | proofLen VLQ(0) | extensionCount VLQ(0)
     const bytes = hexToBytes('22'.repeat(32) + '00' + '00');
     const w = new ByteWriter();
-    serializeInput(parseInput(new ByteReader(bytes)), w);
+    serializeInput(parseInput(new ByteReader(bytes), 3), w);
     expect(bytesToHex(w.toBytes())).toBe(bytesToHex(bytes));
   });
 
@@ -32,7 +32,7 @@ describe('Input codec', () => {
 
     // round-trip: re-serialize of the parsed extension equals the original bytes
     const w2 = new ByteWriter();
-    serializeContextExtension(parseContextExtension(new ByteReader(bytes)), w2);
+    serializeContextExtension(parseContextExtension(new ByteReader(bytes), 3), w2);
     expect(bytesToHex(w2.toBytes())).toBe(bytesToHex(bytes));
   });
 
@@ -57,7 +57,7 @@ describe('Input codec', () => {
     const bytes = w0.toBytes();
 
     const w1 = new ByteWriter();
-    serializeContextExtension(parseContextExtension(new ByteReader(bytes)), w1);
+    serializeContextExtension(parseContextExtension(new ByteReader(bytes), 3), w1);
     expect(bytesToHex(w1.toBytes())).toBe(bytesToHex(bytes));
   });
 });

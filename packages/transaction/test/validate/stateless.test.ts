@@ -11,7 +11,7 @@ const inp = (id: number) => ({ boxId: new Uint8Array(32).fill(id), spendingProof
 describe('validateStateless', () => {
   it('accepts every phase-1 wire fixture (real txs are stateless-valid)', () => {
     for (const name of listFixtures()) {
-      expect(() => validateStateless(parseTransaction(loadFixture(name).bytes))).not.toThrow();
+      expect(() => validateStateless(parseTransaction(loadFixture(name).bytes, { activated: 3, ergoTree: 3 }))).not.toThrow();
     }
   });
   it('rejects zero outputs', () => {

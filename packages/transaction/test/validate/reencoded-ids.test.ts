@@ -38,12 +38,12 @@ const errorOf = (f: () => unknown): { code?: string; cause?: { code?: string } }
 
 describe('Review Focus 3: a wrong declared size does not move the tx id; R1 stays raw', () => {
   it('over and under have the control tx id', () => {
-    const ids = vec.map((e: { bytes_hex: string }) => transactionId(parseTransaction(hex(e.bytes_hex))))
+    const ids = vec.map((e: { bytes_hex: string }) => transactionId(parseTransaction(hex(e.bytes_hex), { activated: 3, ergoTree: 3 })))
     expect(ids[1]).toEqual(ids[0])
     expect(ids[2]).toEqual(ids[0])
   })
   it('the over output keeps its declared size in ergoTreeBytes', () => {
-    const tx = parseTransaction(hex(vec[1].bytes_hex))
+    const tx = parseTransaction(hex(vec[1].bytes_hex), { activated: 3, ergoTree: 3 })
     expect(Array.from(tx.outputCandidates[0]!.ergoTreeBytes)).toEqual([0x09, 0x03, 0x08, 0xd3])
   })
 })
@@ -129,17 +129,17 @@ describe("parseTransaction forces each output tree's re-encoding (ErgoTransactio
   })
   for (const [what, tree, writerCode, twin] of NOT_REENCODABLE) {
     it(`${what}: TxParseError('output-tree-not-reencodable'), cause '${writerCode}'`, () => {
-      const err = errorOf(() => parseTransaction(withOutputTree(tree)))
+      const err = errorOf(() => parseTransaction(withOutputTree(tree), { activated: 3, ergoTree: 3 }))
       expect(err).toBeInstanceOf(TxParseError)
       expect(err?.code).toBe('output-tree-not-reencodable')
       expect(err?.cause?.code).toBe(writerCode)
     })
     it(`${what}: the writable twin parses`, () => {
-      expect(() => parseTransaction(withOutputTree(twin))).not.toThrow()
+      expect(() => parseTransaction(withOutputTree(twin), { activated: 3, ergoTree: 3 })).not.toThrow()
     })
   }
   it('an STypeVar name of 255 0xff bytes, 765 bytes re-encoded', () => {
-    const err = errorOf(() => parseTransaction(withOutputTree(sized('09', inBlock(funDefTypeVar(255))))))
+    const err = errorOf(() => parseTransaction(withOutputTree(sized('09', inBlock(funDefTypeVar(255)))), { activated: 3, ergoTree: 3 }))
     expect(err?.code).toBe('output-tree-not-reencodable')
     expect(err?.cause?.code).toBe('stypevar-name-length')
   })
@@ -149,13 +149,13 @@ describe("parseTransaction forces each output tree's re-encoding (ErgoTransactio
     expect(CONTROL.slice(TREE_AT - 12, TREE_AT - 10)).toBe('01')   // the output count
     const tupleTree = NOT_REENCODABLE[0]![1]
     const twoOutputs = CONTROL.slice(0, TREE_AT - 12) + '02' + value + tupleTree + '010000' + value
-    expect(errorOf(() => parseTransaction(hex(twoOutputs)))?.code).toBe('truncated')
+    expect(errorOf(() => parseTransaction(hex(twoOutputs), { activated: 3, ergoTree: 3 }))?.code).toBe('truncated')
   })
-  it('runs before the trailing-bytes check', () => {
-    // The JVM's parseBytes has no trailing-bytes check (ErgoSerializer.scala:27-30): the id's failure is
-    // the one it reports, whatever follows the transaction.
+  it('reports the output re-encoding failure over bytes that follow the transaction', () => {
+    // The JVM's parseBytes ignores bytes after the transaction (avldb ErgoSerializer.scala:27-30),
+    // so whatever follows the transaction, the id's failure is the one parseTransaction reports.
     const tupleTree = NOT_REENCODABLE[0]![1]
-    const err = errorOf(() => parseTransaction(hex(txHexWithOutputTree(tupleTree) + '00')))
+    const err = errorOf(() => parseTransaction(hex(txHexWithOutputTree(tupleTree) + '00'), { activated: 3, ergoTree: 3 }))
     expect(err?.code).toBe('output-tree-not-reencodable')
   })
 })
@@ -163,12 +163,12 @@ describe("parseTransaction forces each output tree's re-encoding (ErgoTransactio
 describe('the proof length is a getUShort (ProverResult.scala:34, :40)', () => {
   const boxId = new Array<number>(32).fill(0)
   it('a proof length of 0x10000 rejects: count-out-of-range', () => {
-    const err = errorOf(() => parseInput(new ByteReader(Uint8Array.from([...boxId, 0x80, 0x80, 0x04]))))
+    const err = errorOf(() => parseInput(new ByteReader(Uint8Array.from([...boxId, 0x80, 0x80, 0x04])), 3))
     expect(err).toBeInstanceOf(TxParseError)
     expect(err?.code).toBe('count-out-of-range')
   })
   it('a proof length of 0xffff is read', () => {
-    const input = parseInput(new ByteReader(Uint8Array.from([...boxId, 0xff, 0xff, 0x03, ...new Array<number>(0xffff).fill(7), 0x00])))
+    const input = parseInput(new ByteReader(Uint8Array.from([...boxId, 0xff, 0xff, 0x03, ...new Array<number>(0xffff).fill(7), 0x00])), 3)
     expect(input.spendingProof.proofBytes.length).toBe(0xffff)
   })
   it('a proof longer than 0xffff bytes is not written: count-out-of-range', () => {
@@ -187,6 +187,6 @@ describe('a context-extension value peeks before its checked read (ValueSerializ
     // a window: here one that ends before the value, which the checked read would trip first.
     const r = new ByteReader(Uint8Array.from([0x01, 0x00]))
     r.positionLimit = 1
-    expect(errorOf(() => parseContextExtension(r))?.code).toBe('truncated')
+    expect(errorOf(() => parseContextExtension(r, 3))?.code).toBe('truncated')
   })
 })

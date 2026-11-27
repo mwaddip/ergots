@@ -22,6 +22,8 @@ import {
 } from '@ergots/ergoscript';
 import { parseTransaction } from '../../src/index.ts';
 
+const V33 = { activated: 3, ergoTree: 3 } as const;
+
 const hex = (s: string): Uint8Array => Uint8Array.from(s.match(/../g)!.map((b) => parseInt(b, 16)));
 /**
  * One input (a zero box id, an empty proof, the context extension given as `(id, constant)` pairs), no data
@@ -57,7 +59,7 @@ describe('an output whose tree fails a method lookup', () => {
     // The JVM rejects a box carrying this tree: SerializerException ("... without size bit.") over rule 1016.
     let err: unknown;
     try {
-      parseTransaction(tx('00d193db04060402db04060402'));
+      parseTransaction(tx('00d193db04060402db04060402'), V33);
     } catch (x) {
       err = x;
     }
@@ -69,7 +71,7 @@ describe('an output whose tree fails a method lookup', () => {
 
   it('the control: an unsized v0 sigmaProp(true) output parses', () => {
     // The JVM accepts a box carrying this tree (tree parsed, SigmaProp).
-    expect(parseTransaction(tx('00d10101')).outputCandidates).toHaveLength(1);
+    expect(parseTransaction(tx('00d10101'), V33).outputCandidates).toHaveLength(1);
   });
 });
 
@@ -77,7 +79,7 @@ describe('an output whose tree fails a type read', () => {
   it('B2: an unsized v0 tree with an UnsignedBigInt constant rejects the transaction', () => {
     // The JVM rejects a box carrying this tree: SerializerException ("... without size bit.") over rule
     // 1017, type code 9 being no primitive type below v3 (box mode, the audit's W:109).
-    const err = thrown(() => parseTransaction(tx('00d193090101090101')));
+    const err = thrown(() => parseTransaction(tx('00d193090101090101'), V33));
     expect(err).toBeInstanceOf(ErgoTreeParseError);
     expect((err as ErgoTreeParseError).code).toBe('soft-fork-without-size-bit');
     expect((err as Error).cause).toBeInstanceOf(STypeParseError);
@@ -86,7 +88,7 @@ describe('an output whose tree fails a type read', () => {
 
   it('B3: the sized twin parses, its tree unparsed on rule 1017', () => {
     // The JVM accepts a box carrying this tree, the tree unparsed on rule 1017 (box mode, W:110).
-    const out = parseTransaction(tx('0808d193090101090101')).outputCandidates[0]!;
+    const out = parseTransaction(tx('0808d193090101090101'), V33).outputCandidates[0]!;
     const tree = boxTreeOf(out.ergoTreeBytes);
     if (!isUnparsedTree(tree)) throw new Error('expected an unparsed tree');
     expect((tree.error as STypeParseError).code).toBe('type-code-primitive-unknown');
@@ -97,7 +99,7 @@ describe('the registers and the context extension, read at 3', () => {
   it('an output whose R4 is an empty Coll[Int => Int] parses', () => {
     // Box mode, the §4a review's R7-R9: the JVM accepts such a box at (3, 3) and rejects it at (1, 1)
     // (rule 1008) and at (3, 0) (rule 1018), where code 112 is no type.
-    const out = parseTransaction(txWith('00d10101', [EMPTY_FUNC1_COLL])).outputCandidates[0]!;
+    const out = parseTransaction(txWith('00d10101', [EMPTY_FUNC1_COLL]), V33).outputCandidates[0]!;
     expect(out.registers[4]?.tpe).toEqual({
       tag: 'SColl', elem: { tag: 'SFunc', args: [{ tag: 'SInt' }], result: { tag: 'SInt' }, tpeParams: [] },
     });
@@ -107,7 +109,7 @@ describe('the registers and the context extension, read at 3', () => {
     // Spend mode, variable 1 = 0c 70 01 04 04 00 00 read at (3, 3): the JVM parses it and the spend reduces
     // to TrueProp; at (3, 0) it fails rule 1018. The extension's rule 1019 (ContextExtension.scala:62) does
     // not flag SFunc.
-    const input = parseTransaction(txWith('00d10101', [], [[1, EMPTY_FUNC1_COLL]])).inputs[0]!;
+    const input = parseTransaction(txWith('00d10101', [], [[1, EMPTY_FUNC1_COLL]]), V33).inputs[0]!;
     const got = input.spendingProof.contextExtension.values.get(1)?.value;
     const funcT = { tag: 'SFunc' as const, args: [{ tag: 'SInt' as const }], result: { tag: 'SInt' as const }, tpeParams: [] };
     expect(got).toEqual({
@@ -122,7 +124,7 @@ describe('the registers and the context extension, read at 3', () => {
     // Spend mode, variable 1 read at (3, 3): the JVM fails it at parse, "Don't know how to convert SType
     // (SInt$,SInt$) => SInt$ to RType", a RuntimeException (Evaluation.scala:54-55, from
     // CoreDataSerializer.scala:152-166), before any item.
-    const err = thrown(() => parseTransaction(txWith('00d10101', [], [[1, EMPTY_FUNC2_COLL]])));
+    const err = thrown(() => parseTransaction(txWith('00d10101', [], [[1, EMPTY_FUNC2_COLL]]), V33));
     expect(err).toBeInstanceOf(SValueParseError);
     expect((err as SValueParseError).code).toBe('coll-elem-type-no-rtype');
   });

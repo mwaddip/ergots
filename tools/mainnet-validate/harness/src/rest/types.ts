@@ -65,7 +65,14 @@ export interface TransactionJson {
 
 export interface BlockResponse {
     header: HeaderJson;
-    blockTransactions: { transactions: TransactionJson[] };
+    /**
+     * `blockVersion` is the section's own version marker, read from
+     * `/blocks/{id}.blockTransactions.blockVersion`. It drives the parse
+     * context a node reads the transactions under (ergo
+     * `BlockTransactions.scala:184-202`); from ergo 6.0.8 a section whose
+     * marker differs from its header's version is refused.
+     */
+    blockTransactions: { blockVersion: number; transactions: TransactionJson[] };
     extension: { fields: Array<[string, string]> };
 }
 
@@ -159,6 +166,7 @@ export function parseBlockResponse(raw: unknown): BlockResponse {
             rawJson: JSON.stringify(o['header']),
         },
         blockTransactions: {
+            blockVersion: asInt(bt['blockVersion'], '/blocks/{id}.blockTransactions.blockVersion'),
             transactions: txs.map((tx, i) =>
                 parseTxJson(tx, `/blocks/{id}.blockTransactions.transactions[${i}]`),
             ),

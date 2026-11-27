@@ -23,7 +23,7 @@
  * This is IDENTICAL to the standalone box body (`@ergots/ergoscript`'s
  * `serializeBoxBytesWithoutRef`) EXCEPT the token section: the standalone form
  * writes the inline 32-byte token id, the in-tx form writes a VLQ index into a
- * transaction-wide digest table built by the envelope (Task 6). So this codec
+ * transaction-wide digest table built by the shared envelope writer. So this codec
  * takes the table as a parameter — parse resolves id-by-index; serialize maps
  * id→index.
  *
@@ -69,9 +69,14 @@ const ERGO_BOX_MAX_SIZE = 4096;
  * 32-byte id from `tokenTable` by the on-wire VLQ index.
  *
  * `tokenTable` is the transaction-wide ordered digest table (built by the
- * envelope, Task 6); `tokenTable[idx]` is the id for wire index `idx`.
+ * shared envelope writer); `tokenTable[idx]` is the id for wire index `idx`.
+ *
+ * `treeVersion` is the version in force outside any tree: the registers are
+ * read at it (ErgoBoxCandidate.scala:231). A node parsing a block's section
+ * passes the one `blockVersionContext` gives for that section; outside any
+ * context the JVM reads at 1.
  */
-export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[]): ErgoBoxCandidate {
+export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[], treeVersion: number): ErgoBoxCandidate {
   // Arm the 4096-byte MaxBoxSize candidate window (sigma-rust
   // parse_box_with_indexed_digests:430-432). Lazy + strict-`>`; the candidate
   // span ends with the registers. Save/set/restore INLINE (no finally) — a
@@ -121,12 +126,13 @@ export function parseBoxCandidate(r: ByteReader, tokenTable: Uint8Array[]): Ergo
   // (ErgoBoxCandidate.scala:226-234): each value whole, then rule-1019
   // CheckV6Type on it; a seventh register rejects only when the loop reaches it,
   // after R4..R9 are read; a Tuple-Expr register keeps its opaqueBytes. The
-  // registers are read at tree version 3, types and data: the ergo node parses a
-  // block's transactions, and the mempool's, under (3, 3) since 6.0 (spec
-  // docs/specs/2026-09-30-jvm-node-construction-design.md §4a). The version
-  // decides a verdict here: an R4 holding an empty Coll[Int => Int] parses at 3
-  // and fails its type read below 3 (rule 1018).
-  const parsedRegisters = parseAdditionalRegisters(r, 3);
+  // registers are read at the caller's tree version, types and data: a node
+  // parses a block's section at the version `blockVersionContext` gives, and a
+  // peer's transaction at the activated version (ergo ErgoBoxCandidate.scala:231
+  // through the thread-local context). The version decides a verdict here: an
+  // R4 holding an empty Coll[Int => Int] parses at 3 and fails its type read
+  // below 3 (rule 1018).
+  const parsedRegisters = parseAdditionalRegisters(r, treeVersion);
 
   // Restore the enclosing window on the SUCCESS path only (the candidate span
   // ends here; anything after — the txId/index in a full ErgoBox, or the next

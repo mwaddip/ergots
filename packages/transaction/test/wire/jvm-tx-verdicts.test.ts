@@ -36,9 +36,11 @@ const boxData = (tree: string, regs = '00', index = '00') => '01' + tree + '0000
 /** A sized, segregated tree over one SBox constant: BoolToSigmaProp(GT(ExtractAmount(placeholder 0), 0L)). */
 const treeWithBox = (header: string, box: string) => sized(header, '0163' + box + 'd191c173000500')
 
+const V33 = { activated: 3, ergoTree: 3 } as const
+
 /** The JVM accepted the transaction: its id, and each output tree's status and re-encoding. */
 function expectAccepted(bytes: Uint8Array, id: string, outputs: string[]): void {
-  const parsed = parseTransaction(bytes)
+  const parsed = parseTransaction(bytes, V33)
   expect(toHex(transactionId(parsed))).toBe(id)
   expect(parsed.outputCandidates.map((o) =>
     `${isUnparsedTree(boxTreeOf(o.ergoTreeBytes)) ? 'U' : 'P'}:${toHex(reencodeTreeBytes(o.ergoTreeBytes))}`)).toEqual(outputs)
@@ -59,7 +61,7 @@ describe('ByIndex over a tuple: the JVM types it SAny', () => {
     expectAccepted(tx([{ tree }]), 'f73c1c22f28ccbb94dc686c55b46c639bb751a2a767bf1f5f7319c074939ee8a', ['U:' + tree])
   })
   it('an unsized root ByIndex(tuple) rejects (the JVM SerializerException: no size bit)', () => {
-    expect(() => parseTransaction(tx([{ tree: '00' + BY_INDEX_TUPLE }]))).toThrow(expect.objectContaining({ code: 'soft-fork-without-size-bit' }))
+    expect(() => parseTransaction(tx([{ tree: '00' + BY_INDEX_TUPLE }]), V33)).toThrow(expect.objectContaining({ code: 'soft-fork-without-size-bit' }))
   })
   it("a nested Box's sized tree rooted at ByIndex(tuple): the output tree parses", () => {
     const tree = treeWithBox('18', boxData('080a' + BY_INDEX_TUPLE))
@@ -82,16 +84,16 @@ describe('a Box value with index 0x8000 cannot be re-encoded', () => {
     expectAccepted(tx([{ tree }]), '95f4a88304fe57128fcd44cc51a38af094098d18f3474e203af2d8ec6b5d262b', ['P:' + tree])
   })
   it("a Box constant in the output tree: parseTransaction rejects 'output-tree-not-reencodable'", () => {
-    const err = errorOf(() => parseTransaction(tx([{ tree: treeWithBox('18', box('808002')) }])))
+    const err = errorOf(() => parseTransaction(tx([{ tree: treeWithBox('18', box('808002')) }]), V33))
     expect(err).toMatchObject({ code: 'output-tree-not-reencodable' })
     expect(err?.cause).toMatchObject({ code: 'sbox-index-out-of-range' })
   })
   it('the Box in output R4: transactionId throws', () => {
-    const parsed = parseTransaction(tx([{ tree: '0008d3', regs: '0163' + box('808002') }]))
+    const parsed = parseTransaction(tx([{ tree: '0008d3', regs: '0163' + box('808002') }]), V33)
     expect(errorOf(() => transactionId(parsed))).toMatchObject({ code: 'sbox-index-out-of-range' })
   })
   it("the Box in an input's context extension: transactionId throws", () => {
-    const parsed = parseTransaction(tx([{ tree: '0008d3' }], '010063' + box('808002')))
+    const parsed = parseTransaction(tx([{ tree: '0008d3' }], '010063' + box('808002')), V33)
     expect(errorOf(() => transactionId(parsed))).toMatchObject({ code: 'sbox-index-out-of-range' })
   })
 })
@@ -120,7 +122,7 @@ describe('output trees re-encode in the JVM canonical form', () => {
   it("a Coll[Boolean] holding an Int constant rejects at the tree's parse, as the JVM asserts item types there: 'collection-item-type-mismatch'", () => {
     // ConcreteCollectionSerializer.scala:38; a local sigma-state 6.0.6 probe of the tree: AssertionError.
     // The output never reaches the re-encoding ('output-tree-not-reencodable' before 2026-09-30).
-    const err = errorOf(() => parseTransaction(tx([{ tree: '00d1968301010400' }])))
+    const err = errorOf(() => parseTransaction(tx([{ tree: '00d1968301010400' }]), V33))
     expect(err).toMatchObject({ name: 'ExprParseError', code: 'collection-item-type-mismatch' })
   })
   it('SELF.value > 0L as a MethodCall without arguments: the id is over the PropertyCall', () => {
@@ -156,14 +158,14 @@ describe("a nested Box register's lead byte", () => {
     expectAccepted(tx([{ tree }]), '0bc7094581f520697aef29a35558e8a7eccaace1e479d8f76c496796e96eea4e', ['U:' + tree])
   })
   it('lead 0xa3, HEIGHT: rejected (the JVM ClassCastException)', () => {
-    expect(errorOf(() => parseTransaction(tx([{ tree: reg('a3') }])))).toMatchObject({ code: 'sbox-register-unsupported-expr' })
+    expect(errorOf(() => parseTransaction(tx([{ tree: reg('a3') }]), V33))).toMatchObject({ code: 'sbox-register-unsupported-expr' })
   })
   it('lead 0x84 in an unsized tree: rejected (the JVM SerializerException: no size bit)', () => {
     const tree = '100163' + boxData('0008d3', '0184') + 'd191c173000500'
-    expect(errorOf(() => parseTransaction(tx([{ tree }])))).toMatchObject({ code: 'soft-fork-without-size-bit' })
+    expect(errorOf(() => parseTransaction(tx([{ tree }]), V33))).toMatchObject({ code: 'soft-fork-without-size-bit' })
   })
   it("lead 0x84 in a top-level output's register: rejected (rule 1002 outside any tree)", () => {
-    expect(errorOf(() => parseTransaction(tx([{ tree: '0008d3', regs: '0184' }])))).toMatchObject({ code: 'unknown-opcode' })
+    expect(errorOf(() => parseTransaction(tx([{ tree: '0008d3', regs: '0184' }]), V33))).toMatchObject({ code: 'unknown-opcode' })
   })
 })
 
@@ -192,7 +194,7 @@ describe("the JVM's SAny through an arm that casts or requires its input's type"
   ]
   for (const [name, tree, code] of rejected) {
     it(`${name}: rejected at parse`, () => {
-      expect(errorOf(() => parseTransaction(tx([{ tree }])))).toMatchObject({ code })
+      expect(errorOf(() => parseTransaction(tx([{ tree }]), V33))).toMatchObject({ code })
     })
   }
   it('a sized root Negation(Apply(ByIndex(tuple), [0])), the JVM NoType: the tree degrades and the transaction is accepted', () => {

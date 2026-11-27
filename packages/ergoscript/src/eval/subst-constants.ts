@@ -26,10 +26,10 @@
  *   5. The bytes are a specialised `Coll[Byte]` (`Colls.fromArray(newBytes)`, trees.scala:646).
  *
  * A refusal of the inputs is `EvalError('subst-constants-error')`; a refusal of step 3 carries the wire error as
- * its `cause`. A refused item's message names the version that decided it.
+ * its `cause`. A refused item's message names the tree version that decided it.
  *
- * The activated script version decides the lift of a Box alone (Platform.scala:50-54) and is read only for one:
- * a context without a pre-header evaluates every other call, and a Box there is `'context-field-missing'`.
+ * A Box lifts at every activated version, so no lift reads the activated version. The JVM refuses a Box below
+ * activated 2 (Platform.scala:50-54); ergots lifts it there.
  */
 
 import type { SubstConstants, SType, SValue } from '../mir/types'
@@ -42,7 +42,7 @@ import { byteColl } from './_coll'
 import { extractCollInt } from './_coll-helpers'
 import { substituteConstantsBytes } from '../wire/ergo-tree'
 import { liftToConstantType } from './_lift-constant'
-import { activatedScriptVersion } from './_activated-version'
+import { knownActivatedVersion } from './_activated-version'
 
 export function evalSubstConstants(
   e: SubstConstants,
@@ -72,15 +72,12 @@ export function evalSubstConstants(
 
   // 4. The lift of every item, in order, before anything of the template is read (trees.scala:634-639).
   const treeVersion = ctx.treeVersion ?? 0
-  const activated = (): number => activatedScriptVersion(ctx, 'SubstConstants')
   const newConstants: { tpe: SType; value: SValue }[] = []
   for (const item of newValuesV.items) {
-    const tpe = liftToConstantType(item, treeVersion, activated)
+    const tpe = liftToConstantType(item, treeVersion)
     if (tpe === null) {
-      // The version that decides: the activated one for a Box, the tree's for every other kind.
-      const at = item.kind === 'Box' ? `activated version ${activated()}` : `tree version ${treeVersion}`
       throw new EvalError(
-        `SubstConstants: an item of newValues of kind '${item.kind}' has no lift to a constant at ${at}`,
+        `SubstConstants: an item of newValues of kind '${item.kind}' has no lift to a constant at tree version ${treeVersion}`,
         'subst-constants-error',
       )
     }
@@ -97,6 +94,7 @@ export function evalSubstConstants(
       positions,
       newConstants,
       treeVersion,
+      knownActivatedVersion(ctx),
     )
   } catch (cause) {
     // The wire error, a template type read's rule 1017 or 1018 included, is the cause.

@@ -47,6 +47,7 @@ import { parseDataInput } from './data-input';
 import { parseBoxCandidate } from './box-candidate';
 import { writeEnvelope, TX_IO_MAX, MAX_DISTINCT_TOKENS } from './_envelope';
 import { TxParseError } from '../errors';
+import { assertVersionContext, type VersionContext } from './version-context';
 
 /**
  * `u32::MAX` — the cap `get_u32` (`vlq_encode.rs:267`) enforces on the tokens
@@ -56,8 +57,36 @@ import { TxParseError } from '../errors';
  */
 const U32_MAX = 0xffffffff;
 
-export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
+/**
+ * Parse one transaction from `bytes` under the JVM's version context
+ * (sigma-state 6.0.7 sigma/VersionContext.scala): a pair of the activated
+ * script version and the tree version in force outside any tree. Every output
+ * tree, and every tree nested in a register, an extension value or a Box
+ * constant, is checked against `versions.activated`; a transaction's registers
+ * and context-extension values are read at `versions.ergoTree`.
+ *
+ * Bytes after the transaction are ignored, as the JVM's `parseBytes` ignores
+ * them (avldb ErgoSerializer.scala:27-30). A pair the JVM cannot build
+ * (ergoTree above activated once activated is 2 or more), a half that is
+ * no signed byte, or a missing pair is a `RangeError`.
+ */
+export function parseTransaction(bytes: Uint8Array, versions: VersionContext): ErgoLikeTransaction {
+  assertVersionContext(versions, 'parseTransaction');
   const r = new ByteReader(bytes);
+  r.activatedVersion = versions.activated;
+  return parseTransactionFromReader(r, versions);
+}
+
+/**
+ * Parse one transaction on an existing reader under `versions`. The reader's
+ * `activatedVersion` is set to `versions.activated`. Callers that drive a
+ * block's section pass their own reader so each transaction runs on the shared
+ * bytes; `parseTransaction` builds its own reader over `bytes` and delegates
+ * here.
+ */
+export function parseTransactionFromReader(r: ByteReader, versions: VersionContext): ErgoLikeTransaction {
+  assertVersionContext(versions, 'parseTransactionFromReader');
+  r.activatedVersion = versions.activated;
 
   // inputs — VLQ count, then each Input.
   // TxIoVec requires [1, i16::MAX=32767] (ergotree-ir/src/chain/context.rs:23);
@@ -70,7 +99,7 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
       'count-out-of-range',
     );
   }
-  const inputs = Array.from({ length: nIn }, () => parseInput(r));
+  const inputs = Array.from({ length: nIn }, () => parseInput(r, versions.ergoTree));
 
   // data-inputs — VLQ count, then each DataInput.
   // sigma-rust uses `BoundedVec::opt_empty_vec`: 0 → None (allowed), otherwise [1, 32767].
@@ -109,7 +138,7 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
       'count-out-of-range',
     );
   }
-  const outputCandidates = Array.from({ length: nOut }, () => parseBoxCandidate(r, tokenTable));
+  const outputCandidates = Array.from({ length: nOut }, () => parseBoxCandidate(r, tokenTable, versions.ergoTree));
 
   // ergo-core ErgoTransaction.serializedId is eager (ErgoTransaction.scala:68): constructing the parsed
   // transaction re-encodes every output tree (bytesToSign), so one that parses but cannot be written
@@ -118,9 +147,9 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
   // structure, and one of those that cannot be written is caught later, at the id and write sites
   // (a parse-time check over them is a recorded follow-up).
   // Order: ErgoTransactionSerializer.parse constructs the transaction once its last output is read
-  // (:497-502), and nothing is checked after that: ErgoSerializer.parseBytes ignores trailing bytes
-  // (avldb ErgoSerializer.scala:27-30). So the re-encoding runs here, after every output is parsed and
-  // before ergots' own trailing-bytes check, and reports the JVM's failure whatever follows the tx.
+  // (:538-544), and nothing is checked after that: ErgoSerializer.parseBytes ignores trailing bytes
+  // (avldb ErgoSerializer.scala:27-30), so the re-encoding runs after every output is parsed and
+  // reports the JVM's failure whatever follows the transaction.
   for (let i = 0; i < outputCandidates.length; i++) {
     try {
       reencodeTreeBytes(outputCandidates[i]!.ergoTreeBytes);
@@ -129,12 +158,10 @@ export function parseTransaction(bytes: Uint8Array): ErgoLikeTransaction {
     }
   }
 
-  // Reject trailing bytes: an envelope check of ergots' own (the JVM's parseBytes and sigma-rust's
-  // sigma_parse_bytes read the transaction and ignore what follows); any remainder means a malformed
-  // or extra-padded envelope.
-  if (!r.isExhausted) {
-    throw new TxParseError(`${r.remaining} trailing byte(s) after transaction`, 'trailing-bytes');
-  }
+  // Bytes after the transaction are ignored: ErgoSerializer.parseBytes reads
+  // the transaction and looks at nothing after it (avldb ErgoSerializer.scala:27-30);
+  // a node takes a peer's transaction on its id, computed from the parsed
+  // content (ErgoNodeViewSynchronizer.scala:830-832).
 
   return { inputs, dataInputs, outputCandidates };
 }

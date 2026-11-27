@@ -21,9 +21,16 @@ import { hexToBytes, bytesToHex } from '../_helpers';
 
 const fixtureDir = path.join(path.dirname(fileURLToPath(import.meta.url)), '..', 'fixtures', 'conformance');
 
-interface WireEntry { name: string; bytes_hex: string; expected_bytes_hex?: string; error?: 'errored' }
+interface WireEntry {
+  name: string; bytes_hex: string; expected_bytes_hex?: string; error?: 'errored';
+  version?: { activated: number; ergoTree: number };
+}
 const loadEntries = (file: string): WireEntry[] =>
   (JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { entries: WireEntry[] }).entries;
+
+/** The vendored entry's version context, or (3, 3) when the file does not carry one. */
+const versionOf = (e: WireEntry): { activated: number; ergoTree: number } =>
+  e.version ?? { activated: 3, ergoTree: 3 };
 
 const DEPTH = 'max-tree-depth-exceeded';
 /** A file's reject code: one for every reject, or one per entry name. */
@@ -72,12 +79,12 @@ describe.each(FILES)('SANTA %s (jvm-blessed)', (file, rejectCode, names) => {
       const code = codeFor(rejectCode, e.name);
       it(`${e.name}: parseTransaction rejects with '${code}'`, () => {
         let err: unknown;
-        try { parseTransaction(hexToBytes(e.bytes_hex)); } catch (x) { err = x; }
+        try { parseTransaction(hexToBytes(e.bytes_hex), versionOf(e)); } catch (x) { err = x; }
         expect((err as { code?: unknown } | undefined)?.code).toBe(code);
       });
     } else {
       it(`${e.name}: round-trips${e.expected_bytes_hex ? ' to the JVM re-serialization' : ' byte-identically'}`, () => {
-        const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex))));
+        const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex), versionOf(e))));
         expect(out).toBe(e.expected_bytes_hex ?? e.bytes_hex);
       });
     }
@@ -251,17 +258,17 @@ const DEGRADES: Record<string, Reject> = {
 // The entries ergots still diverges on, each with its residual, and what ergots does instead.
 const KNOWN_RESIDUAL: Record<string, { residual: string; ergots: Reject }> = {};
 
-function expectReject(bytesHex: string, want: Reject): void {
+function expectReject(bytesHex: string, want: Reject, versions = { activated: 3, ergoTree: 3 }): void {
   let err: unknown;
-  try { parseTransaction(hexToBytes(bytesHex)); } catch (x) { err = x; }
+  try { parseTransaction(hexToBytes(bytesHex), versions); } catch (x) { err = x; }
   expect(err, 'expected a reject').toBeInstanceOf(want.cls);
   expect((err as { code?: string }).code).toBe(want.code);
   if (want.cause !== undefined) expect(((err as Error).cause as { code?: string } | undefined)?.code).toBe(want.cause);
 }
 
 /** Output 0's tree, as the transaction's parse leaves it. */
-const outputTree = (bytesHex: string) =>
-  boxTreeOf(parseTransaction(hexToBytes(bytesHex)).outputCandidates[0]!.ergoTreeBytes);
+const outputTree = (bytesHex: string, versions = { activated: 3, ergoTree: 3 }) =>
+  boxTreeOf(parseTransaction(hexToBytes(bytesHex), versions).outputCandidates[0]!.ergoTreeBytes);
 
 for (const [file, count] of CONSTRUCTION_FILES) {
   const data = JSON.parse(fs.readFileSync(path.join(fixtureDir, file), 'utf8')) as { blessed_by: string; entries: WireEntry[] };
@@ -273,18 +280,18 @@ for (const [file, count] of CONSTRUCTION_FILES) {
     if (known !== undefined) {
       it(`${e.name}: still diverges (${known.residual})`, () => {
         expect(e.error, 'the JVM accepts it').toBeUndefined();
-        expectReject(e.bytes_hex, known.ergots);
+        expectReject(e.bytes_hex, known.ergots, versionOf(e));
       });
     } else if (e.error === 'errored') {
       const want = ERRORS[e.name];
       it(`${e.name}: parseTransaction rejects with ${want ? `${want.cls.name} '${want.code}'` : 'no pinned error'}`, () => {
         if (want === undefined) throw new Error(`no reject pinned for ${e.name}`);
-        expectReject(e.bytes_hex, want);
+        expectReject(e.bytes_hex, want, versionOf(e));
       });
     } else {
       const degrade = DEGRADES[e.name];
       it(`${e.name}: round-trips${e.expected_bytes_hex ? ' to the JVM re-serialization' : ' byte-identically'}`, () => {
-        const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex))));
+        const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex), versionOf(e))));
         expect(out).toBe(e.expected_bytes_hex ?? e.bytes_hex);
       });
       it(degrade === undefined
@@ -408,16 +415,16 @@ const TUPLE_KNOWN_RESIDUAL: Record<string, { residual: string; ergots: TupleReje
   },
 };
 
-function expectTupleParseReject(bytesHex: string, want: TupleReject): void {
+function expectTupleParseReject(bytesHex: string, want: TupleReject, versions = { activated: 3, ergoTree: 3 }): void {
   let err: unknown;
-  try { parseTransaction(hexToBytes(bytesHex)); } catch (x) { err = x; }
+  try { parseTransaction(hexToBytes(bytesHex), versions); } catch (x) { err = x; }
   expect(err, 'expected a parse-side reject').toBeInstanceOf(want.cls);
   expect((err as { code?: string }).code).toBe(want.code);
   if (want.cause !== undefined) expect(((err as Error).cause as { code?: string } | undefined)?.code).toBe(want.cause);
 }
 
-function expectTupleWriteReject(bytesHex: string, want: TupleReject): void {
-  const tx = parseTransaction(hexToBytes(bytesHex));
+function expectTupleWriteReject(bytesHex: string, want: TupleReject, versions = { activated: 3, ergoTree: 3 }): void {
+  const tx = parseTransaction(hexToBytes(bytesHex), versions);
   let err: unknown;
   try { serializeTransaction(tx); } catch (x) { err = x; }
   expect(err, 'expected a write-side reject').toBeInstanceOf(want.cls);
@@ -436,8 +443,8 @@ for (const [file, names] of TUPLE_FILES) {
       if (known !== undefined) {
         it(`${e.name}: still diverges (${known.residual})`, () => {
           expect(e.error, 'the JVM rejects it').toBe('errored');
-          if (known.ergots.stage === 'parse') expectTupleParseReject(e.bytes_hex, known.ergots);
-          else expectTupleWriteReject(e.bytes_hex, known.ergots);
+          if (known.ergots.stage === 'parse') expectTupleParseReject(e.bytes_hex, known.ergots, versionOf(e));
+          else expectTupleWriteReject(e.bytes_hex, known.ergots, versionOf(e));
         });
         continue;
       }
@@ -445,12 +452,12 @@ for (const [file, names] of TUPLE_FILES) {
         const want = TUPLE_PARSE_ERRORS[e.name];
         it(`${e.name}: ${want ? `${want.stage} throws ${want.cls.name} '${want.code}'` : 'no reject pinned'}`, () => {
           if (want === undefined) throw new Error(`no reject pinned for ${e.name}`);
-          if (want.stage === 'parse') expectTupleParseReject(e.bytes_hex, want);
-          else expectTupleWriteReject(e.bytes_hex, want);
+          if (want.stage === 'parse') expectTupleParseReject(e.bytes_hex, want, versionOf(e));
+          else expectTupleWriteReject(e.bytes_hex, want, versionOf(e));
         });
       } else {
         it(`${e.name}: round-trips${e.expected_bytes_hex ? ' to the JVM re-serialization' : ' byte-identically'}`, () => {
-          const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex))));
+          const out = bytesToHex(serializeTransaction(parseTransaction(hexToBytes(e.bytes_hex), versionOf(e))));
           expect(out).toBe(e.expected_bytes_hex ?? e.bytes_hex);
         });
       }

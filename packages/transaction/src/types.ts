@@ -34,11 +34,17 @@ export interface ChainParameters {  // CONFIRMED — parameters.rs:157-168
   dataInputCost: number;      // 100
   outputCost: number;         // 100
   tokenAccessCost: number;    // 100
+  /** The voted block version, the JVM's `currentParameters.blockVersion`
+   *  (nodeView/state/ErgoStateContext.scala:114; settings/Parameters.scala:80, parameter 123).
+   *  Read as a signed byte: `validateStateful`'s height rules take it signed, and the activated
+   *  script version is `activatedVersionOfBlock(blockVersion)`. */
+  blockVersion: number;
 }
 export interface StateContext {
   headers: Header[];          // newest-first, length >= 1; lib takes up to 10 + pads to 10
   preHeader: PreHeader;       // the block being built (REQUIRED)
-  parameters?: Partial<ChainParameters>;
+  /** The voted block version is required; every other parameter is optional. */
+  parameters: Partial<ChainParameters> & { blockVersion: number };
 }
 export interface StatefulDeps {
   inputBoxes: ErgoBox[];      // ordered to match tx.inputs; lib asserts each boxId

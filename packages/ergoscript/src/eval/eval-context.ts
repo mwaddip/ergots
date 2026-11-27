@@ -125,6 +125,13 @@ export interface EvalOpts {
    */
   inputExtensions?: ContextExtensionInput[]
   /**
+   * The JVM's `ErgoLikeContext.activatedScriptVersion`, a signed byte (-128..127): the activated script version
+   * an evaluation runs under (sigma/VersionContext.scala:17). Readers go through `_activated-version.ts`, which
+   * falls back to `activatedVersionOfBlock(preHeader.version)` when the field is unset. A context with both
+   * reads the field.
+   */
+  activatedScriptVersion?: number
+  /**
    * Last-block UTXO state-tree root, as an INDEPENDENT context field — mirrors
    * JVM `ErgoLikeContext.lastBlockUtxoRoot`. Readers: the
    * `SContext.lastBlockUtxoRootHash` handler (101:9, method-call.ts) and the
@@ -163,6 +170,19 @@ export interface EvalContext extends EvalOpts {
 }
 
 export function makeContext(opts: EvalOpts = {}): EvalContext {
+  const activatedScriptVersion = opts.activatedScriptVersion
+  if (activatedScriptVersion !== undefined) {
+    if (
+      typeof activatedScriptVersion !== 'number' ||
+      !Number.isInteger(activatedScriptVersion) ||
+      activatedScriptVersion < -128 ||
+      activatedScriptVersion > 127
+    ) {
+      throw new TypeError(
+        `makeContext: activatedScriptVersion must be an integer from -128 to 127, got ${String(activatedScriptVersion)}`,
+      )
+    }
+  }
   const ctx: EvalContext = {
     jitCost: 0,
     jitCostLimit: opts.jitCostLimit,
@@ -179,6 +199,7 @@ export function makeContext(opts: EvalOpts = {}): EvalContext {
     headers: opts.headers,
     inputExtensions: opts.inputExtensions?.map(toContextExtension),
     lastBlockUtxoRootHash: opts.lastBlockUtxoRootHash,
+    activatedScriptVersion,
     addCost(amount: number): void {
       ctx.jitCost = Math.min(ctx.jitCost + amount, Number.MAX_SAFE_INTEGER)
       if (ctx.jitCostLimit !== undefined && ctx.jitCost > ctx.jitCostLimit) {

@@ -33,11 +33,18 @@ import type {
 const BOX_FETCH_CONCURRENCY = 64;
 
 /**
- * Mainnet voting-epoch length. `maxBlockCost` (and other votable parameters)
- * is recorded in the extension only at boundary blocks whose height is a
- * multiple of this, and is *inherited* by every block until the next boundary.
+ * Voting-epoch length per network. Votable parameters (`maxBlockCost`,
+ * parameter 123 `BlockVersion`) are recorded in the extension only at
+ * boundary blocks whose height is a multiple of this and are inherited by
+ * every block until the next boundary.
+ *
+ * Mainnet: `votingLength = 1024` (ergo `src/main/resources/application.conf:263`).
+ * Testnet: `votingLength = 128`  (ergo `src/main/resources/testnet.conf:49`).
  */
-const VOTING_EPOCH_LENGTH = 1024;
+const VOTING_EPOCH_LENGTH: Record<'mainnet' | 'testnet', number> = {
+    mainnet: 1024,
+    testnet: 128,
+};
 
 /**
  * sigma-rust `Parameters::default().max_block_cost()` — genesis value, used
@@ -45,6 +52,49 @@ const VOTING_EPOCH_LENGTH = 1024;
  * (i.e. pre-first-vote). The forward walk (h ≫ 0) never hits this.
  */
 const GENESIS_MAX_BLOCK_COST = 1_000_000;
+
+/**
+ * Parameter 123 `BlockVersion`'s extension key: the system-parameters prefix
+ * (`0x00`, `extension/Extension.scala:59`) followed by the parameter id
+ * (`0x7b`, `settings/Parameters.scala:255`). Hex-encoded by the node.
+ */
+const EXT_KEY_BLOCK_VERSION = '007b';
+
+/**
+ * The launch value of parameter 123 `BlockVersion`, below the first voting
+ * epoch's boundary (ergo `settings/LaunchParameters.scala:8-17`): 1 on
+ * mainnet (`DefaultParameters`, `settings/Parameters.scala:329`), 4 on the
+ * public testnet (`Header.Interpreter60Version`, `Header.scala:152`).
+ */
+const LAUNCH_BLOCK_VERSION: Record<'mainnet' | 'testnet', number> = {
+    mainnet: 1,
+    testnet: 4,
+};
+
+/**
+ * Decode the four big-endian bytes the ergo node writes under key `007b`
+ * with `Ints.toByteArray` (ergo `settings/Parameters.scala:220-222`) into
+ * the JVM's Int. The caller takes `.toByte` of the result.
+ */
+function decodeBlockVersionInt(hexValue: string): number {
+    if (hexValue.length !== 8) {
+        throw new Error(
+            `extension key ${EXT_KEY_BLOCK_VERSION}: expected 4 bytes big-endian (8 hex chars), got "${hexValue}"`,
+        );
+    }
+    // Four big-endian bytes read as an unsigned Int32 — `>>> 0` keeps JS's
+    // |0 from sign-extending the top byte on values 0x80000000 and above.
+    // The JVM's `.toByte` wrap belongs to the caller (`signedBlockVersion`).
+    return parseInt(hexValue, 16) >>> 0;
+}
+
+/** The value of extension key `007b` (an Int), or undefined if absent. */
+function readBlockVersionFromExtension(fields: Array<[string, string]>): number | undefined {
+    for (const [k, v] of fields) {
+        if (k === EXT_KEY_BLOCK_VERSION) return decodeBlockVersionInt(v);
+    }
+    return undefined;
+}
 
 function hexDecode(s: string): Uint8Array {
     const out = new Uint8Array(s.length / 2);
@@ -71,18 +121,34 @@ async function parallelMap<T, R>(items: T[], limit: number, fn: (t: T, i: number
 }
 
 export class BundleAssembler {
+    /** The voting-epoch length of this walk's network, selected from
+     *  `VOTING_EPOCH_LENGTH`. The two per-epoch caches key off a multiple
+     *  of this. */
+    private readonly votingLength: number;
+
     constructor(
         private readonly node: NodeClient,
         private readonly indexer: IndexerClient,
         private readonly oracle: WasmCostOracle,
         private readonly attachTxBytes = false,
-    ) {}
+        /** The network's launch block version is taken from this
+         *  (`LAUNCH_BLOCK_VERSION`) when no epoch boundary ≤ height carries
+         *  the parameter in its extension (ergo `settings/LaunchParameters.scala:8-17`).
+         *  The voting-epoch length is drawn from the same key
+         *  (`VOTING_EPOCH_LENGTH`): mainnet 1024, testnet 128. */
+        private readonly network: 'mainnet' | 'testnet' = 'mainnet',
+    ) {
+        this.votingLength = VOTING_EPOCH_LENGTH[network];
+    }
 
     /** epoch-boundary height → active maxBlockCost (resolved once per epoch). */
     private readonly maxBlockCostByEpoch = new Map<number, number>();
 
+    /** epoch-boundary height → voted block version (the parameter, read as Int). */
+    private readonly blockVersionByEpoch = new Map<number, number>();
+
     /**
-     * Resolve the *active* `maxBlockCost` for `height` (iter-26).
+     * Resolve the *active* `maxBlockCost` for `height`.
      *
      * `maxBlockCost` is a votable consensus parameter recorded only at
      * voting-epoch boundary blocks and inherited between them, so non-boundary
@@ -91,31 +157,68 @@ export class BundleAssembler {
      * the node's state rather than re-deriving consensus — the only consensus
      * constant assumed is the well-known epoch length. Walking back epoch-by-
      * epoch is defensive; the computed boundary normally carries parameters.
+     *
+     * The parameter gates every transaction's cost ceiling, so this resolver
+     * treats only two signals as "walk back": the boundary block is absent
+     * (`ids.length === 0`), or it exists and carries no parameters. A REST
+     * failure or a decode error is a halt the walk must see, not a silent
+     * fallback to the previous epoch or the genesis default.
      */
     private async resolveActiveMaxBlockCost(height: number): Promise<number> {
-        const target = Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH;
+        const target = Math.floor(height / this.votingLength) * this.votingLength;
         const cached = this.maxBlockCostByEpoch.get(target);
         if (cached !== undefined) return cached;
-        for (let b = target; b >= 0; b -= VOTING_EPOCH_LENGTH) {
-            try {
-                const ids = await this.node.getHeaderIdsAtHeight(b);
-                if (ids.length > 0) {
-                    const frags = await this.node.getValidationFragments(ids[0]!);
-                    if (frags.parameters !== null) {
-                        this.maxBlockCostByEpoch.set(target, frags.parameters.maxBlockCost);
-                        return frags.parameters.maxBlockCost;
-                    }
+        for (let b = target; b >= 0; b -= this.votingLength) {
+            const ids = await this.node.getHeaderIdsAtHeight(b);
+            if (ids.length > 0) {
+                const frags = await this.node.getValidationFragments(ids[0]!);
+                if (frags.parameters !== null) {
+                    this.maxBlockCostByEpoch.set(target, frags.parameters.maxBlockCost);
+                    return frags.parameters.maxBlockCost;
                 }
-            } catch {
-                // Boundary block unavailable (e.g. genesis-epoch height 0
-                // doesn't exist, or a transient REST error) — treat as "no
-                // params here" and keep walking back; falls through to the
-                // genesis default if nothing ≤ height carries parameters.
             }
             if (b === 0) break;
         }
         this.maxBlockCostByEpoch.set(target, GENESIS_MAX_BLOCK_COST);
         return GENESIS_MAX_BLOCK_COST;
+    }
+
+    /**
+     * Resolve the *active* voted block version (parameter 123 `BlockVersion`)
+     * for `height`. As with `maxBlockCost`, votable parameters are recorded
+     * only at voting-epoch boundary blocks and inherited between them. The
+     * value lives in the extension of the boundary block under key `007b`
+     * (ergo `settings/Parameters.scala:255`, `:220-222`,
+     * `modifiers/history/extension/Extension.scala:59`), four bytes
+     * big-endian. Below the first boundary ≤ height that carries the key,
+     * the network's launch value stands in
+     * (`settings/LaunchParameters.scala:8-17`).
+     */
+    private async resolveActiveBlockVersion(height: number): Promise<number> {
+        const target = Math.floor(height / this.votingLength) * this.votingLength;
+        const cached = this.blockVersionByEpoch.get(target);
+        if (cached !== undefined) return cached;
+        for (let b = target; b >= 0; b -= this.votingLength) {
+            // The parameter gates the activated script version, so this
+            // resolver treats only two signals as "walk back": the boundary
+            // block is absent (`ids.length === 0`), or it exists and carries
+            // no `007b`. A REST failure or a malformed value is a halt the
+            // walk must see, not a silent fallback to the previous epoch or
+            // the launch value.
+            const ids = await this.node.getHeaderIdsAtHeight(b);
+            if (ids.length > 0) {
+                const block = await this.node.getBlock(ids[0]!);
+                const fromExt = readBlockVersionFromExtension(block.extension.fields);
+                if (fromExt !== undefined) {
+                    this.blockVersionByEpoch.set(target, fromExt);
+                    return fromExt;
+                }
+            }
+            if (b === 0) break;
+        }
+        const launch = LAUNCH_BLOCK_VERSION[this.network];
+        this.blockVersionByEpoch.set(target, launch);
+        return launch;
     }
 
     /**
@@ -140,6 +243,31 @@ export class BundleAssembler {
             );
         }
 
+        // ergo 6.0.8's `bsCorrespondsToHeader` (Header.scala:104-108,
+        // FullBlockSectionProcessor.scala:99): a transactions section whose
+        // marker differs from its header's version is refused. The halt stops
+        // the walk on such a block.
+        const sectionBlockVersion = block.blockTransactions.blockVersion;
+        if (sectionBlockVersion !== block.header.version) {
+            throw new Error(
+                `/blocks/${headerId}: section blockVersion ${sectionBlockVersion} ` +
+                `differs from the header's version ${block.header.version} ` +
+                `(ergo 6.0.8 bsCorrespondsToHeader refuses the section)`,
+            );
+        }
+
+        // When this block is the epoch boundary (its height is a multiple of
+        // the voting length), seed the per-epoch cache from its extension's
+        // key `007b` directly. A non-boundary block that happens to carry
+        // the key is not an authoritative source for the epoch, so it is
+        // left to `resolveActiveBlockVersion`.
+        if (height % this.votingLength === 0) {
+            const fromThisBlock = readBlockVersionFromExtension(block.extension.fields);
+            if (fromThisBlock !== undefined) {
+                this.blockVersionByEpoch.set(height, fromThisBlock);
+            }
+        }
+
         // Resolve the *active* maxBlockCost for this height once — used for both
         // the oracle's per-tx cost limit and the evaluator's jitCostLimit
         // (iter-26). Recorded only at epoch boundaries and inherited between
@@ -149,12 +277,18 @@ export class BundleAssembler {
         if (fragments.parameters !== null) {
             activeMaxBlockCost = fragments.parameters.maxBlockCost;
             this.maxBlockCostByEpoch.set(
-                Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH,
+                Math.floor(height / this.votingLength) * this.votingLength,
                 activeMaxBlockCost,
             );
         } else {
             activeMaxBlockCost = await this.resolveActiveMaxBlockCost(height);
         }
+
+        // Resolve the active voted block version, the second voted parameter
+        // this bundle carries. `validateStateful` reads it off
+        // `stateContext.parameters.blockVersion` for the activated script
+        // version, the height rules and the output write's context.
+        const activeBlockVersion = await this.resolveActiveBlockVersion(height);
 
         // Dedupe all box ids referenced in the block.
         const boxIdSet = new Set<string>();
@@ -241,7 +375,10 @@ export class BundleAssembler {
                 txBytes,
             });
         }
-        const parameters: BlockParameters = { maxBlockCost: activeMaxBlockCost };
+        const parameters: BlockParameters = {
+            maxBlockCost: activeMaxBlockCost,
+            blockVersion: activeBlockVersion,
+        };
         return {
             height,
             blockId: hexDecode(headerId),
@@ -250,6 +387,7 @@ export class BundleAssembler {
             headerJson,
             transactions,
             parameters,
+            sectionBlockVersion,
         };
     }
 }

@@ -501,7 +501,7 @@ export async function main(argv: readonly string[]): Promise<number> {
     }
     // The lib and ids modes parse each transaction from the node's bytes and never consult the
     // cost oracle: the assembler's `attachTxBytes` attaches those bytes and stubs the oracle.
-    const assembler = new BundleAssembler(node, indexer, oracle, args.mode !== 'oracle');
+    const assembler = new BundleAssembler(node, indexer, oracle, args.mode !== 'oracle', args.network);
     const txValidator =
         args.mode === 'lib' ? validateTxLib : args.mode === 'ids' ? validateTxIds : validateTx;
 

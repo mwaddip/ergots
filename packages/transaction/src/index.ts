@@ -1,6 +1,10 @@
 export { parseTransaction, serializeTransaction } from './wire/transaction.ts';
 export { signingMessage, transactionId } from './wire/signing-message.ts';
 export { parseContextExtension } from './wire/input.ts';
+export { blockVersionContext, unconfirmedVersionContext } from './wire/version-context.ts';
+export type { VersionContext } from './wire/version-context.ts';
+export { parseBlockTransactions, serializeBlockTransactions } from './wire/block-transactions.ts';
+export type { BlockTransactions } from './wire/block-transactions.ts';
 export { TxParseError } from './errors.ts';
 export type { TxParseErrorCode } from './errors.ts';
 export type {

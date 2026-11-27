@@ -24,9 +24,9 @@
  * whose extension is non-ascending. See
  * `docs/specs/2026-06-16-context-extension-order-preservation.md`.
  *
- * ContextExtension Constants are read at tree version 3, types and data, as the
- * ergo node reads a transaction since 6.0 (spec
- * docs/specs/2026-09-30-jvm-node-construction-design.md §4a): an empty
+ * ContextExtension Constants are read at the tree version in force outside any
+ * tree, types and data, as the ergo node reads them (sigma/interpreter/
+ * ContextExtension.scala:61 through the thread-local version context): an empty
  * Coll[Int => Int] variable parses at 3 and fails its type read below 3 (rule
  * 1018). They are written at version 0, which gates only SOption and SHeader
  * data, neither of which rule 1019 lets into an extension.
@@ -40,8 +40,12 @@ import { TxParseError } from '../errors';
 /** JVM `ContextExtension.serializer.parse` (`ContextExtension.scala:52-66`). The count
  *  and each variable id are read as signed bytes (`r.getByte()`); a byte >= 0x80 is a
  *  negative JVM `Byte` and errors. Each value is read as `r.getValue()` reads a
- *  Constant, then checked by rule-1019 `CheckV6Type`. */
-export function parseContextExtension(r: ByteReader): ContextExtension {
+ *  Constant, then checked by rule-1019 `CheckV6Type`.
+ *
+ *  `treeVersion` is the version in force outside any tree (the second half of
+ *  the JVM's `VersionContext`): a value's declared type and data are read at it.
+ *  The activated version is the reader's own field. */
+export function parseContextExtension(r: ByteReader, treeVersion: number): ContextExtension {
   const n = r.readU8();
   if (n >= 0x80) {
     // :53-55 (since sigma-state v4.0).
@@ -59,7 +63,7 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
     // as the JVM's `r.level - 1` is: a Box value whose tree degrades leaves its levels behind.
     r.enterDepth();
     r.peekU8(); // ValueSerializer.scala:399: the depth, then the unchecked peek
-    const tpe = parseSType(r, 3);
+    const tpe = parseSType(r, treeVersion);
     // :62 rule-1019 CheckV6Type, on the declared type before the data is read, where the JVM checks the
     // whole value after `r.getValue()`. Outside a tree no degrade can intervene, so both orders reject
     // the same extensions; the register leg, which a sized tree can degrade, follows the JVM's order.
@@ -67,7 +71,7 @@ export function parseContextExtension(r: ByteReader): ContextExtension {
       throw new TxParseError(`context extension variable ${varId} has a type containing Option, Header or UnsignedBigInt`, 'extension-v6-type');
     }
     // :65 `toMap` — a repeated id keeps its first position and takes the last value.
-    values.set(varId, { tpe, value: parseSValue(tpe, 3, r) });
+    values.set(varId, { tpe, value: parseSValue(tpe, treeVersion, r) });
     r.exitDepth();
   }
   return { values };
@@ -89,7 +93,7 @@ export function serializeContextExtension(ext: ContextExtension, w: ByteWriter):
   }
 }
 
-export function parseInput(r: ByteReader): Input {
+export function parseInput(r: ByteReader, treeVersion: number): Input {
   const boxId = r.readBytes(32);
   const proofLen = r.readVlqU();
   // ProverResult.serializer (sigma/interpreter/ProverResult.scala:40): the proof length is a getUShort.
@@ -97,7 +101,7 @@ export function parseInput(r: ByteReader): Input {
     throw new TxParseError(`proof length ${proofLen} exceeds 0xFFFF (JVM getUShort)`, 'count-out-of-range');
   }
   const proofBytes = r.readBytes(proofLen);
-  const contextExtension = parseContextExtension(r);
+  const contextExtension = parseContextExtension(r, treeVersion);
   return { boxId, spendingProof: { proofBytes, contextExtension } };
 }
 

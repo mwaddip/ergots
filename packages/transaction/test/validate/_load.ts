@@ -27,7 +27,7 @@ import type { Header } from '@ergots/scorex';
 import { parseSValue } from '@ergots/ergoscript';
 import type { ErgoBox, PreHeader } from '@ergots/ergoscript';
 
-import { parseTransaction } from '../../src/index.ts';
+import { parseTransaction, blockVersionContext } from '../../src/index.ts';
 import type { ErgoLikeTransaction } from '../../src/index.ts';
 import type { ChainParameters } from '../../src/types.ts';
 
@@ -130,8 +130,9 @@ export function loadStatefulFixtureAsDeps(
 ): { tx: ErgoLikeTransaction; deps: StatefulFixtureDeps } {
     const j = loadStatefulFixture(name);
 
-    // tx
-    const tx = parseTransaction(hexToBytes(j.txBytesHex));
+    // tx — parse under the pre-header's block version (SANTA's engine default), as the runner's
+    // transaction arm does.
+    const tx = parseTransaction(hexToBytes(j.txBytesHex), blockVersionContext(j.preHeader.version));
 
     // boxes
     const inputBoxes: ErgoBox[] = j.inputBoxesHex.map((h) => parseBoxBytes(hexToBytes(h)));
@@ -156,8 +157,10 @@ export function loadStatefulFixtureAsDeps(
         votes: hexToBytes(ph.votes),
     };
 
-    // parameters
-    const parameters: ChainParameters = j.parameters;
+    // parameters — fixtures capture the chain's economic parameters without a voted block
+    // version; `validateStateful` takes it from `stateContext.parameters.blockVersion`, so the
+    // loader threads the pre-header's version through (SANTA's engine default).
+    const parameters: ChainParameters = { ...j.parameters, blockVersion: j.preHeader.version };
 
     return {
         tx,

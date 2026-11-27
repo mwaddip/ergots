@@ -4,7 +4,7 @@
  * StatefulDeps from the bundle (mirroring validate-tx's context), and run
  * validateStateful. Any throw is a false-reject finding -> HarnessError -> halt.
  */
-import { parseTransaction, validateStateful, TxValidationError } from '@ergots/transaction';
+import { parseTransaction, validateStateful, TxValidationError, blockVersionContext } from '@ergots/transaction';
 import type { StatefulDeps } from '@ergots/transaction';
 import { parseSValue } from '@ergots/ergoscript';
 import type { ErgoBox, PreHeader } from '@ergots/ergoscript';
@@ -16,10 +16,22 @@ import { HarnessError } from './errors.js';
 
 const DEFAULT_MAX_BLOCK_COST = 1_000_000;
 
-/** A top-level box, its registers read at tree version 3, as the ergo node reads a transaction since 6.0. */
+/** Launch value of parameter 123 `BlockVersion` on each network
+ *  (ergo `settings/LaunchParameters.scala:8-17`). A bundle with no
+ *  `parameters` reads a block before the first epoch boundary carried the
+ *  key, so the voted value is the launch value of the walk's network. */
+const LAUNCH_BLOCK_VERSION: Record<'mainnet' | 'testnet', number> = {
+  mainnet: 1,
+  testnet: 4,
+};
+
+/** A box from the UTXO set: read at tree version 1 with nothing set on the
+ *  reader, as the JVM reads a UTXO box outside any version context
+ *  (ergo `UtxoStateReader.scala:122-130`). The box's tree carries its own
+ *  version in its header. */
 function parseBox(bytes: Uint8Array): ErgoBox {
   const reader = new ByteReader(bytes);
-  const sv = parseSValue({ tag: 'SBox' }, 3, reader);
+  const sv = parseSValue({ tag: 'SBox' }, 1, reader);
   if (sv.kind !== 'Box') throw new Error(`parseSValue(SBox) returned kind=${sv.kind}`);
   return sv.value;
 }
@@ -57,16 +69,24 @@ export function buildStatefulDeps(tx: TxBundle, block: BlockBundle, state: Walke
   const dataInputBoxes = tx.dataInputBoxes.map((b) => parseBox(b));
   const currentHeader = state.rollingHeaders[0]!;
   const preceding = state.rollingHeaders.slice(1);
-  const maxBlockCost = block.parameters !== null && block.parameters !== undefined
-    ? block.parameters.maxBlockCost
-    : DEFAULT_MAX_BLOCK_COST;
+  const params = block.parameters;
+  const maxBlockCost = params !== null && params !== undefined ? params.maxBlockCost : DEFAULT_MAX_BLOCK_COST;
+  // The voted block version drives the activated script version and the
+  // height rules in `validateStateful`. The bundle's `parameters.blockVersion`
+  // is the ergo node's voted value (parameter 123); below the first epoch
+  // boundary it is the network's launch value, which the assembler supplied.
+  // A bundle without parameters falls through to the launch value of the
+  // walk's network.
+  const blockVersion = params !== null && params !== undefined
+    ? params.blockVersion
+    : LAUNCH_BLOCK_VERSION[state.network];
   return {
     inputBoxes,
     dataInputBoxes,
     stateContext: {
       headers: preceding,
       preHeader: preHeaderFrom(currentHeader),
-      parameters: { maxBlockCost },
+      parameters: { maxBlockCost, blockVersion },
     },
   };
 }
@@ -91,7 +111,11 @@ export function validateTxLib(tx: TxBundle, block: BlockBundle, state: WalkerSta
 
   let parsed;
   try {
-    parsed = parseTransaction(tx.txBytes);
+    // Parse under the section's own context (ergo `BlockTransactions.scala:184-202`):
+    // from block version 4 it is (blockVersion - 1, blockVersion - 1); below,
+    // (1, 1). The context pair is what the JVM enters around the section's
+    // transactions.
+    parsed = parseTransaction(tx.txBytes, blockVersionContext(block.sectionBlockVersion, block.blockId));
   } catch (err) {
     throw new HarnessError('lib-validate', 'lib-parse-failed',
       `parseTransaction failed at tx ${txIndex}: ${msg(err)}`,

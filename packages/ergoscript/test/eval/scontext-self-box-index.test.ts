@@ -6,22 +6,16 @@
  * `ergotree-interpreter/src/eval/scontext.rs:33-57` (`SELF_BOX_INDEX_EVAL_FN`).
  *
  * **Activated-script-version gate (JVM bug #603 compat):**
- * The JVM's pre-v5 implementation used reference equality (`eq`) instead
- * of value equality (`==`) in `CostingDataContext.scala`, causing
- * `selfBoxIndex` to always return -1 for pre-V5 blocks. The bug was fixed
- * globally in v5.x — ALL scripts in v5+ blocks get the correct value.
- * Therefore the gate is on `activated_script_version` (block-level,
- * derived from `preHeader.version - 1` saturating), NOT `tree_version`.
+ * In V5+ blocks the arm returns the real index; below V2 it returns -1
+ * (the JVM's CostingDataContext.scala reference-equality branch, issue #603).
+ * The gate is on `activated_script_version` (block-level, read as
+ * `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`:
+ * gating on the tree version instead of the activated version mis-evaluates
+ * mainnet block 942,664. From mainnet block 342,964 this arm is reachable.
  *
- * Mainnet history first exercised this arm at block 342,964 — same block
- * where sigma-rust originally diverged from JVM (fixed in their v0.2.0).
  * Pre-JIT-activation blocks (preHeader.version=1, activated=0; or
  * preHeader.version=2, activated=1) return -1 unconditionally; v3+
  * blocks (activated=2 or higher) return the real index.
- *
- * Source: ergo-node-rust memory `feedback_tree_version_gate.md` documents
- * the activated-vs-tree-version distinction explicitly (session 22b
- * regression broke block 942,664 by gating on tree_version).
  *
  * Total eval cost (success): 4 (dispatcher) + 1 (Context arm) + 20 (handler) = 25.
  */
@@ -104,11 +98,11 @@ describe('SContext.selfBoxIndex handler', () => {
     expect(result).toEqual({ kind: 'Int', value: -1 })
   })
 
-  it('saturates the version subtraction (preHeader.version=0 → activated=0, returns -1)', () => {
+  it('a pre-header of version 0 wraps to activated -1 (signed byte), still < V2, returns -1', () => {
     const inputs = [syntheticBox(1n)]
     const selfBox = inputs[0]!
     const ctx = makeContext({
-      preHeader: syntheticPreHeader(0),  // saturating: max(0, 0-1) = 0
+      preHeader: syntheticPreHeader(0),  // signed byte: 0 - 1 wraps to -1
       selfBox,
       inputs,
     })

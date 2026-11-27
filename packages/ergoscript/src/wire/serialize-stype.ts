@@ -170,6 +170,26 @@ export function serializeSType(t: SType, w: ByteWriter): void {
 }
 
 /**
+ * Whether the JVM's type writer has a case for `t` at `treeVersion`. A function type is written from
+ * tree version 3 (`TypeSerializer.scala:112`); below it the writer has no case for one, in a
+ * collection's or an Option's element and in a tuple's items too. Every other type is written at
+ * every tree version.
+ */
+export function isTypeWrittenAt(t: SType, treeVersion: number): boolean {
+  switch (t.tag) {
+    case 'SFunc':
+      return treeVersion >= 3
+    case 'SColl':
+    case 'SOption':
+      return isTypeWrittenAt(t.elem, treeVersion)
+    case 'STuple':
+      return t.items.every((item) => isTypeWrittenAt(item, treeVersion))
+    default:
+      return true
+  }
+}
+
+/**
  * SColl encoding (sigma-rust lines 342-378):
  *   - elem = embeddable primitive p → single byte `COLL + p`
  *   - elem = SColl[embeddable primitive p] → single byte `NESTED_COLL + p`
@@ -301,9 +321,8 @@ function serializePair(t1: SType, t2: SType, w: ByteWriter): void {
  *   `STYPE_VAR` byte + u8 name length + UTF-8 name bytes.
  *
  * The JVM emits the length via `putUByte(bytes.length)` — no lower bound; the u8 field
- * caps at 255 — so we reject only > 255 UTF-8 bytes (what the u8 length cannot hold).
- * The old [1,254] reject mirrored sigma-rust's BoundedVec and was a JVM fork in both
- * directions (the matching parse over-rejected nameLen 0 and 255). The bound is on the
+ * caps at 255 — so we reject only > 255 UTF-8 bytes (what the u8 length cannot hold),
+ * where sigma-rust's BoundedVec takes [1,254]. The bound is on the
  * UTF-8 byte length (NOT the JS string length — multi-byte chars matter).
  */
 function serializeSTypeVar(name: string, w: ByteWriter): void {

@@ -9,11 +9,6 @@ import { tupleColl } from '../../src/coll/build'
 import { SANY_JVM } from '../../src/mir/types'
 import type { SType, SValue } from '../../src/mir/types'
 
-/** The activated version is read for a Box only: every other kind is lifted with this. */
-const unread = (): number => {
-  throw new Error('the activated version was read')
-}
-
 const payload = {} as never
 
 const ALWAYS: [SValue, SType][] = [
@@ -43,14 +38,14 @@ describe('liftToConstantType: a value with a lift at every version', () => {
   for (const [value, tpe] of ALWAYS) {
     for (const treeVersion of [0, 3]) {
       it(`${value.kind} at tree version ${treeVersion}`, () => {
-        expect(liftToConstantType(value, treeVersion, unread)).toEqual(tpe)
+        expect(liftToConstantType(value, treeVersion)).toEqual(tpe)
       })
     }
   }
 
   it('a tuple of three is a collection of the JVM Any', () => {
     const t = tupleColl([{ kind: 'Int', value: 1 }, { kind: 'Long', value: 2n }, { kind: 'Int', value: 3 }])
-    const lifted = liftToConstantType(t, 0, unread)
+    const lifted = liftToConstantType(t, 0)
     expect(lifted).toEqual({ tag: 'SColl', elem: SANY_JVM })
     expect((lifted as { tag: 'SColl'; elem: SType }).elem).toBe(SANY_JVM)
   })
@@ -60,23 +55,19 @@ describe('liftToConstantType: a value with no lift at any version', () => {
   for (const value of NEVER) {
     for (const treeVersion of [0, 3]) {
       it(`${value.kind}${value.kind === 'Option' ? (value.value === null ? ' (None)' : ' (Some)') : ''} at tree version ${treeVersion}`, () => {
-        expect(liftToConstantType(value, treeVersion, unread)).toBeNull()
+        expect(liftToConstantType(value, treeVersion)).toBeNull()
       })
     }
   }
 })
 
-describe('liftToConstantType: a Box lifts from activated version 2 (Platform.scala:50-54)', () => {
+describe('liftToConstantType: a Box lifts at every activated version', () => {
   const box: SValue = { kind: 'Box', value: payload }
-  it('activated 2: SBox', () => {
-    expect(liftToConstantType(box, 0, () => 2)).toEqual({ tag: 'SBox' })
-  })
-  it('activated 3: SBox', () => {
-    expect(liftToConstantType(box, 3, () => 3)).toEqual({ tag: 'SBox' })
-  })
-  it('activated 1: no lift', () => {
-    expect(liftToConstantType(box, 0, () => 1)).toBeNull()
-  })
+  for (const treeVersion of [0, 1, 2, 3]) {
+    it(`tree version ${treeVersion}: SBox`, () => {
+      expect(liftToConstantType(box, treeVersion)).toEqual({ tag: 'SBox' })
+    })
+  }
 })
 
 describe('liftToConstantType: Header, PreHeader and UnsignedBigInt lift from tree version 3 (Platform.scala:34-36)', () => {
@@ -87,10 +78,10 @@ describe('liftToConstantType: Header, PreHeader and UnsignedBigInt lift from tre
   ]
   for (const [value, tpe] of V3_ONLY) {
     it(`${value.kind} at tree version 2: no lift`, () => {
-      expect(liftToConstantType(value, 2, unread)).toBeNull()
+      expect(liftToConstantType(value, 2)).toBeNull()
     })
     it(`${value.kind} at tree version 3: ${tpe.tag}`, () => {
-      expect(liftToConstantType(value, 3, unread)).toEqual(tpe)
+      expect(liftToConstantType(value, 3)).toEqual(tpe)
     })
   }
 })
@@ -98,10 +89,10 @@ describe('liftToConstantType: Header, PreHeader and UnsignedBigInt lift from tre
 describe('liftToConstantType: a String lifts below tree version 3 (Platform.scala:38)', () => {
   const s: SValue = { kind: 'String', value: 'A' }
   it('tree version 2: SString', () => {
-    expect(liftToConstantType(s, 2, unread)).toEqual({ tag: 'SString' })
+    expect(liftToConstantType(s, 2)).toEqual({ tag: 'SString' })
   })
   it('tree version 3: no lift', () => {
-    expect(liftToConstantType(s, 3, unread)).toBeNull()
+    expect(liftToConstantType(s, 3)).toBeNull()
   })
 })
 
@@ -115,7 +106,7 @@ describe('liftToConstantType: every kind of value is answered', () => {
   for (const kind of Object.keys(KINDS)) {
     it(`${kind} is lifted or refused without a throw`, () => {
       const v = { kind, value: payload, elem: { tag: 'SInt' }, items: [], closure: payload } as unknown as SValue
-      const lifted = liftToConstantType(v, 3, () => 3)
+      const lifted = liftToConstantType(v, 3)
       expect(lifted === null || typeof lifted.tag === 'string').toBe(true)
     })
   }

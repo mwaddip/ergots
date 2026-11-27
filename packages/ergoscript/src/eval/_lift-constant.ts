@@ -15,7 +15,7 @@
  *   Boolean                           :33     at every version                    SBoolean
  *   Header, PreHeader, UnsignedBigInt :34-36  from tree version 3                 its own type
  *   String                            :38     below tree version 3                SString
- *   Box                               :50-54  (`sigma.Box`) when `isJitActivated`, activated version 2 and above
+ *   Box                               :50-54  (`sigma.Box`) at every activated version (the JVM refuses one below 2)
  *   AvlTree                           :56     (`sigma.AvlTree`) at every version  SAvlTree
  *   SigmaProp                         :58     at every version                    SSigmaProp
  *   Coll                              :59-61  at every version                    Coll of `rtypeToSType(coll.tItem)`
@@ -28,15 +28,12 @@
  *
  * The other cases of the match are over host classes (`Array[...]` :19-25, `java.math.BigInteger` :30,
  * `ErgoBox` :45-46, `AvlTreeData` :55, `SigmaBoolean` :57); an evaluated value is none of them.
- *
- * `activated` gives the block's activated script version. It is called for a Box only.
  */
 import type { SType, SValue } from '../mir/types'
 
 const V3 = 3
-const JIT_ACTIVATED = 2
 
-export function liftToConstantType(v: SValue, treeVersion: number, activated: () => number): SType | null {
+export function liftToConstantType(v: SValue, treeVersion: number): SType | null {
   switch (v.kind) {
     case 'Boolean':
       return { tag: 'SBoolean' }
@@ -59,7 +56,7 @@ export function liftToConstantType(v: SValue, treeVersion: number, activated: ()
     case 'Coll':
       return { tag: 'SColl', elem: v.elem }
     case 'Box':
-      return activated() >= JIT_ACTIVATED ? { tag: 'SBox' } : null
+      return { tag: 'SBox' }
     case 'Header':
       return treeVersion >= V3 ? { tag: 'SHeader' } : null
     case 'PreHeader':

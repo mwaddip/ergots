@@ -126,7 +126,7 @@ describe('rule-1012 — substConstants template header is gated too (separate in
     // so the template header is rejected exactly like the main path.
     const template = new Uint8Array([0x03, 0xde, 0xad])
     expectErgoTreeParseError(
-      () => substituteConstantsBytes(template, [], [], 0),
+      () => substituteConstantsBytes(template, [], [], 0, undefined),
       'header-version-requires-size',
     )
   })
@@ -137,14 +137,14 @@ describe('rule-1012 — substConstants template header is gated too (separate in
     // a 1-byte body so size = 3 body-region bytes for constants + 1 body = 4).
     // Layout after header+size: count=01, SInt=04, val=0a (=5), body=de.
     const template = new Uint8Array([0x1b, 0x04, 0x01, 0x04, 0x0a, 0xde])
-    const { numConstants } = substituteConstantsBytes(template, [0], [{ tpe: SINT, value: intVal(7) }], 0)
+    const { numConstants } = substituteConstantsBytes(template, [0], [{ tpe: SINT, value: intVal(7) }], 0, undefined)
     expect(numConstants).toBe(1)
   })
 
   it('accepts a version-0 / no-size seg-off template (gate does not apply)', () => {
     // The existing JVM #1 vector: seg-off header 0x00, unparseable body.
     const template = new Uint8Array([0x00, 0x00, 0x08, 0xd3])
-    const { numConstants } = substituteConstantsBytes(template, [0], [{ tpe: SINT, value: intVal(0) }], 0)
+    const { numConstants } = substituteConstantsBytes(template, [0], [{ tpe: SINT, value: intVal(0) }], 0, undefined)
     expect(numConstants).toBe(0)
   })
 })

@@ -1,5 +1,4 @@
 export type TxParseErrorCode =
-  | 'trailing-bytes'
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
   | 'extension-id-out-of-range'
@@ -24,7 +23,7 @@ export type TxValidationErrorCode =
   | 'input-sum-overflow' | 'value-not-conserved'
   | 'output-below-min-value' | 'creation-height-in-future'
   | 'creation-height-below-max-input' | 'creation-height-negative'
-  | 'box-size-exceeded' | 'script-size-exceeded'
+  | 'box-size-exceeded' | 'script-size-exceeded' | 'output-not-serializable'
   | 'token-not-conserved' | 'invalid-minted-token' | 'token-amount-invalid'
   // per-input verify
   | 'non-sigmaprop-result' | 'script-reduced-false' | 'cost-limit-exceeded';
@@ -32,12 +31,15 @@ export interface TxValidationLocation {
   inputIndex?: number;
   outputIndex?: number;
   boxId?: Uint8Array;
+  /** The underlying error, for 'output-not-serializable'. */
+  cause?: unknown;
 }
 export class TxValidationError extends Error {
   readonly code: TxValidationErrorCode;
   readonly location?: TxValidationLocation;
+  /** `location.cause`, when present, is also the standard `Error.cause`. */
   constructor(message: string, code: TxValidationErrorCode, location?: TxValidationLocation) {
-    super(message);
+    super(message, location !== undefined && 'cause' in location ? { cause: location.cause } : undefined);
     this.name = 'TxValidationError';
     this.code = code;
     this.location = location;

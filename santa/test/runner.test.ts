@@ -2,7 +2,7 @@ import { describe, it, expect } from 'vitest'
 import { readFileSync } from 'node:fs'
 import { fileURLToPath } from 'node:url'
 import path from 'node:path'
-import { runVector } from '../src/runner'
+import { runEntry, runVector } from '../src/runner'
 
 const here = path.dirname(fileURLToPath(import.meta.url))
 
@@ -197,6 +197,53 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     const actuals = runVector(vec)
     for (const n of ['h0', 'h3']) {
       expect(actuals[n], n).toEqual({ value: { kind: 'Int', value: 0 }, cost: 26, error: null })
+    }
+  })
+
+  it("the entry's activated version lands on the eval context's `activatedScriptVersion` directly", () => {
+    // The runner takes the field from `e.version.activated` and sets it on the EvalContext
+    // before `evaluateWith` runs. A ContextSink reads it off the built context, so a mutation
+    // that drops the field from the context the runner builds turns this test red regardless of
+    // what the arms derive from the dummy pre-header. The signed-byte extremes are covered so a
+    // reader that wraps a pre-header's version cannot pass it by accident.
+    const makeEntry = (activated: number) => ({
+      name: `at-${activated}`, tree_bytes_hex: '0008d3',   // v0 sigmaProp(true)
+      version: { activated, ergoTree: 0 }, expected: { value: null, cost: null, error: null },
+    })
+    for (const activated of [3, 2, 1, 0, -1, -128, 127]) {
+      let seen: number | undefined
+      runEntry('santa-eval/v1', makeEntry(activated), null, (ctx) => { seen = ctx.activatedScriptVersion })
+      expect(seen, `activated ${activated}`).toBe(activated)
+    }
+  })
+
+  it('the entry carries the activated version into the eval context, read off every arm that reads it', () => {
+    // runEntry sets `activatedScriptVersion` from `e.version.activated` for every schema; readers go
+    // through `_activated-version.ts`, which prefers that field over the dummy pre-header. The tree
+    // sigmaProp(selfBoxIndex == 0) with SELF at inputs[0] answers true at activated 2-plus (the real
+    // index 0) and false below (the JVM-bug -1). Running it at activated 127 and -128 verifies the
+    // field is honored at the signed-byte extremes a pre-header could not express.
+    const SELF_BOX_INDEX_EQ_ZERO = '00d193db6508fe0400'
+    const vec = {
+      schema: 'santa-eval/v1', op: 'selfBoxIndex_eq_0', blessed_by: 'local',
+      entries: [
+        { name: 'at-3',    tree_bytes_hex: SELF_BOX_INDEX_EQ_ZERO, version: { activated: 3,    ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at-127',  tree_bytes_hex: SELF_BOX_INDEX_EQ_ZERO, version: { activated: 127,  ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at-1',    tree_bytes_hex: SELF_BOX_INDEX_EQ_ZERO, version: { activated: 1,    ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at--1',   tree_bytes_hex: SELF_BOX_INDEX_EQ_ZERO, version: { activated: -1,   ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at--128', tree_bytes_hex: SELF_BOX_INDEX_EQ_ZERO, version: { activated: -128, ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+      ],
+    }
+    const actuals = runVector(vec)
+    // activated >= 2 (field): index 0 → TrueProp; activated < 2 (field): index -1 → FalseProp.
+    expect((actuals['at-3'].value as { raw_hex?: string }).raw_hex).toBe('d3')
+    expect((actuals['at-127'].value as { raw_hex?: string }).raw_hex).toBe('d3')
+    expect((actuals['at-1'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    expect((actuals['at--1'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    expect((actuals['at--128'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    // All five entries evaluated (no errored / not-implemented / panicked).
+    for (const name of Object.keys(actuals)) {
+      expect(actuals[name].error, name).toBeNull()
     }
   })
 

@@ -4,7 +4,7 @@ import {
   parseTree, serializeTree, isUnparsedTree, evaluateWith, makeContext, EvalError,
   parseSValue, serializeSValue, parseSType, serializeSType, STypeParseError, SValueParseError, SValueSerializeError, ErgoTreeParseError, ErgoTreeSerializeError, type SType,
   parseSigmaBoolean, serializeSigmaBoolean, SigmaBooleanParseError, SigmaBooleanSerializeError,
-  type ContextExtension, type ErgoBox, type PreHeader,
+  type ContextExtension, type ErgoBox, type EvalContext, type PreHeader,
 } from '@ergots/ergoscript'
 import { ByteReader, ByteWriter, parseHeader, ReaderError } from '@ergots/scorex'
 import {
@@ -13,6 +13,8 @@ import {
 } from '@ergots/avltree'
 import {
   parseTransaction, serializeTransaction, validateStateful, parseContextExtension,
+  blockVersionContext,
+  parseBlockTransactions, serializeBlockTransactions,
   type ErgoLikeTransaction, type StatefulDeps,
 } from '@ergots/transaction'
 import { serializeProof } from '@ergots/nipopow'
@@ -114,10 +116,16 @@ function unread(doc: { entries?: { name: string }[] }): Record<string, Unread> {
  *  `jitCostLimit` as unlimited, so every context the runner builds passes this one. */
 export const EVAL_JIT_COST_LIMIT = 10_000_000
 
-export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = null): Result | Unread {
+/** A test seam: when `onContext` is passed, the runner calls it with the EvalContext it built right
+ *  before `evaluateWith` runs. The runner's own call sites and `runVector` never pass it. */
+export type ContextSink = (ctx: EvalContext) => void
+
+export function runEntry(
+  schema: string, e: Entry, readExt: ExtensionReader = null, onContext?: ContextSink,
+): Result | Unread {
   if (!EVAL_SCHEMAS.has(schema)) return UNREAD
   try {
-    return runEntryInner(schema, e, readExt)
+    return runEntryInner(schema, e, readExt, onContext)
   } catch (err) {
     const note = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
     return { value: null, cost: null, error: 'panicked', note }
@@ -125,8 +133,9 @@ export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = nu
 }
 
 /** The per-entry pipeline ([0] parse → [1] decode/bind → [2] eval/encode). Unrecognized throws
- *  propagate to runEntry's panic-net above (→ `panicked`). */
-function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Result {
+ *  propagate to runEntry's panic-net above (→ `panicked`). `onContext`, when passed, runs on the
+ *  built EvalContext right before `evaluateWith`. */
+function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader, onContext?: ContextSink): Result {
   const treeVersion = e.version.ergoTree
 
   // [0] parseTree — ergots' codec refusing the tree's bytes is the library deciding the TREE is
@@ -187,6 +196,7 @@ function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Resu
     treeVersion,
     constants: tree.constants,
     jitCostLimit: EVAL_JIT_COST_LIMIT,
+    activatedScriptVersion: e.version.activated,
     preHeader,
     height: preHeader.height,             // GlobalVars.Height; the JVM's HEIGHT is preHeader.height (0)
     selfBox: selfBoxBase,
@@ -270,6 +280,7 @@ function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Resu
   //     the impl's own faithful signal), EXCEPT the oracle-unbound carve-out below; any other
   //     EvalError ⇒ errored; a non-EvalError throw (including an encode gap) ⇒ runEntry's
   //     panic-net (panicked).
+  if (onContext) onContext(ctx)
   try {
     const out = evaluateWith(tree, ctx)
     return { value: encodeSValue(out, treeVersion), cost: ctx.jitCost, error: null }
@@ -522,13 +533,14 @@ function buildFullCtxOpts(
   const inputExtensions = (c.input_extensions ?? []).map((ext) => decodeExtension(ext, treeVersion, activated, readExt))
   const extension = inputExtensions[c.self_index] ?? { values: new Map() }
 
-  // master's parseTree returns ParsedErgoTree | UnparsedErgoTree; a fullctx eval golden is always a
-  // parsed tree, so refuse an unparsed one (FullCtxRefused → errored) and narrow `tree` for .constants.
+  // A fullctx eval golden is a parsed tree, so refuse an unparsed one (FullCtxRefused → errored) and
+  // narrow `tree` for .constants.
   if (isUnparsedTree(tree)) throw new FullCtxRefused('unparsed soft-fork tree cannot be evaluated')
   return {
     treeVersion,
     constants: tree.constants,
     jitCostLimit: EVAL_JIT_COST_LIMIT,
+    activatedScriptVersion: activated,
     height: preHeader.height,   // GlobalVars.Height; the JVM's HEIGHT is preHeader.height
     selfBox,
     inputs,
@@ -582,13 +594,19 @@ export function runWireEntry(e: WireEntry, tx: WireTxCodec = TX_CODEC): WireResu
 
 function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
   const treeVersion = e.version.ergoTree
+  const activatedVersion = e.version.activated
   switch (e.kind) {
     case 'Box': {
       // Full ErgoBox::sigma_serialize form (value … tokens … registers … tx_id … index) via the
       // public SValue codec — parseSValue(SBox)/serializeSValue(SBox) handle the with-ref form.
+      // The reader carries the entry's activated version: a Box's tree, a tree nested in a register
+      // or a Box constant, is parsed under it (`VersionContext.withVersions`, JVM
+      // `ErgoTreeSerializer.scala:150-154`).
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const value = parseSValue(SBOX, treeVersion, new ByteReader(bytes))
+        const r = new ByteReader(bytes)
+        r.activatedVersion = activatedVersion
+        const value = parseSValue(SBOX, treeVersion, r)
         const w = new ByteWriter()
         serializeSValue(SBOX, value, treeVersion, w)
         return { bytes_hex: bytesToHex(w.toBytes()), error: null }
@@ -625,9 +643,13 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       // Self-describing constant: SType || SValue (the ContextExtension / register form). Read the
       // type, then its data, and write both back — via ergots' public parseSType + parseSValue /
       // serializeSType + serializeSValue (the codec ergots exposes for ContextExtension decoding).
+      // The reader carries the entry's activated version: a Box constant's tree is parsed under it
+      // (`VersionContext.withVersions`, JVM `ErgoTreeSerializer.scala:150-154`); `parseSType` reads
+      // the type under the entry's tree version, which drives the V3-gated type reads.
       const bytes = hexToBytes(e.bytes_hex)
       try {
         const r = new ByteReader(bytes)
+        r.activatedVersion = activatedVersion
         const type = parseSType(r, treeVersion)
         const value = parseSValue(type, treeVersion, r)
         const w = new ByteWriter()
@@ -650,10 +672,11 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       // round-trip COMPOSES the SValue/SType/Expr codecs, so a typed codec rejection from any of them
       // (e.g. an SHeader-typed segregated constant ⇒ SValueParseError) is `errored` (a faithful
       // reject); an untyped throw (e.g. ergots' strict-UTF-8 decode of an ill-formed STypeVar name)
-      // falls to the panic-net.
+      // falls to the panic-net. The entry's activated version reaches the reader, so a tree above
+      // it (or a nested Box constant's tree above it) rejects as the JVM's does.
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const tree = parseTree(bytes)
+        const tree = parseTree(bytes, { activatedVersion })
         return { bytes_hex: bytesToHex(serializeTree(tree)), error: null }
       } catch (err) {
         if (isWireCodecError(err)) {
@@ -665,11 +688,32 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
     case 'Transaction': {
       // Round-trip via @ergots/transaction's parseTransaction → serializeTransaction, the structural
       // analog of the ErgoTree case (serializeTransaction re-encodes from structure, not a cached-bytes
-      // echo). A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError.
+      // echo). A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError. The entry's
+      // version context reaches parseTransaction: the activated version gates each output tree (and
+      // each nested Box constant's tree); the tree version in force outside any tree gates the
+      // registers and the context-extension values.
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const parsed = tx.parseTransaction(bytes)
+        const parsed = tx.parseTransaction(bytes, { activated: e.version.activated, ergoTree: e.version.ergoTree })
         return { bytes_hex: bytesToHex(tx.serializeTransaction(parsed)), error: null }
+      } catch (err) {
+        if (isWireCodecError(err)) {
+          return { bytes_hex: null, error: 'errored' }
+        }
+        throw err
+      }
+    }
+    case 'BlockTransactions': {
+      // A block's transactions section: parse via @ergots/transaction's parseBlockTransactions, which
+      // reads the header id and marker, then each transaction on a new reader over the rest of the
+      // section under `blockVersionContext(blockVersion, headerId)` (ergo BlockTransactions.scala:184-202,
+      // ErgoTransaction.scala:538-544). A section's version context comes from its own block version,
+      // never the entry's `version` pair (runner-contract-wire §5). Then serializeBlockTransactions
+      // writes the section back, the structural round-trip the kind requires.
+      const bytes = hexToBytes(e.bytes_hex)
+      try {
+        const section = parseBlockTransactions(bytes)
+        return { bytes_hex: bytesToHex(serializeBlockTransactions(section)), error: null }
       } catch (err) {
         if (isWireCodecError(err)) {
           return { bytes_hex: null, error: 'errored' }
@@ -739,17 +783,27 @@ function runTxEntry(e: TxEntry): TxResult {
   let tx: ErgoLikeTransaction
   let deps: StatefulDeps
   try {
-    const treeVersion = e.version.ergoTree
+    // An input or data-input box is read outside any version context (ergo
+    // UtxoStateReader.scala:122-130): tree version 1, no activated version on the reader. So a
+    // v4 input box is read, not refused, at every entry's version.
     const box = (hex: string): ErgoBox =>
-      (parseSValue(SBOX, treeVersion, new ByteReader(hexToBytes(hex))) as { value: ErgoBox }).value
-    tx = parseTransaction(hexToBytes(e.tx_bytes_hex))
+      (parseSValue(SBOX, 1, new ByteReader(hexToBytes(hex))) as { value: ErgoBox }).value
+    // The transaction's parse context follows the block (ergo BlockTransactions.scala:184-202):
+    // from block version 4 it is (blockVersion - 1, blockVersion - 1), below that (1, 1). The
+    // entry carries the voted block version in parameters (SANTA's contract) and falls back to
+    // the pre-header's version where it has none.
+    const blockVersion = (e.parameters as { blockVersion?: number }).blockVersion ?? e.preHeader.version
+    tx = parseTransaction(hexToBytes(e.tx_bytes_hex), blockVersionContext(blockVersion))
     deps = {
       inputBoxes: e.input_boxes_hex.map(box),
       dataInputBoxes: e.data_input_boxes_hex.map(box),
       stateContext: {
         headers: e.headers_hex.map((h) => parseHeader(new ByteReader(hexToBytes(h)))),
         preHeader: toPreHeader(e.preHeader),
-        parameters: e.parameters,
+        // `validateStateful` reads the voted block version from `parameters.blockVersion` as its
+        // signed byte; when SANTA's entry has none, SANTA's engine falls back to the pre-header's,
+        // and so does the arm.
+        parameters: { ...(e.parameters as Record<string, number>), blockVersion },
       },
     }
   } catch (err) {

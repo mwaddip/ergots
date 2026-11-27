@@ -48,6 +48,8 @@ export class ByteReader {
    */
   private _level = 0;
 
+  private _activatedVersion: number | undefined = undefined;
+
   /**
    * Recursion-depth cap. New level > `maxTreeDepth` throws (the JVM
    * `CoreByteReader.level_=` setter, `:127-131`). Defaults to
@@ -131,9 +133,10 @@ export class ByteReader {
 
   /**
    * Fork a sub-reader over `bytes` that INHERITS this reader's current
-   * recursion depth and cap, for a parser that reads an inner region from its
-   * own buffer yet must keep counting depth: a naive `new ByteReader(slice)`
-   * would reset level to 0 and under-count depth. It is not how the JVM reads a
+   * recursion depth and cap, and its `activatedVersion`, for a parser that
+   * reads an inner region from its own buffer yet must keep counting depth and
+   * the version context: a naive `new ByteReader(slice)` would reset level to
+   * 0 and lose the activated version. It is not how the JVM reads a
    * size-flagged ErgoTree body, which it parses on the reader the tree arrives on
    * (`ErgoTreeSerializer.scala:141-215`). The level flows INTO the fork only: a
    * caller that goes on reading the parent must carry the fork's final level
@@ -146,7 +149,27 @@ export class ByteReader {
   forkSubReader(bytes: Uint8Array): ByteReader {
     const sub = new ByteReader(bytes, this.maxTreeDepth);
     sub._level = this._level;
+    sub._activatedVersion = this._activatedVersion;
     return sub;
+  }
+
+  /**
+   * The activated script version the trees read through this reader are parsed
+   * under: the first half of the JVM's `VersionContext` (`activatedVersion`,
+   * `VersionContext.scala:17`). It is the JVM's signed `Byte`, an integer from
+   * -128 to 127; `undefined` is a reader outside any version context. A value
+   * that is no signed byte throws `TypeError` and leaves the value the reader
+   * held. {@link forkSubReader} copies it onto the sub-reader.
+   */
+  get activatedVersion(): number | undefined {
+    return this._activatedVersion;
+  }
+
+  set activatedVersion(v: number | undefined) {
+    if (v !== undefined && !(typeof v === 'number' && Number.isInteger(v) && v >= -128 && v <= 127)) {
+      throw new TypeError(`activatedVersion must be an integer from -128 to 127 or undefined, got ${String(v)}`);
+    }
+    this._activatedVersion = v;
   }
 
   /**

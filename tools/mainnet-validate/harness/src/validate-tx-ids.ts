@@ -3,10 +3,10 @@
  * gate). No script evaluation: it checks that ergots parses the transaction the chain accepted
  * and derives the chain's identifiers from it.
  *
- *   - The transaction id: `transactionId(parseTransaction(txBytes))`, whose signing message writes
- *     each output tree re-encoded, as the JVM's `bytesToSign` does (`ErgoLikeTransaction.scala:49`,
- *     `:192-198`, through the candidate serializer, `ErgoBoxCandidate.scala:142`), against the id
- *     the node reports.
+ *   - The transaction id: `transactionId(parseTransaction(txBytes, blockVersionContext(sectionBlockVersion, blockId)))`,
+ *     whose signing message writes each output tree re-encoded, as the JVM's `bytesToSign` does
+ *     (`ErgoLikeTransaction.scala:49`, `:192-198`, through the candidate serializer,
+ *     `ErgoBoxCandidate.scala:142`), against the id the node reports.
  *   - Each output box: the JVM constructs a transaction's outputs from its candidates
  *     (`ErgoLikeTransaction.scala:46-47`), so an output's `bytes`, and the box id hashed from them,
  *     write the tree re-encoded. ergots builds the same box and serializes it; the bytes must equal
@@ -23,7 +23,7 @@
 import { ByteWriter } from '@ergots/scorex';
 import { serializeSValue } from '@ergots/ergoscript';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { parseTransaction, transactionId } from '@ergots/transaction';
+import { parseTransaction, transactionId, blockVersionContext } from '@ergots/transaction';
 import type { ErgoLikeTransaction } from '@ergots/transaction';
 
 import type { BlockBundle, TxBundle } from './bundle-types.js';
@@ -31,7 +31,7 @@ import { HarnessError } from './errors.js';
 import type { WalkerState } from './validate-block.js';
 
 /** Same call signature as `validateTx` / `validateTxLib`, so it drops into `validateBlock`. */
-export function validateTxIds(tx: TxBundle, _block: BlockBundle, _state: WalkerState, txIndex: number): void {
+export function validateTxIds(tx: TxBundle, block: BlockBundle, _state: WalkerState, txIndex: number): void {
     if (tx.txBytes === undefined) {
         throw new HarnessError(
             'ids',
@@ -44,7 +44,10 @@ export function validateTxIds(tx: TxBundle, _block: BlockBundle, _state: WalkerS
 
     let parsed: ErgoLikeTransaction;
     try {
-        parsed = parseTransaction(tx.txBytes);
+        // Parse under the section's own context: a node reads a block's
+        // transactions under `blockVersionContext(sectionBlockVersion, headerId)`
+        // (ergo `BlockTransactions.scala:184-202`, `Header.scala:154-155`).
+        parsed = parseTransaction(tx.txBytes, blockVersionContext(block.sectionBlockVersion, block.blockId));
     } catch (err) {
         throw new HarnessError(
             'ids',

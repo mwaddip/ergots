@@ -5,10 +5,12 @@ import { TxParseError } from '../../src/errors';
 import { hexToBytes, listFixtures, loadFixture, bytesToHex } from '../_helpers';
 
 describe('Transaction round-trip vs testnet fixtures', () => {
+  // A testnet fixture of a v4 block is parsed under (3, 3), as a node parses a v4 block's
+  // transactions (ergo BlockTransactions.scala:184-202).
   for (const name of listFixtures()) {
     it(`round-trips ${name} byte-identically`, () => {
       const { bytes } = loadFixture(name);
-      const tx = parseTransaction(bytes);
+      const tx = parseTransaction(bytes, { activated: 3, ergoTree: 3 });
       const out = serializeTransaction(tx);
       expect(bytesToHex(out)).toBe(bytesToHex(bytes));
     });
@@ -47,7 +49,7 @@ describe('Transaction synthetic data-input round-trip', () => {
     };
 
     const bytes = serializeTransaction(tx);
-    const reparsed = parseTransaction(bytes);
+    const reparsed = parseTransaction(bytes, { activated: 3, ergoTree: 3 });
     const out = serializeTransaction(reparsed);
     expect(bytesToHex(out)).toBe(bytesToHex(bytes));
 
@@ -74,12 +76,13 @@ describe('Transaction parse — TxIoVec bound enforcement', () => {
     return [0x80 | (n & 0x7f), 0x80 | ((n >>> 7) & 0x7f), (n >>> 14) & 0x7f];
   }
 
+  const V = { activated: 3, ergoTree: 3 } as const;
   it('rejects 0-input count (must be ≥1)', () => {
     // Wire: inputs_count=0, then rest can be anything — parser must reject before looping
     const bytes = new Uint8Array([0x00]); // VLQ 0 = inputs_count
-    expect(() => parseTransaction(bytes)).toThrow(TxParseError);
+    expect(() => parseTransaction(bytes, V)).toThrow(TxParseError);
     try {
-      parseTransaction(bytes);
+      parseTransaction(bytes, V);
     } catch (e) {
       expect((e as TxParseError).code).toBe('count-out-of-range');
     }
@@ -100,9 +103,9 @@ describe('Transaction parse — TxIoVec bound enforcement', () => {
       0x00,            // tokens_count = 0
       0x00,            // outputs_count = 0  ← must reject
     ]);
-    expect(() => parseTransaction(bytes)).toThrow(TxParseError);
+    expect(() => parseTransaction(bytes, V)).toThrow(TxParseError);
     try {
-      parseTransaction(bytes);
+      parseTransaction(bytes, V);
     } catch (e) {
       expect((e as TxParseError).code).toBe('count-out-of-range');
     }
@@ -111,9 +114,9 @@ describe('Transaction parse — TxIoVec bound enforcement', () => {
   it('rejects inputs_count = 32768 (just over TxIoVec max 32767)', () => {
     // VLQ for 32768 = 0x808002
     const bytes = new Uint8Array([...vlqU(32768)]);
-    expect(() => parseTransaction(bytes)).toThrow(TxParseError);
+    expect(() => parseTransaction(bytes, V)).toThrow(TxParseError);
     try {
-      parseTransaction(bytes);
+      parseTransaction(bytes, V);
     } catch (e) {
       expect((e as TxParseError).code).toBe('count-out-of-range');
     }
@@ -142,7 +145,7 @@ describe('Transaction parse — TxIoVec bound enforcement', () => {
     };
     expect(() => serializeTransaction(tx)).not.toThrow();
     const bytes = serializeTransaction(tx);
-    expect(() => parseTransaction(bytes)).not.toThrow();
+    expect(() => parseTransaction(bytes, V)).not.toThrow();
   });
 });
 

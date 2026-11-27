@@ -21,16 +21,16 @@ const valueJson = (hex: string) => ({ kind: 'Value', bytes_hex: hex })
 const SINT: SType = { tag: 'SInt' }
 const SLONG: SType = { tag: 'SLong' }
 
-// A STAND-IN for ergots' extension reader, which @ergots/transaction does not export from its root:
-// the same wire grammar (a count byte, then per variable an id byte, its type and its data). It checks
-// the adapter's framing and its leftover-bytes rule; it is not a claim about ergots' reader.
-const standInReader: ExtensionReader = (r: ByteReader) => {
+// A stand-in for ergots' extension reader: the same wire grammar (a count byte, then per variable an
+// id byte, its type and its data). It checks the adapter's framing and its leftover-bytes rule, and
+// reads type and data at the tree version the adapter passes.
+const standInReader: ExtensionReader = (r: ByteReader, treeVersion: number) => {
   const n = r.readU8()
   const values = new Map<number, { tpe: SType; value: SValue }>()
   for (let i = 0; i < n; i++) {
     const id = r.readU8()
-    const tpe = parseSType(r, 3)
-    values.set(id, { tpe, value: parseSValue(tpe, 3, r) })
+    const tpe = parseSType(r, treeVersion)
+    values.set(id, { tpe, value: parseSValue(tpe, treeVersion, r) })
   }
   return { values }
 }
