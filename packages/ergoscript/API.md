@@ -500,7 +500,7 @@ Evaluate an `ErgoTree` under a freshly constructed `EvalContext`. `opts.constant
 
 - **Precondition:** `tree` is a valid `ErgoTree` (typically returned by `parseTree`).
 - **Postcondition (success):** Returns the `SValue` produced by evaluating `tree.body`. `jitCost` is available on the internally constructed `EvalContext` only via `evaluateWith`; use that overload to inspect cost after the call.
-- **Postcondition (failure):** Throws `EvalError` with one of the 89 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work. Errors raised in the recursive evaluator bubble up unwrapped: since 2026-09-30 that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
+- **Postcondition (failure):** Throws `EvalError` with one of the 90 codes enumerated in `facts/ergoscript-eval.md`. An `UnparsedErgoTree` throws `'unparsed-ergotree'` before any work; a parsed tree above the context's known activated script version throws `'tree-version-above-activated'` before anything else. Errors raised in the recursive evaluator bubble up unwrapped: that includes an `ExprTpeError` from a node's type read at one of the JVM's eval-time `checkType` sites (below).
 - **Behaviour changes (2026-09-30; `docs/specs/2026-09-30-jvm-node-construction-design.md`):**
   - **No pre-eval pass.** `evaluate` no longer runs `validateBinOpTypes`, `validateMethodCallArity` or `validateV6Types` over the tree before evaluating it. The JVM makes those checks only at parse, and so does `parseTree` now (see "`ExprParseError` codes"): a relation's operand types (`'relation-operand-not-numeric'`, `'relation-operand-type-mismatch'`, which were `EvalError`s `'bin-op-not-numeric'` and `'bin-op-kind-mismatch'` from the pass), a v3 `MethodCall` without arguments (`'method-call-empty-args'`, retired as an `EvalError` code) and a v6 type below v3 (see `parseSType`). So a relation rebuilt around a substituted script is not checked by `check2` again, as in the JVM. `evaluate` no longer rejects a v6 type (`SUnsignedBigInt`, `SFunc`) in a tree of version 0–2, and `EvalError('v6-type-in-pre-v3-tree')` is retired: a parsed tree below v3 cannot carry one (a size-flagged tree degrades, and its spend fails `'unparsed-ergotree'`; an unsized one rejects). Only MIR a caller builds by hand still can, and `evaluate` evaluates it as written, as it evaluates a relation or a method call it builds.
   - **Nodes the JVM does not evaluate.** Every raw `BitOp` (`BitOr`, `BitAnd`, `BitXor` and the three shifts) and `BitInversion` rejects when evaluated, with `'unsupported-eval-node'`, charging nothing and evaluating no operand, as `TreeLookup` and `CreateAvlTree` already did. Before, `BitOr`, `BitAnd`, `BitXor` and `BitInversion` evaluated and the shifts threw `'not-implemented-yet'`. A tree that holds one only in a branch never evaluated still evaluates. The v6 methods (`bitwiseOr`, `shiftLeft` and the rest) are unchanged. `ModQ` (`0xe7`), `ModQArith` (`0xe8` `PlusModQ`, `0xe9` `MinusModQ`) and `TaggedVariable` (`0x71`) reject the same way: `'unsupported-eval-node'`, nothing charged, no operand evaluated.
@@ -600,13 +600,13 @@ interface EvalContext extends EvalOpts {
 
 ```ts
 class EvalError extends Error {
-  readonly code: string;  // one of the 89 codes in facts/ergoscript-eval.md
+  readonly code: string;  // one of the 90 codes in facts/ergoscript-eval.md
   cause?: unknown;        // the standard Error.cause, where an arm wraps an error
                           // (e.g. 'global-serialize-failed' wraps the write's error)
 }
 ```
 
-All 89 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
+All 90 `EvalError` codes and their semantics are documented in `facts/ergoscript-eval.md` § "EvalError taxonomy". Notable codes:
 
 | Code | When thrown |
 |---|---|

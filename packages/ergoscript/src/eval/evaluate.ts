@@ -15,7 +15,7 @@
 import type { ErgoTree, ParsedErgoTree, Expr, SValue } from '../mir/types'
 import { isUnparsedTree } from '../mir/types'
 import { treeByteLength } from '../wire/ergo-tree'
-import { activatedScriptVersion } from './_activated-version'
+import { activatedScriptVersion, knownActivatedVersion } from './_activated-version'
 import { Env } from './env'
 import { evalExpr } from './eval'
 import { makeContext, EvalError } from './eval-context'
@@ -187,10 +187,25 @@ function chargeTreeBytes(tree: ParsedErgoTree, ctx: EvalContext): void {
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext, mode: DispatchMode): SValue {
-  // One version per evaluation (spec docs/specs/2026-09-30-jvm-node-construction-design.md §1): the JVM reduces a
-  // tree under its own version (VersionContext.withVersions(activated, ergoTree.version), Interpreter.scala:203-238),
-  // so the substitution, exprTpe and every arm read that one version, and an arm's `ctx.treeVersion ?? 0` never meets
-  // an unset one. A version the caller set is kept.
+  // A tree above the activated script version refuses here: the JVM's
+  // VersionContext.withVersions (sigma/VersionContext.scala:20, Interpreter.scala:207) throws its constructor's
+  // IllegalArgumentException when treeVersion > activated and activated >= 2, before any substitution or arm runs.
+  // A context that knows no activated version (no field and no pre-header) parses outside any version context, the
+  // JVM's default (1, 1), and makes no check.
+  const activatedKnown = knownActivatedVersion(ctx)
+  if (activatedKnown !== undefined && activatedKnown >= 2) {
+    const callerTreeVersion = ctx.treeVersion
+    const runningVersion = callerTreeVersion ?? tree.header.version
+    if (runningVersion > activatedKnown) {
+      throw new EvalError(
+        `tree version ${runningVersion} is above the activated script version ${activatedKnown}`,
+        'tree-version-above-activated',
+      )
+    }
+  }
+  // One version per evaluation: the JVM reduces a tree under its own version (VersionContext.withVersions(activated,
+  // ergoTree.version), Interpreter.scala:203-238), so the substitution, exprTpe and every arm read that one version,
+  // and an arm's `ctx.treeVersion ?? 0` never meets an unset one. A version the caller set is kept.
   if (ctx.treeVersion === undefined) ctx.treeVersion = tree.header.version
   // JVM-align (v6 batch-6, Ask 20): the SELF context extension is consumed by
   // `ErgoLikeContext.toSigmaContext` → `contextVars` (ErgoLikeContext.scala:140-147),

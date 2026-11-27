@@ -220,7 +220,7 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
     // outer treeVersion = 2; template header byte says v3. JVM uses outer (2) → rejects.
     // Before fix: uses template version (3) → silently accepts. RED pin.
     expect(() =>
-      substituteConstantsBytes(TEMPLATE_V3_HEADER, [0], [{ tpe: SOPTION_SINT, value: someInt5 }], 2)
+      substituteConstantsBytes(TEMPLATE_V3_HEADER, [0], [{ tpe: SOPTION_SINT, value: someInt5 }], 2, undefined)
     ).toThrow(expect.objectContaining({ code: 'soption-tree-version-too-low' }))
   })
 
@@ -232,6 +232,7 @@ describe('substituteConstantsBytes — version source is OUTER tree version, not
       [0],
       [{ tpe: SOPTION_SINT, value: someInt5 }],
       3,
+      undefined,
     )
     expect(numConstants).toBe(1)
     // Output header keeps the v2+size template header byte; body is the verbatim

@@ -36,6 +36,7 @@ import type {
 import type { EvalContext } from './eval-context'
 import { EvalError } from './eval-context'
 import { ByteReader } from '@ergots/scorex'
+import { knownActivatedVersion } from './_activated-version'
 import { parseExpr } from '../wire/parse'
 import { checkBuild } from '../wire/check-build'
 import { isJvmClassCast } from '../wire/jvm-exceptions'
@@ -149,22 +150,31 @@ function isCollByte(t: SType): boolean {
  * `catch { case _: ClassCastException => None }` covers both (Rewriter.scala:180-191): a class cast from either leaves
  * the node, `undefined` here. Any other failure rejects. The decode is `ValueSerializer.deserialize` on a fresh reader,
  * with no constant store and trailing bytes ignored (`deserializeMeasured`, Interpreter.scala:99-107). A soft failure
- * inside the script is no class cast, so it rejects too, as the JVM rethrows it (spec §4a).
+ * inside the script is no class cast, so it rejects too, as the JVM rethrows it.
  *
  * With `chargeTo`, a decode that completes is charged there: {@link SUBSTITUTION_JIT_COST_PER_BYTE} for each byte of
  * the array, whatever the decode consumed. `deserializeMeasured` charges after the decode and stores the charged
  * context before the type check, so a decode that throws costs nothing, and a class cast at the type read leaves
  * the node with its charge kept.
+ *
+ * `activatedVersion` is the context's activated script version (`knownActivatedVersion(ctx)`): the first half of the
+ * JVM's `VersionContext`, in force around the decode (`Interpreter.scala:207`). It is set on the reader so a Box
+ * constant's tree is compared with it at `deserializeErgoTree` (`ErgoTreeSerializer.scala:150-154`). A context without
+ * one (the field unset and no pre-header) parses outside any version context, the JVM's default, as a reader with
+ * `activatedVersion` undefined does.
  */
 function decodeScript(
   bytes: Uint8Array,
   node: string,
   v: number,
+  activatedVersion: number | undefined,
   chargeTo: EvalContext | undefined
 ): { script: Expr; tpe: SType } | undefined {
+  const r = new ByteReader(bytes)
+  r.activatedVersion = activatedVersion
   let script: Expr
   try {
-    script = parseExpr(new ByteReader(bytes), [], [], new Map(), v)
+    script = parseExpr(r, [], [], new Map(), v)
   } catch (err) {
     if (isJvmClassCast(err)) return undefined
     throw new EvalError(`${node}: inner Expr parse failed — ${messageOf(err)}`, 'deserialize-parse-failed', {
@@ -197,7 +207,7 @@ function substituteDeserializeContext(e: DeserializeContext, ctx: EvalContext, v
   const entry = ctx.extension.values.get(e.id)
   if (entry === undefined || !isCollByte(entry.tpe)) return e
   const bytes = collByteToUint8Array(entry.value, 'DeserializeContext', 'deserialize-input-not-byte-array')
-  const decoded = decodeScript(bytes, 'DeserializeContext', v, chargeDecodes ? ctx : undefined)
+  const decoded = decodeScript(bytes, 'DeserializeContext', v, knownActivatedVersion(ctx), chargeDecodes ? ctx : undefined)
   if (decoded === undefined) return e
   if (!scriptTypeEquals(decoded.tpe, e.tpe)) {
     throw new EvalError(
@@ -227,7 +237,7 @@ function substituteDeserializeRegister(e: DeserializeRegister, ctx: EvalContext,
   if (entry !== undefined) {
     if (!isCollByte(entry.tpe)) return e
     const bytes = collByteToUint8Array(entry.value, 'DeserializeRegister', 'deserialize-input-not-byte-array')
-    const decoded = decodeScript(bytes, 'DeserializeRegister', v, chargeDecodes ? ctx : undefined)
+    const decoded = decodeScript(bytes, 'DeserializeRegister', v, knownActivatedVersion(ctx), chargeDecodes ? ctx : undefined)
     if (decoded === undefined) return e
     if (!scriptTypeEquals(decoded.tpe, e.tpe)) {
       throw new EvalError(

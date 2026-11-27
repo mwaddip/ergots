@@ -560,6 +560,7 @@ export function substituteConstantsBytes(
   positions: number[],
   newConstants: readonly { tpe: SType; value: SValue }[],
   treeVersion: number,
+  activatedVersion: number | undefined,
 ): { bytes: Uint8Array; numConstants: number } {
   // JVM `require(positions.length == newVals.length)` (ErgoTreeSerializer.scala:323).
   if (positions.length !== newConstants.length) {
@@ -570,6 +571,12 @@ export function substituteConstantsBytes(
   }
 
   const r = new ByteReader(scriptBytes)
+  // The template's constants parse under the context's activated version: a Box constant whose tree is above it
+  // refuses at `deserializeErgoTree` (`ErgoTreeSerializer.scala:150-154`, `:191-193`), as the JVM refuses it under
+  // the reduction's `VersionContext` (`Interpreter.scala:207`). The template's own header is read by
+  // `deserializeHeaderAndSize` before the version context is entered (`:145`, `:217-238`): its version is compared
+  // with nothing here.
+  r.activatedVersion = activatedVersion
   const rawHeader = r.readU8()
   // The template header's version byte drives ONLY structure flags (hasSize,
   // constantSegregation) plus the rule-1012 size-bit gate below; the constants'

@@ -25,6 +25,7 @@
 
 import { ByteReader } from '@ergots/scorex'
 import { parseSValue } from '../wire/parse-svalue'
+import { knownActivatedVersion } from './_activated-version'
 import { collByteToUint8Array } from './_byte-coll'
 import { EvalError, type EvalContext } from './eval-context'
 import type { SType, SValue } from '../mir/types'
@@ -68,11 +69,21 @@ export function evalGlobalDeserializeTo(
     // parseSigmaBoolean for an SSigmaProp value) enforces MaxTreeDepth
     // data-driven; an over-deep value raises ReaderError 'max-tree-depth-exceeded'
     // which is caught below and surfaced as 'global-deserialize-failed'.
-    return parseSValue(T, ctx.treeVersion ?? 0, new ByteReader(bytes))
+    //
+    // The activated script version is set on the reader so that a Box bytes
+    // argument whose tree is above the context's activated version is refused
+    // at `deserializeErgoTree` (`ErgoTreeSerializer.scala:150-154`), as the
+    // JVM refuses it under the `VersionContext.withVersions` the reduction
+    // enters (`Interpreter.scala:207`). A context that knows no activated
+    // version parses outside any version context.
+    const r = new ByteReader(bytes)
+    r.activatedVersion = knownActivatedVersion(ctx)
+    return parseSValue(T, ctx.treeVersion ?? 0, r)
   } catch (e) {
     throw new EvalError(
       `Global.deserializeTo failed: ${(e as Error).message}`,
       'global-deserialize-failed',
+      { cause: e },
     )
   }
 }

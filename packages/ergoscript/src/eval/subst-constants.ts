@@ -42,7 +42,7 @@ import { byteColl } from './_coll'
 import { extractCollInt } from './_coll-helpers'
 import { substituteConstantsBytes } from '../wire/ergo-tree'
 import { liftToConstantType } from './_lift-constant'
-import { activatedScriptVersion } from './_activated-version'
+import { activatedScriptVersion, knownActivatedVersion } from './_activated-version'
 
 export function evalSubstConstants(
   e: SubstConstants,
@@ -97,6 +97,7 @@ export function evalSubstConstants(
       positions,
       newConstants,
       treeVersion,
+      knownActivatedVersion(ctx),
     )
   } catch (cause) {
     // The wire error, a template type read's rule 1017 or 1018 included, is the cause.

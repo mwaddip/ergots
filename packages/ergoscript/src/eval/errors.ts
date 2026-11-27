@@ -39,8 +39,12 @@
  *       ('checked-value-class': `assertCheckedValue` in `eval/_check-type.ts`;
  *       `SType.scala:200-201`) → 88
  *     + 1 code for a `SigmaAnd` / `SigmaOr` node with no items
- *       ('sigma-node-no-items'; `SigmaBoolean.scala:165`, `:201`) → 89 —
- *       current total: 89, as the union below counts
+ *       ('sigma-node-no-items'; `SigmaBoolean.scala:165`, `:201`) → 89
+ *     + 1 code for a tree above the activated script version, at the entry hook
+ *       ('tree-version-above-activated'; `evaluate`, `evaluateWith` and
+ *       `reduceWith` through `dispatchTreeBody`, the JVM's
+ *       `VersionContext.scala:20` and `Interpreter.scala:298-331`) → 90 —
+ *       current total: 90, as the union below counts
  *
  * **Do not add codes here without also adding them to the relevant arm's source
  * file and test.** This file is the taxonomy, not the source of truth for
@@ -135,6 +139,12 @@
  *        `assertCheckedValue` in `eval/_check-type.ts`) → 88.
  *    + 1 code for a `SigmaAnd` / `SigmaOr` node with no items ('sigma-node-no-items', raised
  *        by `eval/sigma-and.ts` and `eval/sigma-or.ts`; `SigmaBoolean.scala:165`, `:201`) → 89.
+ *    + 1 code for a tree above the activated script version at the entry hook
+ *        ('tree-version-above-activated', raised by `dispatchTreeBody` in `eval/evaluate.ts` for a parsed tree
+ *        whose header version is above `knownActivatedVersion(ctx)` when that is 2 or more, and for a
+ *        `treeVersion` the caller set above it; the JVM's `VersionContext.scala:20` through
+ *        `Interpreter.scala:207`; also by `checkSoftForkCondition` in `eval/soft-fork-condition.ts` with the
+ *        JVM's `InterpreterException` sentence, `Interpreter.scala:298-331`) → 90.
  *
  *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
  *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
@@ -1310,3 +1320,36 @@ export type EvalErrorCode =
    * cost is charged.
    */
   | 'sigma-node-no-items'
+
+  // -------------------------------------------------------------------------
+  // A tree above the activated script version, at the entry hook (1 code; 89 → 90)
+  // -------------------------------------------------------------------------
+  /**
+   * `dispatchTreeBody`, the entry hook for `evaluate`, `evaluateWith` and
+   * `reduceWith`, met a parsed tree whose header version is above
+   * `knownActivatedVersion(ctx)` when that is 2 or more, or a `treeVersion`
+   * the caller set above it. The JVM cannot enter the version context such an
+   * evaluation runs under: `VersionContext.withVersions(activated,
+   * ergoTree.version)` throws the constructor's `IllegalArgumentException`
+   * (`core/shared/src/main/scala/sigma/VersionContext.scala:20`), which
+   * `Interpreter.fullReduction` runs at `Interpreter.scala:207`.
+   *
+   * Also raised by `checkSoftForkCondition` (`eval/soft-fork-condition.ts`)
+   * when the activated version is 3 or less and a tree's version is above it:
+   * the JVM's `InterpreterException` from the same check (the sentence
+   * "ErgoTree version `<t>` is higher than activated `<a>`";
+   * `interpreter/shared/src/main/scala/sigmastate/interpreter/Interpreter.scala:298-331`).
+   *
+   * An unparsed tree stays on `'unparsed-ergotree'`: its tree object is built
+   * with `ErgoTree.DefaultHeader = 0` (`ErgoTreeSerializer.scala:203`,
+   * `ErgoTree.scala:246-249`), so its version is 0.
+   *
+   * At the reduction-time parses the same check runs on a reader with the
+   * activated version set: `decodeScript` (for a `DeserializeContext` or
+   * `DeserializeRegister` script), `Global.deserializeTo` and
+   * `substituteConstantsBytes` (for each constant of a `SubstConstants`
+   * template, a Box constant included). Each site keeps its own error code
+   * with the tree's error as `cause`: `'deserialize-parse-failed'`,
+   * `'global-deserialize-failed'`, `'subst-constants-error'`.
+   */
+  | 'tree-version-above-activated'
