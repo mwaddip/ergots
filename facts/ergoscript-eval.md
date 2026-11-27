@@ -303,6 +303,8 @@ A port of the JVM's `Interpreter.checkSoftForkCondition` (`Interpreter.scala:298
 - above activated 3 (the JVM's `MaxSupportedScriptVersion`, `VersionContext.scala:48`): a tree whose version is above 3 gives `'accept-unverified'` and every other `'proceed'`;
 - otherwise: a tree whose version is above the activated version throws `EvalError('tree-version-above-activated')` with the JVM's sentence ("ErgoTree version `<t>` is higher than activated `<a>`") as its message, and otherwise `'proceed'`.
 
+An `activatedVersion` that is no integer from -128 to 127 throws a `TypeError`.
+
 `@ergots/transaction`'s `validateStateful` calls it after the storage-rent branch: on `'accept-unverified'` the input is done (no cost added, no reduction run, no proof verified) and the loop continues; on `'proceed'` the input takes the script path, with `activatedScriptVersion` set on its context. See `facts/transaction.md`.
 
 ## The Deserialize substitution (2026-09-30)

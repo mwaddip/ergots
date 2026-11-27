@@ -16,6 +16,8 @@
  * hook of `evaluate`, `evaluateWith` and `reduceWith` in `eval/evaluate.ts`)
  * for a parsed tree whose header version is above `knownActivatedVersion(ctx)`
  * when that is 2 or more, and for a `treeVersion` the caller set above it.
+ * `checkSoftForkCondition` (`eval/soft-fork-condition.ts`) raises it as well,
+ * for a tree above an activated version of 3 or less.
  * The JVM's reference is `VersionContext.withVersions` through its
  * constructor (`core/shared/src/main/scala/sigma/VersionContext.scala:20`,
  * `Interpreter.scala:207`).

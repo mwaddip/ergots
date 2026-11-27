@@ -100,6 +100,7 @@ export { evaluate, evaluateWith, reduceWith } from './eval/evaluate'
 export { makeContext, EvalError } from './eval/eval-context'
 export type { EvalOpts, EvalContext } from './eval/eval-context'
 export { activatedVersionOfBlock } from './eval/_activated-version'
+export { checkSoftForkCondition } from './eval/soft-fork-condition'
 
 // Phase 2g-medium — leaf-only sigma-protocol verifier surface.
 export { verifySignature } from './sigma/verifier'
