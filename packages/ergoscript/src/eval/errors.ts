@@ -495,8 +495,8 @@ export type EvalErrorCode =
    * (data/shared/src/main/scala/sigma/ast/trees.scala:628-651, sigma-state 6.0.7):
    *   - `scriptBytes` is no `Coll[Byte]`, `positions` no `Coll[Int]`, `newValues` no collection.
    *   - An item of `newValues` has no lift to a constant (`Platform.liftToConstant`,
-   *     data/jvm/src/main/scala/sigma/Platform.scala:16-63) at the tree's version or, for a Box, at the block's
-   *     activated version: the call is refused whatever `positions` holds.
+   *     data/jvm/src/main/scala/sigma/Platform.scala:16-63) at the tree's version: the call is refused whatever
+   *     `positions` holds.
    *   - `positions` and `newValues` differ in length (ErgoTreeSerializer.scala:323).
    *   - The template's bytes fail their read (:326): the header's rule 1012, the constants' count, a
    *     constant's type or data.

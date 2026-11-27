@@ -15,6 +15,9 @@ import { parseSType } from '../../src/wire/parse-stype'
 import { parseSValue } from '../../src/wire/parse-svalue'
 import { ByteReader } from '@ergots/scorex'
 import { reduceWith } from '../../src/eval/evaluate'
+import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
+import { ByteWriter } from '@ergots/scorex'
+import { spendContext } from './_substitution-spends'
 import { captureEvalError, hexToBytes, synthesizeStubBox } from '../_helpers'
 import type { ErgoBox, PreHeader, SValue } from '../../src/mir/types'
 
@@ -248,3 +251,69 @@ describe('the tree charge of a substituted tree is charged from activated 3', ()
   })
 })
 
+
+/** The proposition a spend of `tree` reduces to at `activated`, serialized, and its block cost. */
+function spendOutcome(tree: string, activated: number): { sigma: string; cost: number } {
+  const spent = spendContext({ tree, var1: '0e030008d3' }, activated)
+  const value = reduceWith(spent.tree, spent.ctx)
+  if (value.kind !== 'SigmaProp') throw new Error(`expected a SigmaProp, got ${value.kind}`)
+  const w = new ByteWriter()
+  serializeSigmaBoolean(value.value, w)
+  const sigma = Array.from(w.toBytes(), (b) => b.toString(16).padStart(2, '0')).join('')
+  return { sigma, cost: Math.floor(spent.ctx.jitCost / 10) }
+}
+
+const TRUE_PROP = 'd3'
+const FALSE_PROP = 'd2'
+
+// Tree `sigmaProp(substConstants(var1, Coll(5), Coll(SELF)).size == 3)`, tree version 0: the template `0008d3`
+// holds no constant and position 5 names nothing.
+const BOX_NEW_VALUE_SIZE_3 = '00d193b174e4e3010e830104040a830163a70406'
+// The same with `size == 4`.
+const BOX_NEW_VALUE_SIZE_4 = '00d193b174e4e3010e830104040a830163a70408'
+// `sigmaProp(substConstants(var1, Coll(), Coll()).size == n)`: no new value to lift.
+const NO_NEW_VALUE_SIZE_3 = '00d193b174e4e3010e8300048300630406'
+const NO_NEW_VALUE_SIZE_4 = '00d193b174e4e3010e8300048300630408'
+// Tree `sigmaProp(substConstants(<template 0008d3>, Coll(), Coll()).size == n)`, segregated, tree version 0.
+const EMPTY_SUBST_SIZE_3 = '10010406d193b174e4e3010e8300048300047300'
+const EMPTY_SUBST_SIZE_4 = '10010408d193b174e4e3010e8300048300047300'
+
+describe('SubstConstants of a Box agrees with the JVM at activated 2 and 3', () => {
+  it.each([2, 3])('activated %i: a Box new value is lifted, size 3, TrueProp at block cost 21', (activated) => {
+    expect(spendOutcome(BOX_NEW_VALUE_SIZE_3, activated)).toEqual({ sigma: TRUE_PROP, cost: 21 })
+  })
+
+  it('activated 2: no new value, size 3, TrueProp at block cost 20', () => {
+    expect(spendOutcome(NO_NEW_VALUE_SIZE_3, 2)).toEqual({ sigma: TRUE_PROP, cost: 20 })
+  })
+})
+
+describe('the size of a substituted template at activated 2 and 3', () => {
+  it.each([2, 3])('activated %i: an empty substitution into a segregated template is size 3', (activated) => {
+    expect(spendOutcome(EMPTY_SUBST_SIZE_3, activated)).toEqual({ sigma: TRUE_PROP, cost: 19 })
+    expect(spendOutcome(EMPTY_SUBST_SIZE_4, activated)).toEqual({ sigma: FALSE_PROP, cost: 19 })
+  })
+})
+
+describe('below activated 2 ergots lifts a Box where the JVM refuses it', () => {
+  // The JVM rejects a Box among the new values below activated 2 (`Cannot liftToConstant(Box(...))`); ergots lifts
+  // it at every activated version and writes the template at size 3.
+  it.each([0, 1])('activated %i: the Box new value is lifted, size 3 is TrueProp and size 4 FalseProp', (activated) => {
+    expect(spendOutcome(BOX_NEW_VALUE_SIZE_3, activated).sigma).toBe(TRUE_PROP)
+    expect(spendOutcome(BOX_NEW_VALUE_SIZE_4, activated).sigma).toBe(FALSE_PROP)
+  })
+})
+
+describe('below activated 2 ergots writes a substituted template at size 3 where the JVM writes size 4', () => {
+  // The JVM's answers below activated 2: size 3 is FalseProp and size 4 TrueProp, at block cost 19 (an empty
+  // substitution into a segregated template) and 20 (no new value into an unsegregated one).
+  it.each([0, 1])('activated %i: an empty substitution into a segregated template', (activated) => {
+    expect(spendOutcome(EMPTY_SUBST_SIZE_3, activated)).toEqual({ sigma: TRUE_PROP, cost: 19 })
+    expect(spendOutcome(EMPTY_SUBST_SIZE_4, activated)).toEqual({ sigma: FALSE_PROP, cost: 19 })
+  })
+
+  it('activated 1: no new value into an unsegregated template', () => {
+    expect(spendOutcome(NO_NEW_VALUE_SIZE_3, 1)).toEqual({ sigma: TRUE_PROP, cost: 20 })
+    expect(spendOutcome(NO_NEW_VALUE_SIZE_4, 1)).toEqual({ sigma: FALSE_PROP, cost: 20 })
+  })
+})
