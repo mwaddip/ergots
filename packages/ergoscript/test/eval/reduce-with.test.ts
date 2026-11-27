@@ -94,14 +94,17 @@ describe('reduceWith: the tree charge', () => {
     expect(blockCost(name, activated)).toBe(cost)
   })
 
-  it('a context without a pre-header rejects a tree with a Deserialize node', () => {
+  it('a context without a pre-header and no activated-version field rejects a tree with a Deserialize node', () => {
     const { tree, ctx } = spendContext(SPENDS.C, 3)
     ctx.preHeader = undefined
+    ctx.activatedScriptVersion = undefined
     let err: unknown
     try { reduceWith(tree, ctx) } catch (e) { err = e }
     expect(err).toBeInstanceOf(EvalError)
     expect((err as EvalError).code).toBe('context-field-missing')
-    expect((err as EvalError).message).toBe('reduceWith: ctx.preHeader is undefined')
+    expect((err as EvalError).message).toBe(
+      'reduceWith: the context has neither activatedScriptVersion nor a preHeader',
+    )
   })
 })
 

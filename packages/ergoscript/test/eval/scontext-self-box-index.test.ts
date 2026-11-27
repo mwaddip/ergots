@@ -11,7 +11,7 @@
  * `selfBoxIndex` to always return -1 for pre-V5 blocks. The bug was fixed
  * globally in v5.x — ALL scripts in v5+ blocks get the correct value.
  * Therefore the gate is on `activated_script_version` (block-level,
- * derived from `preHeader.version - 1` saturating), NOT `tree_version`.
+ * read as `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`.
  *
  * Mainnet history first exercised this arm at block 342,964 — same block
  * where sigma-rust originally diverged from JVM (fixed in their v0.2.0).
@@ -104,11 +104,11 @@ describe('SContext.selfBoxIndex handler', () => {
     expect(result).toEqual({ kind: 'Int', value: -1 })
   })
 
-  it('saturates the version subtraction (preHeader.version=0 → activated=0, returns -1)', () => {
+  it('a pre-header of version 0 wraps to activated -1 (signed byte), still < V2, returns -1', () => {
     const inputs = [syntheticBox(1n)]
     const selfBox = inputs[0]!
     const ctx = makeContext({
-      preHeader: syntheticPreHeader(0),  // saturating: max(0, 0-1) = 0
+      preHeader: syntheticPreHeader(0),  // signed byte: 0 - 1 wraps to -1
       selfBox,
       inputs,
     })

@@ -187,6 +187,7 @@ function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Resu
     treeVersion,
     constants: tree.constants,
     jitCostLimit: EVAL_JIT_COST_LIMIT,
+    activatedScriptVersion: e.version.activated,
     preHeader,
     height: preHeader.height,             // GlobalVars.Height; the JVM's HEIGHT is preHeader.height (0)
     selfBox: selfBoxBase,
@@ -522,13 +523,14 @@ function buildFullCtxOpts(
   const inputExtensions = (c.input_extensions ?? []).map((ext) => decodeExtension(ext, treeVersion, activated, readExt))
   const extension = inputExtensions[c.self_index] ?? { values: new Map() }
 
-  // master's parseTree returns ParsedErgoTree | UnparsedErgoTree; a fullctx eval golden is always a
-  // parsed tree, so refuse an unparsed one (FullCtxRefused → errored) and narrow `tree` for .constants.
+  // A fullctx eval golden is a parsed tree, so refuse an unparsed one (FullCtxRefused → errored) and
+  // narrow `tree` for .constants.
   if (isUnparsedTree(tree)) throw new FullCtxRefused('unparsed soft-fork tree cannot be evaluated')
   return {
     treeVersion,
     constants: tree.constants,
     jitCostLimit: EVAL_JIT_COST_LIMIT,
+    activatedScriptVersion: activated,
     height: preHeader.height,   // GlobalVars.Height; the JVM's HEIGHT is preHeader.height
     selfBox,
     inputs,

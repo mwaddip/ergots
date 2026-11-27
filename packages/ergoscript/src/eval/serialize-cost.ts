@@ -624,12 +624,15 @@ function addHeaderCost(h: Header, ctx: EvalContext): void {
   ctx.addCost(3 + 4) // DifficultySerializer putBytes(nBits, 4)
   // putUInt(height) = 0 (no-DataInfo overload)
   ctx.addCost(3 + 3) // putBytes(votes, 3)
-  if (h.version > 1) {
+  // HeaderWithoutPow.scala:61 gates the unparsed-length byte on the signed byte: a version byte above the JVM's
+  // `InitialVersion` (1) as a `Byte` (-128..127). `(h.version << 24) >> 24` is `h.version.toByte`.
+  const headerVersionSigned = (h.version << 24) >> 24
+  if (headerVersionSigned > 1) {
     ctx.addCost(PUT_BYTE) // putUByte(unparsedLen) = 1 (HeaderWithoutPow.scala:62; F2 #5)
     ctx.addCost(3 + h.unparsedBytes.length) // putBytes(unparsed)
   }
   // Solution. GroupElementSerializer.serialize is always putBytes(33) = 36.
-  if (h.version === 1) {
+  if (headerVersionSigned === 1) {
     // V1: pk + w (both GE 33) + nonce(8) + putUByte(dLen)=1 (F2 #5; ErgoHeader.scala:68) + putBytes(d).
     // NOTE (adversarial-only, but REACHABLE): a V1 block-version Header does not
     // arrive via Context.headers on a V3+ chain, BUT a V1 Header value IS

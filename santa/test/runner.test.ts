@@ -200,6 +200,36 @@ describe('runVector — outcome taxonomy (runner-contract §3)', () => {
     }
   })
 
+  it('the entry carries the activated version into the eval context, read off every arm that reads it', () => {
+    // runEntry sets `activatedScriptVersion` from `e.version.activated` for every schema; readers go
+    // through `_activated-version.ts`, which prefers that field over the dummy pre-header. The X6 tree
+    // sigmaProp(selfBoxIndex == 0) with SELF at inputs[0] answers true at activated 2-plus (the real
+    // index 0) and false below (the JVM-bug -1). Running it at activated 127 and -128 shows the field
+    // honored at the signed-byte extremes a pre-header could not express.
+    const TREE_X6 = '00d193db6508fe0400'
+    const vec = {
+      schema: 'santa-eval/v1', op: 'selfBoxIndex_eq_0', blessed_by: 'local',
+      entries: [
+        { name: 'at-3',    tree_bytes_hex: TREE_X6, version: { activated: 3,    ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at-127',  tree_bytes_hex: TREE_X6, version: { activated: 127,  ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at-1',    tree_bytes_hex: TREE_X6, version: { activated: 1,    ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at--1',   tree_bytes_hex: TREE_X6, version: { activated: -1,   ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+        { name: 'at--128', tree_bytes_hex: TREE_X6, version: { activated: -128, ergoTree: 0 }, expected: { value: null, cost: null, error: null } },
+      ],
+    }
+    const actuals = runVector(vec)
+    // activated >= 2 (field): index 0 → TrueProp; activated < 2 (field): index -1 → FalseProp.
+    expect((actuals['at-3'].value as { raw_hex?: string }).raw_hex).toBe('d3')
+    expect((actuals['at-127'].value as { raw_hex?: string }).raw_hex).toBe('d3')
+    expect((actuals['at-1'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    expect((actuals['at--1'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    expect((actuals['at--128'].value as { raw_hex?: string }).raw_hex).toBe('d2')
+    // All five entries evaluated (no errored / not-implemented / panicked).
+    for (const name of Object.keys(actuals)) {
+      expect(actuals[name].error, name).toBeNull()
+    }
+  })
+
   it('an unrecognized failure becomes `panicked` (note carries the message) and the run continues', () => {
     // Never-panic invariant (runner-contract §3): a failure the runner does NOT recognize as
     // a library verdict must NOT abort the file — it becomes the `panicked` outcome (coal,

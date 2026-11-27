@@ -364,10 +364,9 @@ function registerHandlers(): void {
   // selfBoxIndex used reference-equality `eq` instead of value-equality `==`
   // in CostingDataContext.scala, always returning -1. The bug was fixed
   // globally in v5.x — ALL scripts in v5+ blocks get the correct index.
-  // Gate is on BLOCK version, not tree version (see ergo-node-rust memory
-  // feedback_tree_version_gate.md — session 22b broke block 942,664 by
-  // gating on tree_version). sigma-rust derives activated_script_version
-  // as `preHeader.version - 1` (saturating); see chain/context.rs:66-68.
+  // Gate is on BLOCK version, not tree version. The activated version comes from the context
+  // (its own field, else `preHeader.version - 1` wrapped as a signed byte); see
+  // `_activated-version.ts`.
   //
   // First exercised on mainnet at block 342,964 — the same block where
   // sigma-rust originally diverged from JVM (fixed in their v0.2.0).

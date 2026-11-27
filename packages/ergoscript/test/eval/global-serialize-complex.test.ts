@@ -477,6 +477,17 @@ describe('Global.serialize — complex types (v6 P5a Task 5)', () => {
     expect(bytes).toEqual(wireBytes({ tag: 'SHeader' }, hv))
   })
 
+  // HeaderWithoutPowSerializer.serialize (HeaderWithoutPow.scala:61) gates the unparsed-length byte on the
+  // SIGNED Byte: version 0x80 as a Byte is -128, which is NOT > 1, so the block is skipped. common = 1 + 35
+  // + 35 + 35 + 36 + 3 + 35 + 7 + 0 + 6 = 193. V2 solution (version != 1): 36 + 11 = 47. walk = 240 ; total
+  // = 14 + 10 + 240 = 264 (JVM's figure, 4 JitCost below what reading the version byte as unsigned gives).
+  it('serialize[Header] (version byte 0x80, signed -128) → cost 264: the unparsed block is skipped', () => {
+    const hv: SValue = { kind: 'Header', value: makeHeader(0x80) }
+    const { cost } = evalSer({ tag: 'SHeader' }, hv)
+    expect(cost).toBe(FRAMEWORK + START_WRITER + 240)
+    expect(cost).toBe(264)
+  })
+
   // ── V1 header: dLen +1 branch reachability pin ────────────────────────────────
   //
   // A V1 header uses the V1 solution path (ErgoHeader.scala:61-80):

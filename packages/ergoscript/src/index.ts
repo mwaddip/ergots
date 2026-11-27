@@ -99,6 +99,7 @@ export { serializeSType, STypeSerializeError } from './wire/serialize-stype'
 export { evaluate, evaluateWith, reduceWith } from './eval/evaluate'
 export { makeContext, EvalError } from './eval/eval-context'
 export type { EvalOpts, EvalContext } from './eval/eval-context'
+export { activatedVersionOfBlock } from './eval/_activated-version'
 
 // Phase 2g-medium — leaf-only sigma-protocol verifier surface.
 export { verifySignature } from './sigma/verifier'
