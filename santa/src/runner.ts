@@ -4,7 +4,7 @@ import {
   parseTree, serializeTree, isUnparsedTree, evaluateWith, makeContext, EvalError,
   parseSValue, serializeSValue, parseSType, serializeSType, STypeParseError, SValueParseError, SValueSerializeError, ErgoTreeParseError, ErgoTreeSerializeError, type SType,
   parseSigmaBoolean, serializeSigmaBoolean, SigmaBooleanParseError, SigmaBooleanSerializeError,
-  type ContextExtension, type ErgoBox, type PreHeader,
+  type ContextExtension, type ErgoBox, type EvalContext, type PreHeader,
 } from '@ergots/ergoscript'
 import { ByteReader, ByteWriter, parseHeader, ReaderError } from '@ergots/scorex'
 import {
@@ -116,10 +116,16 @@ function unread(doc: { entries?: { name: string }[] }): Record<string, Unread> {
  *  `jitCostLimit` as unlimited, so every context the runner builds passes this one. */
 export const EVAL_JIT_COST_LIMIT = 10_000_000
 
-export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = null): Result | Unread {
+/** A test seam: when `onContext` is passed, the runner calls it with the EvalContext it built right
+ *  before `evaluateWith` runs. The runner's own call sites and `runVector` never pass it. */
+export type ContextSink = (ctx: EvalContext) => void
+
+export function runEntry(
+  schema: string, e: Entry, readExt: ExtensionReader = null, onContext?: ContextSink,
+): Result | Unread {
   if (!EVAL_SCHEMAS.has(schema)) return UNREAD
   try {
-    return runEntryInner(schema, e, readExt)
+    return runEntryInner(schema, e, readExt, onContext)
   } catch (err) {
     const note = err instanceof Error ? `${err.name}: ${err.message}` : String(err)
     return { value: null, cost: null, error: 'panicked', note }
@@ -127,8 +133,9 @@ export function runEntry(schema: string, e: Entry, readExt: ExtensionReader = nu
 }
 
 /** The per-entry pipeline ([0] parse → [1] decode/bind → [2] eval/encode). Unrecognized throws
- *  propagate to runEntry's panic-net above (→ `panicked`). */
-function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Result {
+ *  propagate to runEntry's panic-net above (→ `panicked`). `onContext`, when passed, runs on the
+ *  built EvalContext right before `evaluateWith`. */
+function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader, onContext?: ContextSink): Result {
   const treeVersion = e.version.ergoTree
 
   // [0] parseTree — ergots' codec refusing the tree's bytes is the library deciding the TREE is
@@ -273,6 +280,7 @@ function runEntryInner(schema: string, e: Entry, readExt: ExtensionReader): Resu
   //     the impl's own faithful signal), EXCEPT the oracle-unbound carve-out below; any other
   //     EvalError ⇒ errored; a non-EvalError throw (including an encode gap) ⇒ runEntry's
   //     panic-net (panicked).
+  if (onContext) onContext(ctx)
   try {
     const out = evaluateWith(tree, ctx)
     return { value: encodeSValue(out, treeVersion), cost: ctx.jitCost, error: null }

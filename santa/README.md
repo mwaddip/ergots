@@ -78,8 +78,8 @@ The runner picks its arm by the vector's `schema`, by exact name and version:
 
 | Schema | Arm | Calls |
 |---|---|---|
-| `santa-eval/v1` to `santa-eval/v5`, `santa-eval/v6-fullctx` | `runVector` | `parseTree` under the entry's activated version, `makeContext` with `activatedScriptVersion` taken from the entry's `version.activated`, `evaluateWith` (`@ergots/ergoscript`) |
-| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of the kinds `Constant`, `Box`, `SigmaBoolean`, `ErgoTree` (`@ergots/ergoscript`) and `Transaction` (`@ergots/transaction`); each kind runs under the entry's `VersionContext` — the reader's `activatedVersion` for the `Box`, `Constant`, `SigmaBoolean` and `ErgoTree` kinds, the tree-version argument to `parseSType` in the `Constant` arm, `parseTree`'s option for the `ErgoTree` kind, and the pair for the `Transaction` kind |
+| `santa-eval/v1` to `santa-eval/v5`, `santa-eval/v6-fullctx` | `runVector` | `parseTree` with no activated version (as SANTA's oracle reads a bare ErgoTree, `LenientErgoTree.deserialize` outside any version context), `makeContext` with `activatedScriptVersion` taken from the entry's `version.activated`, `evaluateWith` (`@ergots/ergoscript`) |
+| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of the kinds `Constant`, `Box`, `SigmaBoolean`, `ErgoTree` (`@ergots/ergoscript`) and `Transaction` (`@ergots/transaction`); each kind runs under the entry's `VersionContext` — the reader's `activatedVersion` for the `Box`, `Constant` and `ErgoTree` kinds (a sigma proposition holds no tree, so the `SigmaBoolean` arm sets no activated version), the tree-version argument to `parseSType` in the `Constant` arm, `parseTree`'s option for the `ErgoTree` kind, and the pair for the `Transaction` kind |
 | `santa-wire/v1` (`BlockTransactions` kind) | `runWireVector` | `parseBlockTransactions` / `serializeBlockTransactions` (`@ergots/transaction`), which parses each transaction under `blockVersionContext(blockVersion, headerId)` |
 | `santa-transaction/v1` | `runTransactionVector` | `parseTransaction` under `blockVersionContext(parameters.blockVersion)` (`parameters.blockVersion` taken as SANTA's engine takes it — the entry's, and the pre-header's version where the entry has none), input and data-input boxes read at tree version 1 with no activated version set, `validateStateful` with `parameters.blockVersion` passed through (`@ergots/transaction`) |
 | `santa-authds/v1` | `runAuthdsVector` | `BatchAVLProver`, `verifyAvlBatchPartial` (`@ergots/avltree`) |
@@ -112,8 +112,8 @@ reason).
 `kinds` and `activation` are left at SANTA's defaults: every wire kind is selected (`BlockTransactions` among them,
 mounted through `parseBlockTransactions` / `serializeBlockTransactions`), and so are the vectors that turn
 on a rule of the activated script version, since ergots' parsers and evaluator apply those rules — the parse-time
-tree-version check in `@ergots/scorex`'s reader, the entries' reject, and `@ergots/transaction`'s spend check
-through `checkSoftForkCondition`.
+tree-version check in `@ergots/ergoscript`'s `parseTreeFromReader` (the reader carries the version through
+`@ergots/scorex`), the entries' reject, and `@ergots/transaction`'s spend check through `checkSoftForkCondition`.
 
 ## Layout and tests
 

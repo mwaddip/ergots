@@ -125,25 +125,31 @@ describe('runTransactionVector — the transaction arm reads the voted block ver
     }
   })
 
-  it('a v4 input box is read (not refused) by the arm: the arm reads input boxes outside any version context', () => {
+  it('a v4 input box is read (not refused) by the arm at block version 5: the arm reads input boxes outside any version context', () => {
     // A minimal input box whose tree is v4 (size-flagged SigmaProp(true), `0c 02 08 d3`), at
-    // block version 3, where the parse context is (1, 1). An input box is read outside any
-    // version context (ergo UtxoStateReader.scala:122-130), so the v4 tree parses even though
-    // the arm's transaction context is below activated 2. The tree's spend is then refused by
-    // `validateStateful`: at block version 3 the activated version is 2, and a v4 tree is above
-    // it (reason `tree-version-above-activated`). The input box is read, which is what this
-    // test guards; the subsequent refusal pins the path through the arm.
+    // block version 5, where the arm's transaction context is (4, 4). An input box is read
+    // outside any version context (ergo UtxoStateReader.scala:122-130), so the v4 tree parses
+    // under the box path even though its tree version equals the arm's activated version. If the
+    // arm instead read the input box under the transaction's own context, a mutation that fed
+    // the transaction's context to parseBox would leave that path unchanged at (4, 4) and
+    // nothing would tell the two apart. At block version 4 or 5 the two differ: the
+    // transaction's context is (3, 3) or (4, 4), where a v4 input box's tree parses in both and
+    // the transaction's v3 output tree also parses, so validateStateful reaches the input-id
+    // check first — which is why the test runs at block version 5: the v4 input box is read by
+    // the arm's parseBox regardless of the transaction's context, and validateStateful then
+    // throws `input-box-id-mismatch` as its first verdict because the input box's id differs
+    // from the transaction's declared input.
     // Layout: value(c0843d) | tree(0c0208d3) | height(01) | tokens(00) | registers(00) |
     // txId(00*32) | index(00).
     const V4_INPUT_BOX_HEX =
       'c0843d' + '0c0208d3' + '01' + '00' + '00' + '00'.repeat(32) + '00'
     const entry = {
-      ...baseEntry({ txBytesHex: V3_OUTPUT_TX, blockVersion: 3, preHeaderVersion: 3 }),
+      ...baseEntry({ txBytesHex: V3_OUTPUT_TX, blockVersion: 5, preHeaderVersion: 5 }),
       input_boxes_hex: [V4_INPUT_BOX_HEX],
     }
     const r = run(entry)
     expect(r.error).toBeNull()
     expect(r.valid).toBe(false)
-    expect(r.reason).toMatch(/tree-version-above-activated|input-box-id-mismatch/)
+    expect(r.reason).toBe('input-box-id-mismatch')
   })
 })
