@@ -18,9 +18,10 @@ describe('parameters + TxValidationError', () => {
     expect(INTERPRETER_INIT_COST).toBe(10_000);
   });
   it('resolveParameters fills gaps from the defaults', () => {
-    const p = resolveParameters({ maxBlockCost: 2_000_000 });
+    const p = resolveParameters({ maxBlockCost: 2_000_000, blockVersion: 4 });
     expect(p.maxBlockCost).toBe(2_000_000);
     expect(p.storageFeeFactor).toBe(DEFAULT_PARAMETERS.storageFeeFactor);
+    expect(p.blockVersion).toBe(4);
   });
   it('TxValidationError carries code + location', () => {
     const e = new TxValidationError('boom', 'value-not-conserved', { inputIndex: 1 });

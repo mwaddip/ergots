@@ -775,9 +775,11 @@ function runTxEntry(e: TxEntry): TxResult {
   let tx: ErgoLikeTransaction
   let deps: StatefulDeps
   try {
-    const treeVersion = e.version.ergoTree
+    // An input or data-input box is read outside any version context (ergo
+    // UtxoStateReader.scala:122-130): tree version 1, no activated version on the reader. So a
+    // v4 input box is read, not refused, at every entry's version.
     const box = (hex: string): ErgoBox =>
-      (parseSValue(SBOX, treeVersion, new ByteReader(hexToBytes(hex))) as { value: ErgoBox }).value
+      (parseSValue(SBOX, 1, new ByteReader(hexToBytes(hex))) as { value: ErgoBox }).value
     // The transaction's parse context follows the block (ergo BlockTransactions.scala:184-202):
     // from block version 4 it is (blockVersion - 1, blockVersion - 1), below that (1, 1). The
     // entry carries the voted block version in parameters (SANTA's contract) and falls back to
@@ -790,7 +792,10 @@ function runTxEntry(e: TxEntry): TxResult {
       stateContext: {
         headers: e.headers_hex.map((h) => parseHeader(new ByteReader(hexToBytes(h)))),
         preHeader: toPreHeader(e.preHeader),
-        parameters: e.parameters,
+        // `validateStateful` reads the voted block version from `parameters.blockVersion` as its
+        // signed byte; when SANTA's entry has none, SANTA's engine falls back to the pre-header's,
+        // and so does the arm.
+        parameters: { ...(e.parameters as Record<string, number>), blockVersion },
       },
     }
   } catch (err) {

@@ -18,6 +18,7 @@ import { parseSValue } from '@ergots/ergoscript';
 import { validateStateful, checkStructural, computeBoxId } from '../../src/validate/stateful';
 import { TxValidationError } from '../../src/errors';
 import { DEFAULT_PARAMETERS } from '../../src/params';
+const PARAMS = { ...DEFAULT_PARAMETERS, blockVersion: 2 };
 import { hexToBytes, listStatefulFixtures, loadStatefulFixture, loadStatefulFixtureAsDeps } from './_load';
 
 // ---------------------------------------------------------------------------
@@ -103,7 +104,7 @@ function deps(
   stateContext: {
     headers: never[];
     preHeader: { height: number; version: number };
-    parameters: typeof DEFAULT_PARAMETERS;
+    parameters: typeof DEFAULT_PARAMETERS & { blockVersion: number };
   };
 } {
   return {
@@ -112,7 +113,7 @@ function deps(
     stateContext: {
       headers: [],
       preHeader: { height, version },
-      parameters: DEFAULT_PARAMETERS,
+      parameters: { ...DEFAULT_PARAMETERS, blockVersion: version },
     },
   };
 }
@@ -197,7 +198,7 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     // 'creation-height-negative' check can fire — it is an Error, but NOT a
     // TxValidationError. The tx is still rejected (consensus outcome correct).
     let caught: unknown;
-    try { checkStructural(tx as any, deps(ib, 2, 10) as any, DEFAULT_PARAMETERS); }
+    try { checkStructural(tx as any, deps(ib, 2, 10) as any, PARAMS); }
     catch (e) { caught = e; }
     // Must throw something (tx rejected) — the important consensus property holds.
     expect(caught, 'expected a throw for bit-31 creationHeight').toBeDefined();
@@ -231,7 +232,7 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     const ib = [box(BIG_VALUE)];
     const tx = { inputs: [inputForBox(ib[0]!)], dataInputs: [], outputCandidates: [largeOut] };
     expectCode(
-      () => checkStructural(tx as any, deps(ib) as any, DEFAULT_PARAMETERS),
+      () => checkStructural(tx as any, deps(ib) as any, PARAMS),
       'box-size-exceeded',
     );
   });
@@ -268,7 +269,7 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     const tx = { inputs: [inputForBox(ib[0]!)], dataInputs: [], outputCandidates: [bigOut] };
     // box-size fires because the serialized box includes the 4097-byte script
     expectCode(
-      () => checkStructural(tx as any, deps(ib) as any, DEFAULT_PARAMETERS),
+      () => checkStructural(tx as any, deps(ib) as any, PARAMS),
       'box-size-exceeded',
     );
   });
@@ -283,7 +284,7 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
     const out = candidate(BIG_VALUE, 1, [{ id: invalidTokenId, amount: 100n }]);
     const tx = { inputs: [inputForBox(ib[0]!)], dataInputs: [], outputCandidates: [out] };
     expectCode(
-      () => checkStructural(tx as any, deps(ib) as any, DEFAULT_PARAMETERS),
+      () => checkStructural(tx as any, deps(ib) as any, PARAMS),
       'invalid-minted-token',
     );
   });

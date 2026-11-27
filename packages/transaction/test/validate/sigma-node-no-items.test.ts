@@ -45,6 +45,7 @@ const SIGMA_AND_WITH_NO_ITEMS: SantaTxEntry = {
     dataInputCost: 100,
     outputCost: 100,
     tokenAccessCost: 100,
+    blockVersion: 4,
   },
   expected: {
     valid: false,

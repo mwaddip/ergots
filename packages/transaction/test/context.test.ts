@@ -45,6 +45,7 @@ describe('buildInputContext — inputExtensions threading (v6 getVarFromInput)',
       treeVersion: 3,
       constants: [],
       inputExtensions,
+      activatedScriptVersion: 2,
     });
     // makeContext normalizes inputExtensions via `.map(toContextExtension)` (eval-API
     // backward-compat, bc8a4e9) → a new-but-deep-equal array, so assert value equality.

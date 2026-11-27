@@ -10,7 +10,7 @@ import type { Header } from '@ergots/scorex';
 import { parseSValue } from '@ergots/ergoscript';
 import type { ErgoBox, PreHeader } from '@ergots/ergoscript';
 
-import { parseTransaction } from '../../src/index.ts';
+import { parseTransaction, blockVersionContext } from '../../src/index.ts';
 import { validateStateful } from '../../src/validate/stateful';
 import { TxValidationError } from '../../src/errors';
 import type { ChainParameters } from '../../src/types.ts';
@@ -33,7 +33,9 @@ interface Entry {
   data_input_boxes_hex: string[];
   headers_hex: string[];
   preHeader: { version: number; parentId: string; timestamp: string; nBits: number; height: number; minerPk: string; votes: string };
-  parameters: ChainParameters;
+  /** The vendored fixture captures the economic parameters without a voted block version;
+   *  `depsFor` threads the pre-header's version through, as SANTA's engine does. */
+  parameters: Omit<ChainParameters, 'blockVersion'>;
 }
 
 const vectorPath = path.join(
@@ -47,7 +49,8 @@ const entry = (name: string): Entry => {
 };
 
 function depsFor(e: Entry) {
-  const tx = parseTransaction(hexToBytes(e.tx_bytes_hex), { activated: 3, ergoTree: 3 });
+  const blockVersion = e.preHeader.version;
+  const tx = parseTransaction(hexToBytes(e.tx_bytes_hex), blockVersionContext(blockVersion));
   const inputBoxes = e.input_boxes_hex.map(parseBox);
   const dataInputBoxes = e.data_input_boxes_hex.map(parseBox);
   const headers: Header[] = e.headers_hex.map((h) => parseHeader(new ByteReader(hexToBytes(h))));
@@ -56,7 +59,8 @@ function depsFor(e: Entry) {
     version: ph.version, parentId: hexToBytes(ph.parentId), timestamp: BigInt(ph.timestamp),
     nBits: ph.nBits, height: ph.height, minerPk: hexToBytes(ph.minerPk), votes: hexToBytes(ph.votes),
   };
-  return { tx, deps: { inputBoxes, dataInputBoxes, stateContext: { headers, preHeader, parameters: e.parameters } } };
+  const parameters: ChainParameters = { ...e.parameters, blockVersion };
+  return { tx, deps: { inputBoxes, dataInputBoxes, stateContext: { headers, preHeader, parameters } } };
 }
 
 describe('SANTA cost-limit-boundary (jvm-blessed) — sigma-verification cost', () => {

@@ -50,6 +50,7 @@ const SHARED = {
     dataInputCost: 100,
     outputCost: 100,
     tokenAccessCost: 100,
+    blockVersion: 3,
   },
 }
 

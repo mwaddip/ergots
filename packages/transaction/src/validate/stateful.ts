@@ -1,6 +1,6 @@
 import type { ErgoLikeTransaction, StatefulDeps, ChainParameters } from '../types';
 import type { ErgoBox } from '@ergots/ergoscript';
-import { boxIdOf, boxTreeOf, reduceWith, verifySignature, isUnparsedTree, estimateCryptoCost } from '@ergots/ergoscript';
+import { boxIdOf, boxTreeOf, reduceWith, verifySignature, isUnparsedTree, estimateCryptoCost, checkSoftForkCondition, activatedVersionOfBlock } from '@ergots/ergoscript';
 import { TxValidationError } from '../errors';
 import { MAX_BOX_SIZE, MAX_SCRIPT_SIZE, INTERPRETER_INIT_COST, resolveParameters } from '../params';
 import { hex, bytesEqual, I64_MAX } from './_bytes';
@@ -9,13 +9,30 @@ import { buildHeadersArray, promoteCandidate, buildInputContext, JIT_COST_PER_BL
 import { storageRentVerdict, STORAGE_CONTRACT_COST } from './storage-rent';
 import { serializeBox } from './_box';
 
+/** The JVM reads the voted block version as its `Byte` (settings/Parameters.scala:80).
+ *  Wrap an integer as `.toByte` does; refuse anything that is not an integer before anything
+ *  else runs — a caller compiled without the types meets the missing field here. */
+function signedBlockVersion(blockVersion: unknown): number {
+  if (typeof blockVersion !== 'number' || !Number.isInteger(blockVersion)) {
+    throw new TypeError(
+      `validateStateful: parameters.blockVersion must be an integer, got ${String(blockVersion)}`,
+    );
+  }
+  return (blockVersion << 24) >> 24;
+}
+
 /** The box id over the box's bytes as received: `ErgoBox.id` is the hash of `ErgoBox.bytes` (ErgoBox.scala:73),
  *  the bytes the box parser retained, or a re-serialization for a constructed box (:87-92). */
 export function computeBoxId(box: ErgoBox): Uint8Array { return boxIdOf(box); }
 
 /** Structural / accounting checks (no script eval). Mirrors the non-eval portion of
  *  sigma-rust TransactionContext::validate() + verify_output. Exported for unit testing;
- *  validateStateful (Task 7) calls it, then runs the per-input verify loop. */
+ *  validateStateful calls it, then runs the per-input verify loop.
+ *
+ *  The height rules read the voted block version as the JVM's signed byte (ergo-core
+ *  ErgoTransaction.scala:173, :383-392): the monotonic-height rule applies above version 2 and
+ *  the negative-height rule applies at every version but 1. `params.blockVersion` is already
+ *  that signed byte when the caller is `validateStateful`; a direct caller passes it so. */
 export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, params: ChainParameters): void {
   // 1 — input-box provisioning (ordered): count + computed box id, inputs then data-inputs.
   if (deps.inputBoxes.length !== tx.inputs.length) {
@@ -44,8 +61,11 @@ export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, par
   if (inSum !== outSum) throw new TxValidationError(`value not conserved: in ${inSum} != out ${outSum}`, 'value-not-conserved');
 
   // 4 — output well-formedness (verify_output). Monotonic basis: max input height post-v3, else 0.
+  // The block version is the voted parameter (ergo-core ErgoStateContext.scala:114) read as the
+  // JVM's signed byte (ErgoTransaction.scala:173, :383-392): versions 128 to 255 are below 2 as
+  // signed, so the monotonic rule does not apply at them.
   const blockHeight = deps.stateContext.preHeader.height;
-  const blockVersion = deps.stateContext.preHeader.version;
+  const blockVersion = params.blockVersion;
   let maxInputHeight = 0;
   if (blockVersion >= 3) for (const b of deps.inputBoxes) if (b.creationHeight > maxInputHeight) maxInputHeight = b.creationHeight;
   for (let i = 0; i < tx.outputCandidates.length; i++) {
@@ -138,7 +158,16 @@ function computeInitCost(tx: ErgoLikeTransaction, deps: StatefulDeps, params: Ch
  * structural verdicts are `TxValidationError`.
  */
 export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): number {
-  const params = resolveParameters(deps.stateContext.parameters);
+  // The voted block version is required; a caller without the types meets the TypeError here,
+  // before any structural check. `params.blockVersion` carries the JVM's signed byte through.
+  const blockVersion = signedBlockVersion(
+    (deps.stateContext?.parameters as { blockVersion?: unknown } | undefined)?.blockVersion,
+  );
+  const activatedScriptVersion = activatedVersionOfBlock(blockVersion);
+  const params: ChainParameters = {
+    ...resolveParameters({ ...deps.stateContext.parameters, blockVersion }),
+    blockVersion,
+  };
   checkStructural(tx, deps, params);
 
   const headers = buildHeadersArray(deps.stateContext.headers);
@@ -188,6 +217,12 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): n
     // The box's tree under the box rules: the one its ingest parsed, checkType = true (ErgoTransaction.scala:138
     // evaluates box.ergoTree); on a cache miss one standalone parse, whose errors surface unwrapped.
     const tree = boxTreeOf(ergoTreeBytes);
+    // The JVM's spend check, after the storage-rent branch and before the reduction
+    // (Interpreter.scala:298-331, :362-365): an accept-unverified ends this input at no cost, no
+    // reduction and no proof; a refusal throws `EvalError('tree-version-above-activated')`.
+    if (checkSoftForkCondition(tree, activatedScriptVersion) === 'accept-unverified') {
+      continue;
+    }
     // An unparsed proposition — a size-flagged tree that degraded under the box rules (a soft-fork
     // failure, or rule 1001 on its root) — is permanently unevaluable: it has no constants and
     // reduceWith rejects it with EvalError('unparsed-ergotree') (Interpreter.scala:131-141), surfaced
@@ -199,6 +234,7 @@ export function validateStateful(tx: ErgoLikeTransaction, deps: StatefulDeps): n
       preHeader, headers, extension, jitCostLimit: (maxBlockCost - runningBlock) * JIT_COST_PER_BLOCK_COST, treeVersion,
       constants: isUnparsedTree(tree) ? [] : tree.constants,
       inputExtensions,
+      activatedScriptVersion,
     });
     const result = reduceWith(tree, ctx);  // EvalError surfaces unwrapped (incl. cost-limit-exceeded + unparsed-ergotree)
     if (result.kind !== 'SigmaProp') {
