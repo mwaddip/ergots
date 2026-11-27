@@ -582,13 +582,19 @@ export function runWireEntry(e: WireEntry, tx: WireTxCodec = TX_CODEC): WireResu
 
 function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
   const treeVersion = e.version.ergoTree
+  const activatedVersion = e.version.activated
   switch (e.kind) {
     case 'Box': {
       // Full ErgoBox::sigma_serialize form (value … tokens … registers … tx_id … index) via the
       // public SValue codec — parseSValue(SBox)/serializeSValue(SBox) handle the with-ref form.
+      // The reader carries the entry's activated version: a Box's tree, a tree nested in a register
+      // or a Box constant, is parsed under it (`VersionContext.withVersions`, JVM
+      // `ErgoTreeSerializer.scala:150-154`).
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const value = parseSValue(SBOX, treeVersion, new ByteReader(bytes))
+        const r = new ByteReader(bytes)
+        r.activatedVersion = activatedVersion
+        const value = parseSValue(SBOX, treeVersion, r)
         const w = new ByteWriter()
         serializeSValue(SBOX, value, treeVersion, w)
         return { bytes_hex: bytesToHex(w.toBytes()), error: null }
@@ -625,9 +631,13 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       // Self-describing constant: SType || SValue (the ContextExtension / register form). Read the
       // type, then its data, and write both back — via ergots' public parseSType + parseSValue /
       // serializeSType + serializeSValue (the codec ergots exposes for ContextExtension decoding).
+      // The reader carries the entry's activated version: a Box constant's tree is parsed under it
+      // (`VersionContext.withVersions`, JVM `ErgoTreeSerializer.scala:150-154`); `parseSType` reads
+      // the type under the entry's tree version, which drives the V3-gated type reads.
       const bytes = hexToBytes(e.bytes_hex)
       try {
         const r = new ByteReader(bytes)
+        r.activatedVersion = activatedVersion
         const type = parseSType(r, treeVersion)
         const value = parseSValue(type, treeVersion, r)
         const w = new ByteWriter()
@@ -650,10 +660,11 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       // round-trip COMPOSES the SValue/SType/Expr codecs, so a typed codec rejection from any of them
       // (e.g. an SHeader-typed segregated constant ⇒ SValueParseError) is `errored` (a faithful
       // reject); an untyped throw (e.g. ergots' strict-UTF-8 decode of an ill-formed STypeVar name)
-      // falls to the panic-net.
+      // falls to the panic-net. The entry's activated version reaches the reader, so a tree above
+      // it (or a nested Box constant's tree above it) rejects as the JVM's does.
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const tree = parseTree(bytes)
+        const tree = parseTree(bytes, { activatedVersion })
         return { bytes_hex: bytesToHex(serializeTree(tree)), error: null }
       } catch (err) {
         if (isWireCodecError(err)) {

@@ -103,6 +103,32 @@ describe('runWireVector — wire round-trip (santa-wire/v1)', () => {
       .toEqual({ bytes_hex: null, error: 'errored' })
   })
 
+  it('Box, Constant, ErgoTree: the entry\'s activated version reaches the reader (a v4 tree above activated 3 errors, under 4 round-trips)', () => {
+    // A bare box whose size-flagged tree is v4, SigmaProp(true) (0c 02 08 d3). Under activated 3,
+    // the JVM compares a tree's version with the activated version (ErgoTreeSerializer.scala:150-154,
+    // VersionContext.scala:20), and rejects. Under activated 4, the pair holds and the box round-trips.
+    const boxHex = 'c0843d0c0208d30100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'
+    expect(runWireEntry({ name: 'box-v4-at-3', kind: 'Box', bytes_hex: boxHex, version: { activated: 3, ergoTree: 3 } }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+    expect(runWireEntry({ name: 'box-v4-at-4', kind: 'Box', bytes_hex: boxHex, version: { activated: 4, ergoTree: 4 } }))
+      .toEqual({ bytes_hex: boxHex, error: null })
+
+    // A Constant whose value is a Box with a v4 tree (type 63 = SBox, then the Box's own bytes:
+    // value c0843d, tree 0c0208d3, creation_height 01, tokens 00, registers 00, tx_id 32×00, index 00).
+    const constHex = '63c0843d0c0208d3010000000000000000000000000000000000000000000000000000000000000000000000'
+    expect(runWireEntry({ name: 'const-box-v4-at-3', kind: 'Constant', bytes_hex: constHex, version: { activated: 3, ergoTree: 3 } }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+    expect(runWireEntry({ name: 'const-box-v4-at-4', kind: 'Constant', bytes_hex: constHex, version: { activated: 4, ergoTree: 4 } }))
+      .toEqual({ bytes_hex: constHex, error: null })
+
+    // A size-flagged v4 ErgoTree, SigmaProp(true).
+    const treeHex = '0c0208d3'
+    expect(runWireEntry({ name: 'tree-v4-at-3', kind: 'ErgoTree', bytes_hex: treeHex, version: { activated: 3, ergoTree: 3 } }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+    expect(runWireEntry({ name: 'tree-v4-at-4', kind: 'ErgoTree', bytes_hex: treeHex, version: { activated: 4, ergoTree: 4 } }))
+      .toEqual({ bytes_hex: treeHex, error: null })
+  })
+
   it('ErgoTree (SHeader-constant reject): a typed codec rejection grades errored, not panicked', () => {
     // The (b) reject vector: a size-flagged tree with a segregated SHeader constant the JVM rejects.
     // ergots throws a typed SValueParseError parsing the constant; isWireCodecError maps it to `errored`
