@@ -134,14 +134,12 @@ describe('BundleAssembler', () => {
         await expect(a.assemble(2, [])).rejects.toThrow(/bytes/);
     });
 
-    it('falls back to the genesis default when the boundary block is unavailable (iter-26 genesis-epoch edge)', async () => {
+    it('falls back to the genesis default when the boundary block is absent (iter-26 genesis-epoch edge)', async () => {
         const H = 5;                  // genesis epoch → boundary 0 (doesn't exist)
         const blockId = 'aa'.repeat(32);
         const node = {
-            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) => {
-                if (h === H) return [blockId];
-                throw new Error('unexpected-status');  // boundary 0 not served
-            }),
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : []),  // boundary 0 is absent
             getBlock: vi.fn().mockResolvedValue(mkBlock({ blockId, height: H })),
             getValidationFragments: vi.fn().mockResolvedValue({
                 headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }],
@@ -189,11 +187,10 @@ describe('BundleAssembler', () => {
         const bundle = await a.assemble(H, []);
         expect(bundle.parameters?.blockVersion).toBe(5);
 
-        // Second call in the same epoch must hit both per-epoch caches
-        // (maxBlockCost and blockVersion) without refetching the boundary.
-        // The first assemble() walks back for each resolver once; the second
-        // adds no boundary fetches. So two assemble() calls for the same
-        // height produce two boundary fetches, not four.
+        // Two assemble() calls for the same epoch share the two per-epoch
+        // caches. Each resolver (maxBlockCost, blockVersion) fetches the
+        // boundary once on the first assemble; the second assemble adds no
+        // boundary fetches. Two resolvers × one fetch = 2 total.
         await a.assemble(H, []);
         const boundaryCalls = node.getHeaderIdsAtHeight.mock.calls.filter((c: any[]) => c[0] === BOUNDARY).length;
         expect(boundaryCalls).toBe(2);
@@ -230,13 +227,11 @@ describe('BundleAssembler', () => {
     });
 
     it('below the first epoch start, takes the launch value: 1 on mainnet', async () => {
-        const H = 500;   // below the first boundary (1024)
+        const H = 500;   // below the first mainnet boundary (1024)
         const blockId = 'aa'.repeat(32);
         const node = {
-            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) => {
-                if (h === H) return [blockId];
-                throw new Error('unexpected-status');   // boundary 0 unavailable
-            }),
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : []),  // boundary 0 absent
             getBlock: vi.fn().mockResolvedValue(mkBlock({ blockId, height: H })),
             getValidationFragments: vi.fn().mockResolvedValue({
                 headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }],
@@ -254,13 +249,11 @@ describe('BundleAssembler', () => {
     });
 
     it('below the first epoch start, takes the launch value: 4 on the public testnet', async () => {
-        const H = 500;
+        const H = 50;  // below the first testnet boundary (128)
         const blockId = 'aa'.repeat(32);
         const node = {
-            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) => {
-                if (h === H) return [blockId];
-                throw new Error('unexpected-status');
-            }),
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : []),
             getBlock: vi.fn().mockResolvedValue(mkBlock({ blockId, height: H })),
             getValidationFragments: vi.fn().mockResolvedValue({
                 headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }],
@@ -275,6 +268,136 @@ describe('BundleAssembler', () => {
         const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'testnet');
         const bundle = await a.assemble(H, []);
         expect(bundle.parameters?.blockVersion).toBe(4);
+    });
+
+    it('testnet: epoch length is 128, so a height above 128 reads its own boundary', async () => {
+        // Testnet `votingLength = 128` (ergo testnet.conf:49). H=200 picks
+        // boundary 128, not the 0 boundary mainnet's 1024 grid would pick.
+        const H = 200;
+        const BOUNDARY = 128;
+        const blockId = 'aa'.repeat(32);
+        const boundaryId = 'ee'.repeat(32);
+        const node = {
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : h === BOUNDARY ? [boundaryId] : []),
+            getBlock: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? mkBlock({ blockId, height: H })
+                    : mkBlock({ blockId: boundaryId, height: BOUNDARY, extensionFields: [['007b', '00000004']] })),
+            getValidationFragments: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? { headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }] }
+                    : { headerBytes: 'ab'.repeat(100), parameters: { maxBlockCost: 1_000_000 }, transactions: [] }),
+        };
+        const indexer = {
+            getBoxBytes: vi.fn().mockImplementation(async (id: string) => new Uint8Array(64).fill(parseInt(id.slice(0, 2), 16))),
+        };
+        const oracle = {
+            computeTxOracleCosts: vi.fn().mockReturnValue([{ oracleCost: 50n, oracleSucceeded: true, oracleError: null }]),
+        };
+        const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'testnet');
+        const bundle = await a.assemble(H, []);
+        expect(bundle.parameters?.blockVersion).toBe(4);
+        expect(node.getHeaderIdsAtHeight).toHaveBeenCalledWith(BOUNDARY);
+        // Not the mainnet-length 1024 boundary.
+        expect(node.getHeaderIdsAtHeight).not.toHaveBeenCalledWith(1024);
+    });
+
+    it('propagates a REST error from the boundary fetch rather than swallowing it (no silent fallback)', async () => {
+        // A transient failure on the boundary read must halt the walk; a
+        // silent fallback would cache a wrong voted value for the whole
+        // epoch. The maxBlockCost resolver (which carries its genesis
+        // bare catch for historical reasons) succeeds on retry here, so
+        // the throw comes from the block-version resolver only.
+        const H = 1_144_466;
+        const BOUNDARY = 1_143_808;
+        const blockId = 'aa'.repeat(32);
+        const boundaryId = 'ee'.repeat(32);
+        const node = {
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : h === BOUNDARY ? [boundaryId] : []),
+            // getBlock on the boundary id fails transiently; the resolver
+            // must surface this.
+            getBlock: vi.fn().mockImplementation(async (id: string) => {
+                if (id === blockId) return mkBlock({ blockId, height: H });
+                throw new Error('503 service unavailable');
+            }),
+            getValidationFragments: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? { headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }] }
+                    : { headerBytes: 'ab'.repeat(100), parameters: { maxBlockCost: 8_001_091 }, transactions: [] }),
+        };
+        const indexer = {
+            getBoxBytes: vi.fn().mockImplementation(async (id: string) => new Uint8Array(64).fill(parseInt(id.slice(0, 2), 16))),
+        };
+        const oracle = {
+            computeTxOracleCosts: vi.fn().mockReturnValue([{ oracleCost: 50n, oracleSucceeded: true, oracleError: null }]),
+        };
+        const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'mainnet');
+        await expect(a.assemble(H, [])).rejects.toThrow(/503/);
+    });
+
+    it('propagates a malformed 007b value from the boundary rather than caching the launch value', async () => {
+        // A boundary whose `007b` is not four bytes is a decode error; a
+        // silent walk-back to the launch value would hide a bad node.
+        const H = 1_144_466;
+        const BOUNDARY = 1_143_808;
+        const blockId = 'aa'.repeat(32);
+        const boundaryId = 'ee'.repeat(32);
+        const node = {
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : h === BOUNDARY ? [boundaryId] : []),
+            getBlock: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? mkBlock({ blockId, height: H })
+                    // 2 bytes, not 4 — the JVM writes 4 with Ints.toByteArray
+                    : mkBlock({ blockId: boundaryId, height: BOUNDARY, extensionFields: [['007b', '0005']] })),
+            getValidationFragments: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? { headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }] }
+                    : { headerBytes: 'ab'.repeat(100), parameters: { maxBlockCost: 8_001_091 }, transactions: [] }),
+        };
+        const indexer = {
+            getBoxBytes: vi.fn().mockImplementation(async (id: string) => new Uint8Array(64).fill(parseInt(id.slice(0, 2), 16))),
+        };
+        const oracle = {
+            computeTxOracleCosts: vi.fn().mockReturnValue([{ oracleCost: 50n, oracleSucceeded: true, oracleError: null }]),
+        };
+        const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'mainnet');
+        await expect(a.assemble(H, [])).rejects.toThrow(/007b/);
+    });
+
+    it('does not seed the per-epoch cache from a non-boundary block that happens to carry 007b', async () => {
+        // On the real chain, non-boundary blocks do not carry `007b`. Guard
+        // the seed against a block that does, so the cache answer is the
+        // boundary's, not a mid-epoch block's.
+        const H = 1_144_466;        // non-boundary
+        const BOUNDARY = 1_143_808;
+        const blockId = 'aa'.repeat(32);
+        const boundaryId = 'ee'.repeat(32);
+        const node = {
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : h === BOUNDARY ? [boundaryId] : []),
+            getBlock: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    // H carries a (wrong) `007b` that must not seed the cache
+                    ? mkBlock({ blockId, height: H, extensionFields: [['007b', '00000099']] })
+                    : mkBlock({ blockId: boundaryId, height: BOUNDARY, extensionFields: [['007b', '00000005']] })),
+            getValidationFragments: vi.fn().mockImplementation(async (id: string) =>
+                id === blockId
+                    ? { headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }] }
+                    : { headerBytes: 'ab'.repeat(100), parameters: { maxBlockCost: 1_000_000 }, transactions: [] }),
+        };
+        const indexer = {
+            getBoxBytes: vi.fn().mockImplementation(async (id: string) => new Uint8Array(64).fill(parseInt(id.slice(0, 2), 16))),
+        };
+        const oracle = {
+            computeTxOracleCosts: vi.fn().mockReturnValue([{ oracleCost: 50n, oracleSucceeded: true, oracleError: null }]),
+        };
+        const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'mainnet');
+        const bundle = await a.assemble(H, []);
+        // The boundary's value (5) wins, not the non-boundary's (0x99).
+        expect(bundle.parameters?.blockVersion).toBe(5);
     });
 
     it('keeps the section block version on the bundle, as the parse context source', async () => {

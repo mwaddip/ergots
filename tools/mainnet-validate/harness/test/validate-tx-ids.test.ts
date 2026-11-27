@@ -154,17 +154,38 @@ describe('validateTxIds', () => {
         expect(he.code).toBe('ids-parse-failed');
     });
 
-    it("parses the transaction under blockVersionContext of the section's block version", () => {
-        // A transaction whose output's tree is v4 parses only when the parse
-        // context's activated version is 4 or more. At section block version 5
-        // the context is (4, 4), which admits a v4 tree. At section block
-        // version 3 the context is (1, 1), which admits a v1 tree only.
-        //
-        // The three sized-tree txs use a v1 tree so they parse at either context.
-        // Pin that the section's version drives the parse by passing a block
-        // whose sectionBlockVersion is 3: the fixture's v1 tree still parses,
-        // and the test reaches validateTxIds without a parse throw.
+    // A hand-built transaction whose only output's tree is v4 (`0c0208d3`,
+    // header 0x0c = v4 with hasSize). Same inputs/counts as `CONTROL_HEX`
+    // so the envelope is well-formed. The tree parses:
+    //   - at parse context (1, 1) (section block version 3 or below): the tree
+    //     version check has no floor (`ErgoTreeSerializer.scala:191-193`).
+    //   - at (3, 3) (section block version 4): refused, "Tree version (4) is
+    //     above activated script version (3)".
+    //   - at (4, 4) (section block version 5): parsed.
+    const V4_TX_HEX = `${TX_PREFIX}0c0208d3010000`;
+
+    it("parses under blockVersionContext of the section's version: section v3 admits a v4 output tree", () => {
+        // sectionBlockVersion 3 → blockVersionContext(3) = (1, 1), where a v4 tree parses.
         const block: BlockBundle = { ...BLOCK, sectionBlockVersion: 3 };
-        expect(() => validateTxIds(bundleFor(CONTROL_HEX), block, STATE, 0)).not.toThrow();
+        // The output's tree id does not match the ids route's canonical output
+        // (its tree is `0c0208d3`, not `090208d3`), so the output-bytes check
+        // would throw after a successful parse. Point the bundle's tx id and
+        // outputs at that parse's value so this test isolates the parse.
+        const v4Parsed = parseTransaction(hexToBytes(V4_TX_HEX), blockVersionContext(3));
+        const v4Id = transactionId(v4Parsed);
+        const w = new ByteWriter();
+        serializeSValue({ tag: 'SBox' }, { kind: 'Box', value: { ...v4Parsed.outputCandidates[0]!, txId: v4Id, index: 0 } }, 0, w);
+        const bundle: TxBundle = { ...bundleFor(V4_TX_HEX), txId: v4Id, outputs: [w.toBytes()] };
+        expect(() => validateTxIds(bundle, block, STATE, 0)).not.toThrow();
+    });
+
+    it("parses under blockVersionContext of the section's version: section v4 refuses a v4 output tree", () => {
+        // sectionBlockVersion 4 → blockVersionContext(4) = (3, 3), which refuses a v4 tree.
+        const block: BlockBundle = { ...BLOCK, sectionBlockVersion: 4 };
+        const he = harnessErrorOf(() => validateTxIds(bundleFor(V4_TX_HEX), block, STATE, 0));
+        expect(he.phase).toBe('ids');
+        expect(he.code).toBe('ids-parse-failed');
+        // The ergots error is `ErgoTreeParseError('tree-version-above-activated')`.
+        expect(he.message).toMatch(/tree-version-above-activated|tree version 4 is above/i);
     });
 });

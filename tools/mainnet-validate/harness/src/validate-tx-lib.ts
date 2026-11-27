@@ -16,6 +16,15 @@ import { HarnessError } from './errors.js';
 
 const DEFAULT_MAX_BLOCK_COST = 1_000_000;
 
+/** Launch value of parameter 123 `BlockVersion` on each network
+ *  (ergo `settings/LaunchParameters.scala:8-17`). A bundle with no
+ *  `parameters` reads a block before the first epoch boundary carried the
+ *  key, so the voted value is the launch value of the walk's network. */
+const LAUNCH_BLOCK_VERSION: Record<'mainnet' | 'testnet', number> = {
+  mainnet: 1,
+  testnet: 4,
+};
+
 /** A box from the UTXO set: read at tree version 1 with nothing set on the
  *  reader, as the JVM reads a UTXO box outside any version context
  *  (ergo `UtxoStateReader.scala:122-130`). The box's tree carries its own
@@ -66,8 +75,11 @@ export function buildStatefulDeps(tx: TxBundle, block: BlockBundle, state: Walke
   // height rules in `validateStateful`. The bundle's `parameters.blockVersion`
   // is the ergo node's voted value (parameter 123); below the first epoch
   // boundary it is the network's launch value, which the assembler supplied.
-  // A bundle without parameters falls through to the launch value of mainnet.
-  const blockVersion = params !== null && params !== undefined ? params.blockVersion : 1;
+  // A bundle without parameters falls through to the launch value of the
+  // walk's network.
+  const blockVersion = params !== null && params !== undefined
+    ? params.blockVersion
+    : LAUNCH_BLOCK_VERSION[state.network];
   return {
     inputBoxes,
     dataInputBoxes,

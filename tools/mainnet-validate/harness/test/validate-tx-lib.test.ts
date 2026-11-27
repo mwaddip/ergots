@@ -1,8 +1,11 @@
 import { describe, it, expect } from 'vitest';
-import { buildStatefulDeps } from '../src/validate-tx-lib.js';
+import { buildStatefulDeps, validateTxLib } from '../src/validate-tx-lib.js';
+import { HarnessError } from '../src/errors.js';
 import type { TxBundle, BlockBundle } from '../src/bundle-types.js';
 import type { WalkerState } from '../src/validate-block.js';
+import { ByteReader } from '@ergots/scorex';
 import type { Header } from '@ergots/scorex';
+import { parseSValue } from '@ergots/ergoscript';
 
 const mkHeader = (height: number): Header => ({
   version: 3, parentId: new Uint8Array(32), timestamp: 1700000000000n, nBits: 0x1d00ffff,
@@ -89,44 +92,138 @@ describe('buildStatefulDeps', () => {
     expect(deps.stateContext.parameters?.maxBlockCost).toBe(1_234_567);
   });
 
-  it("an input box is read at tree version 1 with nothing set on its reader", () => {
-    // The spent box tree is a v4 tree, which parses only when the reader's
-    // activatedVersion is unset (outside any context) or set to 4 or more.
-    // A box from the UTXO set is read outside any context, as the JVM does
-    // (UtxoStateReader.scala:122-130). With tree version 1 and nothing set
-    // on the reader, this v4 box parses cleanly.
-    //
-    // An ErgoBox with a one-byte v4 tree body (0208d3 is a size-flagged v0
-    // sigmaProp(true); at header 0c it is a v4 size-flagged sigmaProp(true)):
-    // value(VLQ)=1, ergoTree=0c0208d3, creationHeight(VLQ)=0, tokens(0), additionalRegisters(0),
-    // txId(32)=0, index(2)=0
-    const boxHex = '01' + '0c0208d3' + '00' + '00' + '00' + '00'.repeat(32) + '0000';
-    const boxBytes = hexToBytes(boxHex);
+  // A hand-built box whose R4 is an empty `Coll[Int => Int]` — a register
+  // type that exists only from tree version 3 (ergo-core
+  // `ErgoBoxCandidate.scala:231`, `CheckV6Type` at `:232`). The ergots test
+  // at `packages/ergoscript/test/wire/jvm-type-reads.test.ts:945-957` pins
+  // the JVM's verdict: a read under (3, 3) accepts it and a read under
+  // (1, 1) refuses it with rule 1008.
+  // Shape: value(VLQ=1) + ergoTree(`00 08 d3`) + creationHeight(VLQ=1) +
+  //         tokens(VLQ=0) + registers(VLQ=1) + Const(`0c 70 01 04 04 00`) +
+  //         txId(32·0) + index(2·0).
+  const V3_ONLY_REGISTER_BOX_HEX = `0100d101010000010c700104040000${'00'.repeat(33)}`;
+
+  it("an input box is read at tree version 1: an R4 of type Coll[Int => Int] is refused", () => {
+    // Sanity: the former tree-version-3 call accepts this box.
+    const r3 = new ByteReader(hexToBytes(V3_ONLY_REGISTER_BOX_HEX));
+    const sv = parseSValue({ tag: 'SBox' }, 3, r3);
+    expect(sv.kind).toBe('Box');
+
+    // The tree-version-1 call refuses it (SFunc is not an elem type below tree v3).
+    const r1 = new ByteReader(hexToBytes(V3_ONLY_REGISTER_BOX_HEX));
+    expect(() => parseSValue({ tag: 'SBox' }, 1, r1)).toThrow();
+
+    // `buildStatefulDeps` reads the spent box through the tree-version-1
+    // call, so handing the box in refuses the whole deps build.
     const tx = {
       txId: new Uint8Array(32), signingMessage: new Uint8Array(),
       inputs: [{
-        boxId: new Uint8Array(32), spentBoxBytes: boxBytes,
+        boxId: new Uint8Array(32), spentBoxBytes: hexToBytes(V3_ONLY_REGISTER_BOX_HEX),
         signatureBytes: new Uint8Array(), contextExtension: [],
         oracleCost: 0n, oracleSucceeded: true, oracleError: null,
       }],
       outputs: [], dataInputBoxes: [], txBytes: new Uint8Array(),
     } as TxBundle;
-
-    // A block at version 3 (activated 2 on its reader) would reject a v4
-    // tree if the harness set activatedVersion on the reader. The read
-    // succeeds because nothing is set — the JVM's UTXO read.
-    const block = blockWith({
-      sectionBlockVersion: 3,
-      parameters: { maxBlockCost: 1_000_000, blockVersion: 3 },
-    });
+    const block = blockWith();
     const state: WalkerState = {
       lastHeader: mkHeader(100),
       rollingHeaders: [mkHeader(100), mkHeader(99)],
       network: 'mainnet',
       v2ActivationHeight: 0,
     };
+    expect(() => buildStatefulDeps(tx, block, state)).toThrow();
+  });
 
-    const deps = buildStatefulDeps(tx, block, state);
-    expect(deps.inputBoxes.length).toBe(1);
+  it("when the bundle carries no parameters, falls back to the walk's network launch value", () => {
+    const tx = {
+      txId: new Uint8Array(32), signingMessage: new Uint8Array(),
+      inputs: [], outputs: [], dataInputBoxes: [], txBytes: new Uint8Array(),
+    } as TxBundle;
+    const block = blockWith({ parameters: null });
+    const stateMainnet: WalkerState = {
+      lastHeader: mkHeader(100), rollingHeaders: [mkHeader(100), mkHeader(99)],
+      network: 'mainnet', v2ActivationHeight: 0,
+    };
+    const stateTestnet: WalkerState = { ...stateMainnet, network: 'testnet' };
+    expect(buildStatefulDeps(tx, block, stateMainnet).stateContext.parameters?.blockVersion).toBe(1);
+    expect(buildStatefulDeps(tx, block, stateTestnet).stateContext.parameters?.blockVersion).toBe(4);
+  });
+});
+
+// A hand-built transaction with one input and one output whose tree is v4
+// (`0c0208d3`, header 0x0c = version 4 with hasSize). Mirrors
+// `test/validate-tx-ids.test.ts`'s V4_TX_HEX: at section block version 3 the
+// parse context is (1, 1) and the v4 tree parses; at section block version 4
+// it is (3, 3) and the v4 tree is refused.
+//
+// Same TX_PREFIX layout: 1 input + boxId (32) + empty proof + empty extension
+//   + 0 data inputs + 0 token ids + 1 output + value VLQ + ergoTree
+//   + creationHeight(VLQ=1) + tokens(VLQ=0) + registers(VLQ=0).
+const TX_PREFIX =
+  '010f9267b537544e9f57a5b1d67dc0da2c6dfd706f28359b7c9021988a7e5b20c000000000018094ebdc03';
+const V4_TX_HEX = `${TX_PREFIX}0c0208d3010000`;
+
+// A plain v0 SigmaProp(true) box (`0008d3`), so `parseBox` accepts it as an
+// input and `validateStateful` receives real deps. Its `boxId` is a fixed
+// 32 zero bytes; the input references that id.
+const V0_BOX_HEX = `0100d101010000000000${'00'.repeat(32)}0000`;
+
+describe('validateTxLib: parse context from the section', () => {
+  function bundleFor(
+    txHex: string,
+    sectionBlockVersion: number,
+    inputBoxId: Uint8Array,
+  ): { tx: TxBundle; block: BlockBundle; state: WalkerState } {
+    const tx: TxBundle = {
+      txId: new Uint8Array(32), signingMessage: new Uint8Array(0),
+      inputs: [{
+        boxId: inputBoxId, spentBoxBytes: hexToBytes(V0_BOX_HEX),
+        signatureBytes: new Uint8Array(0), contextExtension: [],
+        oracleCost: 0n, oracleSucceeded: true, oracleError: null,
+      }],
+      outputs: [new Uint8Array(0)], dataInputBoxes: [],
+      txBytes: hexToBytes(txHex),
+    };
+    const block: BlockBundle = {
+      height: 100, blockId: new Uint8Array(32), parentId: new Uint8Array(32),
+      headerBytes: new Uint8Array(0), headerJson: '', transactions: [tx],
+      sectionBlockVersion,
+      parameters: { maxBlockCost: 1_000_000, blockVersion: sectionBlockVersion },
+    };
+    const state: WalkerState = {
+      lastHeader: mkHeader(100), rollingHeaders: [mkHeader(100), mkHeader(99)],
+      network: 'mainnet', v2ActivationHeight: 0,
+    };
+    return { tx, block, state };
+  }
+
+  it("section v3 admits a v4 output tree: parse under (1, 1) reaches validateStateful", () => {
+    // The tx references an input box id of 32 zero bytes, matching V0_BOX_HEX's
+    // id. validateStateful may reject on cost or signature, but the parse
+    // itself must not throw — that is the harness's claim.
+    const { tx, block, state } = bundleFor(V4_TX_HEX, 3, new Uint8Array(32));
+    try {
+      validateTxLib(tx, block, state, 0);
+    } catch (e) {
+      // Any error must NOT be the parse one — the call got past the parse.
+      expect(e).toBeInstanceOf(HarnessError);
+      const he = e as HarnessError;
+      expect(he.code).not.toBe('lib-parse-failed');
+    }
+  });
+
+  it("section v4 refuses a v4 output tree: parse under (3, 3) raises lib-parse-failed", () => {
+    const { tx, block, state } = bundleFor(V4_TX_HEX, 4, new Uint8Array(32));
+    try {
+      validateTxLib(tx, block, state, 0);
+      // The call must throw before reaching validateStateful.
+      expect.fail('expected validateTxLib to throw lib-parse-failed');
+    } catch (e) {
+      expect(e).toBeInstanceOf(HarnessError);
+      const he = e as HarnessError;
+      expect(he.phase).toBe('lib-validate');
+      expect(he.code).toBe('lib-parse-failed');
+      expect(he.message).toMatch(/tree-version-above-activated|tree version 4 is above/i);
+    }
   });
 });

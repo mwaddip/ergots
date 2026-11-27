@@ -33,11 +33,18 @@ import type {
 const BOX_FETCH_CONCURRENCY = 64;
 
 /**
- * Mainnet voting-epoch length. `maxBlockCost` (and other votable parameters)
- * is recorded in the extension only at boundary blocks whose height is a
- * multiple of this, and is *inherited* by every block until the next boundary.
+ * Voting-epoch length per network. Votable parameters (`maxBlockCost`,
+ * parameter 123 `BlockVersion`) are recorded in the extension only at
+ * boundary blocks whose height is a multiple of this and are inherited by
+ * every block until the next boundary.
+ *
+ * Mainnet: `votingLength = 1024` (ergo `src/main/resources/application.conf:263`).
+ * Testnet: `votingLength = 128`  (ergo `src/main/resources/testnet.conf:49`).
  */
-const VOTING_EPOCH_LENGTH = 1024;
+const VOTING_EPOCH_LENGTH: Record<'mainnet' | 'testnet', number> = {
+    mainnet: 1024,
+    testnet: 128,
+};
 
 /**
  * sigma-rust `Parameters::default().max_block_cost()` — genesis value, used
@@ -114,6 +121,11 @@ async function parallelMap<T, R>(items: T[], limit: number, fn: (t: T, i: number
 }
 
 export class BundleAssembler {
+    /** The voting-epoch length of this walk's network, selected from
+     *  `VOTING_EPOCH_LENGTH`. The two per-epoch caches key off a multiple
+     *  of this. */
+    private readonly votingLength: number;
+
     constructor(
         private readonly node: NodeClient,
         private readonly indexer: IndexerClient,
@@ -121,9 +133,13 @@ export class BundleAssembler {
         private readonly attachTxBytes = false,
         /** The network's launch block version is taken from this
          *  (`LAUNCH_BLOCK_VERSION`) when no epoch boundary ≤ height carries
-         *  the parameter in its extension (ergo `settings/LaunchParameters.scala:8-17`). */
+         *  the parameter in its extension (ergo `settings/LaunchParameters.scala:8-17`).
+         *  The voting-epoch length is drawn from the same key
+         *  (`VOTING_EPOCH_LENGTH`): mainnet 1024, testnet 128. */
         private readonly network: 'mainnet' | 'testnet' = 'mainnet',
-    ) {}
+    ) {
+        this.votingLength = VOTING_EPOCH_LENGTH[network];
+    }
 
     /** epoch-boundary height → active maxBlockCost (resolved once per epoch). */
     private readonly maxBlockCostByEpoch = new Map<number, number>();
@@ -143,10 +159,10 @@ export class BundleAssembler {
      * epoch is defensive; the computed boundary normally carries parameters.
      */
     private async resolveActiveMaxBlockCost(height: number): Promise<number> {
-        const target = Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH;
+        const target = Math.floor(height / this.votingLength) * this.votingLength;
         const cached = this.maxBlockCostByEpoch.get(target);
         if (cached !== undefined) return cached;
-        for (let b = target; b >= 0; b -= VOTING_EPOCH_LENGTH) {
+        for (let b = target; b >= 0; b -= this.votingLength) {
             try {
                 const ids = await this.node.getHeaderIdsAtHeight(b);
                 if (ids.length > 0) {
@@ -180,22 +196,24 @@ export class BundleAssembler {
      * (`settings/LaunchParameters.scala:8-17`).
      */
     private async resolveActiveBlockVersion(height: number): Promise<number> {
-        const target = Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH;
+        const target = Math.floor(height / this.votingLength) * this.votingLength;
         const cached = this.blockVersionByEpoch.get(target);
         if (cached !== undefined) return cached;
-        for (let b = target; b >= 0; b -= VOTING_EPOCH_LENGTH) {
-            try {
-                const ids = await this.node.getHeaderIdsAtHeight(b);
-                if (ids.length > 0) {
-                    const block = await this.node.getBlock(ids[0]!);
-                    const fromExt = readBlockVersionFromExtension(block.extension.fields);
-                    if (fromExt !== undefined) {
-                        this.blockVersionByEpoch.set(target, fromExt);
-                        return fromExt;
-                    }
+        for (let b = target; b >= 0; b -= this.votingLength) {
+            // The parameter gates the activated script version, so this
+            // resolver treats only two signals as "walk back": the boundary
+            // block is absent (`ids.length === 0`), or it exists and carries
+            // no `007b`. A REST failure or a malformed value is a halt the
+            // walk must see, not a silent fallback to the previous epoch or
+            // the launch value.
+            const ids = await this.node.getHeaderIdsAtHeight(b);
+            if (ids.length > 0) {
+                const block = await this.node.getBlock(ids[0]!);
+                const fromExt = readBlockVersionFromExtension(block.extension.fields);
+                if (fromExt !== undefined) {
+                    this.blockVersionByEpoch.set(target, fromExt);
+                    return fromExt;
                 }
-            } catch {
-                // Boundary block unavailable or malformed extension — walk back.
             }
             if (b === 0) break;
         }
@@ -239,15 +257,16 @@ export class BundleAssembler {
             );
         }
 
-        // If the block's extension carries the voted block version (any boundary
-        // block has it), seed the per-epoch cache from it. This is the extension
-        // key the voting mechanism writes (`007b`, parameter 123 BlockVersion).
-        const fromThisBlock = readBlockVersionFromExtension(block.extension.fields);
-        if (fromThisBlock !== undefined) {
-            this.blockVersionByEpoch.set(
-                Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH,
-                fromThisBlock,
-            );
+        // When this block is the epoch boundary (its height is a multiple of
+        // the voting length), seed the per-epoch cache from its extension's
+        // key `007b` directly. A non-boundary block that happens to carry
+        // the key is not an authoritative source for the epoch, so it is
+        // left to `resolveActiveBlockVersion`.
+        if (height % this.votingLength === 0) {
+            const fromThisBlock = readBlockVersionFromExtension(block.extension.fields);
+            if (fromThisBlock !== undefined) {
+                this.blockVersionByEpoch.set(height, fromThisBlock);
+            }
         }
 
         // Resolve the *active* maxBlockCost for this height once — used for both
@@ -259,7 +278,7 @@ export class BundleAssembler {
         if (fragments.parameters !== null) {
             activeMaxBlockCost = fragments.parameters.maxBlockCost;
             this.maxBlockCostByEpoch.set(
-                Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH,
+                Math.floor(height / this.votingLength) * this.votingLength,
                 activeMaxBlockCost,
             );
         } else {
