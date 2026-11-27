@@ -13,7 +13,7 @@
 // e.preHeader.version)`, as the runner's transaction arm does.
 import { describe, it, expect } from 'vitest'
 import { EvalError, ErgoTreeParseError } from '@ergots/ergoscript'
-import type { ErgoBox } from '@ergots/ergoscript'
+import type { ErgoBox, ContextExtension } from '@ergots/ergoscript'
 import { validateStateful, computeBoxId } from '../../src/validate/stateful'
 import { TxValidationError } from '../../src/errors'
 import type { ErgoLikeTransaction, StatefulDeps } from '../../src/index.ts'
@@ -1425,5 +1425,67 @@ describe('the height rules at a block version beyond a byte read as the JVM read
   it.each([200, 129, 0])('block version %i: the rent spend is valid at its blessed cost', (blockVersion) => {
     const { tx, deps } = santaTxInputs({ ...rent, parameters: { ...rent.parameters, blockVersion } })
     expect(validateStateful(tx, deps)).toBe(rent.expected.cost!)
+  })
+
+  // The monotonic-height rule (ergo-core ErgoTransaction.scala:173: `if (blockVersion > 2)`) and the
+  // negative-height rule (:383-392: `if (blockVersion != 1)`) both read the voted block version as the
+  // JVM's signed Byte (settings/Parameters.scala:80). Read unsigned, block version 200 is above 2, so
+  // the monotonic rule would apply; read signed as -56, it does not. A storage-rent spend whose
+  // output's creation height is below the input's tells the two apart: valid when signed, invalid when
+  // unsigned.
+  describe("output below an input's creation height, in a rent spend", () => {
+    // A rent-eligible input: age 1_051_200 = STORAGE_PERIOD at preHeader.height 1_051_300 with
+    // creationHeight 100; dust-value (1000) so storageFeeNotCovered holds and checkExpiredBox
+    // returns true without the recreation-height match. The output's creation height is 50, below
+    // the input's; value conservation holds. Context extension var 127 = Short 0 points at output 0.
+    function rentOutputBelowInput(blockVersion: number): { tx: ErgoLikeTransaction; deps: StatefulDeps } {
+      // Input value small enough that storageFee covers it (valueAfterFee <= 0 →
+      // storageFeeNotCovered holds, so checkExpiredBox returns true without the recreation
+      // match), and above output's dust floor of boxSize * minValuePerByte so checkStructural's
+      // dust rule passes at block version 4 and the monotonic rule fires.
+      const inputBox: ErgoBox = {
+        value: 50_000_000n, ergoTreeBytes: hex('0008d3'), creationHeight: 100, tokens: [], registers: {},
+        txId: new Uint8Array(32).fill(0x11), index: 0,
+      }
+      const extension: ContextExtension = { values: new Map([[127, { tpe: { tag: 'SShort' }, value: { kind: 'Short', value: 0 } }]]) }
+      const tx: ErgoLikeTransaction = {
+        inputs: [{ boxId: computeBoxId(inputBox), spendingProof: { proofBytes: new Uint8Array(0), contextExtension: extension } }],
+        dataInputs: [],
+        outputCandidates: [{
+          value: 50_000_000n, ergoTreeBytes: hex('0008d3'), creationHeight: 50, tokens: [], registers: {},
+        }],
+      }
+      const e = EDGES_FILE[0]!
+      const { deps } = santaTxInputs(e)
+      const stateContext: StatefulDeps['stateContext'] = {
+        ...deps.stateContext,
+        preHeader: { ...deps.stateContext.preHeader, height: 1_051_300 },
+        parameters: { ...e.parameters, blockVersion },
+      }
+      return { tx, deps: { inputBoxes: [inputBox], dataInputBoxes: [], stateContext } }
+    }
+
+    it('block version 4: the rule applies and the output is invalid (creation-height-below-max-input)', () => {
+      const { tx, deps } = rentOutputBelowInput(4)
+      const err = errorOf(() => validateStateful(tx, deps))
+      expect(err).toBeInstanceOf(TxValidationError)
+      expect((err as TxValidationError).code).toBe('creation-height-below-max-input')
+    })
+
+    it('block version 200 (signed -56, below 2): the rule does not apply and the rent spend is valid', () => {
+      // Read unsigned, 200 > 2 and the rule would fire; read signed as -56, below 3 and it does
+      // not. The verdict here is the mutation test for `signedBlockVersion` reading the voted
+      // block version as the JVM's signed Byte in stateful.ts.
+      const { tx, deps } = rentOutputBelowInput(200)
+      expect(validateStateful(tx, deps)).toBe(initCost(1) + 50)   // storage-rent cost per input
+    })
+
+    it('block version 2: the rule does not apply and the rent spend is valid', () => {
+      // The signed path of the same rule (ergo-core `if (blockVersion > 2)`): at block version 2
+      // the monotonic rule does not apply whatever a mutation reads the version as, so this entry
+      // controls the test above by covering the rule's native low side.
+      const { tx, deps } = rentOutputBelowInput(2)
+      expect(validateStateful(tx, deps)).toBe(initCost(1) + 50)
+    })
   })
 })
