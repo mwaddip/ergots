@@ -187,18 +187,26 @@ function chargeTreeBytes(tree: ParsedErgoTree, ctx: EvalContext): void {
  * substitute branch needs the CP→Const pre-pass to match sigma-rust costs.
  */
 function dispatchTreeBody(tree: ParsedErgoTree, ctx: EvalContext, mode: DispatchMode): SValue {
-  // A tree above the activated script version refuses here: the JVM's
-  // VersionContext.withVersions (sigma/VersionContext.scala:20, Interpreter.scala:207) throws its constructor's
-  // IllegalArgumentException when treeVersion > activated and activated >= 2, before any substitution or arm runs.
-  // A context that knows no activated version (no field and no pre-header) parses outside any version context, the
-  // JVM's default (1, 1), and makes no check.
+  // A tree above the activated script version refuses here: the JVM's fullReduction enters
+  // VersionContext.withVersions(context.activatedScriptVersion, ergoTree.version) (Interpreter.scala:207),
+  // whose constructor throws IllegalArgumentException when treeVersion > activated and activated >= 2
+  // (sigma/VersionContext.scala:20), before any substitution or arm runs. The parsed tree's own header
+  // version decides the check, whatever the caller held; and a treeVersion a caller set to a value above
+  // the activated version is itself a context the JVM cannot build, so it rejects too. A context that
+  // knows no activated version (no field and no pre-header) parses outside any version context, the JVM's
+  // default (1, 1), and makes no check.
   const activatedKnown = knownActivatedVersion(ctx)
   if (activatedKnown !== undefined && activatedKnown >= 2) {
-    const callerTreeVersion = ctx.treeVersion
-    const runningVersion = callerTreeVersion ?? tree.header.version
-    if (runningVersion > activatedKnown) {
+    if (tree.header.version > activatedKnown) {
       throw new EvalError(
-        `tree version ${runningVersion} is above the activated script version ${activatedKnown}`,
+        `tree version ${tree.header.version} is above the activated script version ${activatedKnown}`,
+        'tree-version-above-activated',
+      )
+    }
+    const callerTreeVersion = ctx.treeVersion
+    if (callerTreeVersion !== undefined && callerTreeVersion > activatedKnown) {
+      throw new EvalError(
+        `tree version ${callerTreeVersion} is above the activated script version ${activatedKnown}`,
         'tree-version-above-activated',
       )
     }

@@ -137,6 +137,25 @@ describe('the entries: a tree above the activated version, from activated versio
     expect(evaluateWith(within.tree, within.ctx)).toEqual(TRUE_PROP)
   })
 
+  it("a parsed tree's own version rejects at activated 3 whatever treeVersion the caller set", () => {
+    // The JVM's fullReduction enters withVersions(context.activatedScriptVersion, ergoTree.version)
+    // (Interpreter.scala:207), and withVersions' constructor throws (VersionContext.scala:20) when
+    // ergoTree.version > activatedScriptVersion from activated 2. A caller's treeVersion does not
+    // change that: the tree's own header version decides the check too. ergots makes both checks:
+    // the tree's header version against the activated version, and the caller's treeVersion when
+    // set, both from activated 2.
+    const v4 = () => parseTree(hexToBytes(trueTree(4)), { checkType: true })
+    // caller set to 3 (equal to activated): the v4 tree's own version still fails.
+    expectEntryReject(() => evaluate(v4(), { treeVersion: 3, activatedScriptVersion: 3 }), 4, 3)
+    // caller set to 0 (below activated): the v4 tree's own version still fails.
+    expectEntryReject(() => evaluate(v4(), { treeVersion: 0, activatedScriptVersion: 3 }), 4, 3)
+    // The same through evaluateWith and reduceWith.
+    const forEvalWith = () => { const s = spent({ tree: trueTree(4) }, 3); s.ctx.treeVersion = 3; return s }
+    expectEntryReject(() => { const s = forEvalWith(); evaluateWith(s.tree, s.ctx) }, 4, 3)
+    const forReduce = () => { const s = spent({ tree: trueTree(4) }, 3); s.ctx.treeVersion = 0; return s }
+    expectEntryReject(() => { const s = forReduce(); reduceWith(s.tree, s.ctx) }, 4, 3)
+  })
+
   it('a context that knows no activated version makes no check', () => {
     const tree = parseTree(hexToBytes(trueTree(4)), { checkType: true })
     expect(evaluate(tree)).toEqual(TRUE_PROP)
