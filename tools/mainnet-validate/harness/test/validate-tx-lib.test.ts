@@ -104,7 +104,7 @@ describe('buildStatefulDeps', () => {
   const V3_ONLY_REGISTER_BOX_HEX = `0100d101010000010c700104040000${'00'.repeat(33)}`;
 
   it("an input box is read at tree version 1: an R4 of type Coll[Int => Int] is refused", () => {
-    // Sanity: the former tree-version-3 call accepts this box.
+    // Sanity: a `parseSValue(SBox, 3, …)` call accepts this box.
     const r3 = new ByteReader(hexToBytes(V3_ONLY_REGISTER_BOX_HEX));
     const sv = parseSValue({ tag: 'SBox' }, 3, r3);
     expect(sv.kind).toBe('Box');
@@ -198,9 +198,11 @@ describe('validateTxLib: parse context from the section', () => {
   }
 
   it("section v3 admits a v4 output tree: parse under (1, 1) reaches validateStateful", () => {
-    // The tx references an input box id of 32 zero bytes, matching V0_BOX_HEX's
-    // id. validateStateful may reject on cost or signature, but the parse
-    // itself must not throw — that is the harness's claim.
+    // The test relies only on the parse reaching validateStateful.
+    // validateStateful rejects the deps (the parsed input boxId `0f92…`
+    // does not match the deps box, built from `V0_BOX_HEX`), so the call
+    // throws; the assertion is that the HarnessError's code is not
+    // `lib-parse-failed`. The TxBundle's input `boxId` is a 32-zero placeholder.
     const { tx, block, state } = bundleFor(V4_TX_HEX, 3, new Uint8Array(32));
     try {
       validateTxLib(tx, block, state, 0);

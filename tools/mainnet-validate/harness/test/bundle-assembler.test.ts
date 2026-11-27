@@ -306,9 +306,9 @@ describe('BundleAssembler', () => {
     it('propagates a REST error from the boundary fetch rather than swallowing it (no silent fallback)', async () => {
         // A transient failure on the boundary read must halt the walk; a
         // silent fallback would cache a wrong voted value for the whole
-        // epoch. The maxBlockCost resolver (which carries its genesis
-        // bare catch for historical reasons) succeeds on retry here, so
-        // the throw comes from the block-version resolver only.
+        // epoch. The maxBlockCost resolver (which carries a bare catch
+        // around its boundary fetch) succeeds on retry here, so the throw
+        // comes from the block-version resolver only.
         const H = 1_144_466;
         const BOUNDARY = 1_143_808;
         const blockId = 'aa'.repeat(32);
