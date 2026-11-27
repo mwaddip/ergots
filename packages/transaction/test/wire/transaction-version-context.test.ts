@@ -179,7 +179,7 @@ const REGISTER_ROWS: Row[] = [
   ['(4, 2)', 1018, 4, 2],
 ];
 
-describe("a transaction's registers are read at the context's tree version (rows T)", () => {
+describe("a transaction's registers are read at the context's tree version", () => {
   it.each(REGISTER_ROWS)('parsed under %s', (...row) => expectRow(REGISTER_TX, row));
 });
 
@@ -208,40 +208,42 @@ type VRow =
 // fires on the parsed register: a SValueParseError with code 'register-v6-type'. Under (1, 1) the
 // type reader rejects the type code before the value is read: a STypeParseError with code
 // 'type-code-primitive-unknown' (ergots' one code for rule 1007 / rule 1017 on code 9), except for
-// Option[Int], where the SOption container itself is readable at every version (the version-gated
-// elements are inside) and the value still refuses on rule 1019.
+// Option[Int]: the SOption container itself is readable at every version (the version-gated
+// elements are inside), so the value reader refuses the Some tag first with
+// 'soption-tree-version-too-low', before rule 1019 CheckV6Type is reached — the JVM raises rule
+// 1007 / 1009 there.
 const REGISTER_V6_TYPE: VRefusal = { cls: SValueParseError, code: 'register-v6-type' };
 const TYPE_CODE_PRIM_UNKNOWN: VRefusal = { cls: STypeParseError, code: 'type-code-primitive-unknown' };
 
 const V_ROWS: VRow[] = [
   // R4 = UnsignedBigInt 1: type 09, body 01 01.
-  { name: 'V1 R4 = UnsignedBigInt 1 under (3, 3): refused by rule 1019',
+  { name: 'R4 = UnsignedBigInt 1 under (3, 3): refused by rule 1019',
     txHex: V_SHELL('090101'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
-  { name: 'V2 R4 = UnsignedBigInt 1 under (1, 1): refused at the type (code 9 is no primitive below v3)',
+  { name: 'R4 = UnsignedBigInt 1 under (1, 1): refused at the type (code 9 is no primitive below v3)',
     txHex: V_SHELL('090101'), version: { activated: 1, ergoTree: 1 }, parsed: false, refusal: TYPE_CODE_PRIM_UNKNOWN },
   // R4 = Option[Int] Some(1): type 28 (OPTION_CONSTR_ID * 12 + SInt), value 01 02 (Some, Int 1 = ZigZag 2).
-  { name: 'V3 R4 = Option[Int] Some(1) under (3, 3): refused by rule 1019',
+  { name: 'R4 = Option[Int] Some(1) under (3, 3): refused by rule 1019',
     txHex: V_SHELL('280102'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
   // At (1, 1) the SOption type itself parses (no version gate in the type reader), and the value
-  // reader refuses the Some tag below tree version 3: a SValueParseError with code
-  // 'soption-tree-version-too-low'. This is ergots' direct refusal before rule 1019 CheckV6Type
-  // would fire, and it stands in for the JVM's rule 1007 / 1009 verdict that the batch records.
-  { name: 'V4 R4 = Option[Int] Some(1) under (1, 1): the value reader refuses Option below v3',
+  // reader refuses the Some tag below tree version 3 (SValueParseError 'soption-tree-version-too-low').
+  // ergots raises its direct refusal before rule 1019 CheckV6Type is reached, where the JVM raises
+  // rule 1007 / 1009.
+  { name: 'R4 = Option[Int] Some(1) under (1, 1): the value reader refuses Option below v3',
     txHex: V_SHELL('280102'), version: { activated: 1, ergoTree: 1 }, parsed: false,
     refusal: { cls: SValueParseError, code: 'soption-tree-version-too-low' } },
   // R4 = Coll[UnsignedBigInt] empty: type 0c 09, body 00.
-  { name: 'V5 R4 = Coll[UnsignedBigInt] empty under (3, 3): refused by rule 1019',
+  { name: 'R4 = Coll[UnsignedBigInt] empty under (3, 3): refused by rule 1019',
     txHex: V_SHELL('0c0900'), version: { activated: 3, ergoTree: 3 }, parsed: false, refusal: REGISTER_V6_TYPE },
-  { name: 'V6 R4 = Coll[UnsignedBigInt] empty under (1, 1): refused at the type (the elem code 9 fails below v3)',
+  { name: 'R4 = Coll[UnsignedBigInt] empty under (1, 1): refused at the type (the elem code 9 fails below v3)',
     txHex: V_SHELL('0c0900'), version: { activated: 1, ergoTree: 1 }, parsed: false, refusal: TYPE_CODE_PRIM_UNKNOWN },
-  // V7, V8: R4 = Int 1 (04 02 — type 04 SInt, value ZigZag 2): the control.
-  { name: 'V7 R4 = Int 1 under (3, 3): parsed',
+  // R4 = Int 1 (04 02 — type 04 SInt, value ZigZag 2): the control.
+  { name: 'R4 = Int 1 under (3, 3): parsed',
     txHex: V_SHELL('0402'), version: { activated: 3, ergoTree: 3 }, parsed: true },
-  { name: 'V8 R4 = Int 1 under (1, 1): parsed',
+  { name: 'R4 = Int 1 under (1, 1): parsed',
     txHex: V_SHELL('0402'), version: { activated: 1, ergoTree: 1 }, parsed: true },
 ];
 
-describe('the other 6.0 types in a register are refused at either version (rows V)', () => {
+describe('the other 6.0 types in a register are refused at either version', () => {
   for (const r of V_ROWS) {
     it(r.name, () => {
       if (r.parsed) {
@@ -294,9 +296,9 @@ describe('a plain transaction parses under every pair', () => {
 });
 
 // ---------------------------------------------------------------------------------------------------------
-// Row X5: a transaction followed by one byte parses. The JVM's parseBytes ignores what follows.
+// A transaction followed by one byte parses. The JVM's parseBytes ignores what follows.
 // ---------------------------------------------------------------------------------------------------------
-describe('bytes after a transaction are ignored (row X5; avldb ErgoSerializer.scala:27-30)', () => {
+describe('bytes after a transaction are ignored (avldb ErgoSerializer.scala:27-30)', () => {
   it('1 byte after the transaction, parsed under (3, 3): the trailing byte is ignored, the parse round-trips to the transaction', () => {
     const withTrailing = REGISTER_TX + 'ff';
     const tx = parseTransaction(hexToBytes(withTrailing), { activated: 3, ergoTree: 3 });
@@ -376,7 +378,7 @@ describe("unconfirmedVersionContext: a peer's and a mempool transaction's contex
 // ---------------------------------------------------------------------------------------------------------
 // parseContextExtension takes the tree version.
 // ---------------------------------------------------------------------------------------------------------
-describe('parseContextExtension takes the tree version as a required argument (Change 9)', () => {
+describe('parseContextExtension takes the tree version as a required argument', () => {
   // One entry: variable id 1, value = empty Coll[Int => Int] constant (0c 70 01 04 04 00 00).
   // Wire: count 01, var id 01, constant 0c700104040000 → '01010c700104040000'.
   const extHex = '01010c700104040000';
@@ -399,7 +401,7 @@ describe('parseContextExtension takes the tree version as a required argument (C
 });
 
 describe('the package exports the version context', () => {
-  it.each(['blockVersionContext', 'unconfirmedVersionContext', 'parseTransactionFromReader'])('%s', (name) => {
+  it.each(['blockVersionContext', 'unconfirmedVersionContext'])('%s', (name) => {
     expect((pkg as Record<string, unknown>)[name]).toBeTypeOf('function');
   });
 });

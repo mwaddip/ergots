@@ -1,4 +1,4 @@
-export { parseTransaction, serializeTransaction, parseTransactionFromReader } from './wire/transaction.ts';
+export { parseTransaction, serializeTransaction } from './wire/transaction.ts';
 export { signingMessage, transactionId } from './wire/signing-message.ts';
 export { parseContextExtension } from './wire/input.ts';
 export { blockVersionContext, unconfirmedVersionContext } from './wire/version-context.ts';
