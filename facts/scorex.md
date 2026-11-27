@@ -83,9 +83,9 @@ export class ByteReader {
                                   // same (facts/ergoscript-wire.md, "Reader depth after a degrade")
   // Fork a sub-reader over `bytes` INHERITING this reader's level, maxTreeDepth
   // and activatedVersion.
-  // Stays public, but @ergots/ergoscript no longer uses it: since 2026-09-28 it parses
-  // a size-flagged ErgoTree body on the reader the tree arrives on, as the JVM does, so
-  // its levels and windows need no fork (facts/ergoscript-wire.md, "parseTreeFromReader").
+  // Public, and not used by @ergots/ergoscript: it parses a size-flagged ErgoTree body on
+  // the reader the tree arrives on, as the JVM does, so its levels and windows need no fork
+  // (facts/ergoscript-wire.md, "parseTreeFromReader").
   // The level flows INTO the fork only: a caller that continues on the parent must carry
   // the fork's final level back itself, or levels left by a caught error inside the
   // region are lost. Does NOT inherit positionLimit: the fork's buffer is rebased to
