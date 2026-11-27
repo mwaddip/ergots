@@ -405,7 +405,8 @@ export function parseTree(bytes: Uint8Array, opts: ParseTreeOptions = {}): ErgoT
   return tree
 }
 
-/** header + size slot + declared size: where the (old) fork ended. Only used to keep tolerating those bytes. */
+/** The end of a size-flagged tree's declared span: header + size slot + declared size. `parseTree`
+ *  tolerates trailing bytes within it. */
 function declaredSpanEnd(bytes: Uint8Array, activatedVersion: number | undefined): number {
   const r = new ByteReader(bytes)
   r.activatedVersion = activatedVersion

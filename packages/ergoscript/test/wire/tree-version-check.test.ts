@@ -1,13 +1,13 @@
 // A tree above the activated script version, at the parse. The JVM enters
 // VersionContext.withVersions(activated, treeVersion) after a tree's header and size and before its
-// constants (sigma-state 6.0.6 ErgoTreeSerializer.scala:141-214); the context's constructor requires
-// treeVersion <= activated from activated version 2 (sigma/VersionContext.scala:20), and its failure is a
-// SerializerException, which no tree degrades on (:191-193). A reader outside any version context runs
-// at the JVM's default, activated version 1, where nothing is compared (:58-61).
+// constants (sigma-state 6.0.6 ErgoTreeSerializer.scala:141-214, same at 6.0.7); the context's
+// constructor requires treeVersion <= activated from activated version 2 (sigma/VersionContext.scala:20),
+// and its failure is a SerializerException, which no tree degrades on (:191-193). A reader outside any
+// version context runs at the JVM's default, activated version 1, where nothing is compared (:58-61).
 //
-// Every verdict below is the JVM's. Rows P and N and H2 are from a local sigma-state 6.0.6 probe,
-// ErgoBox.sigmaSerializer.parse under the pair given. The SANTA entries are quoted inline (bytes,
-// versions, the JVM's answer), each with a comment naming its SANTA file, entry and SANTA commit.
+// The accepts and rejects below are the JVM's, measured on a sigma-state 6.0.6 probe under the pair
+// given (ErgoBox.sigmaSerializer.parse). The SANTA entries are quoted inline (bytes, versions, the
+// JVM's answer), each with a comment naming its SANTA file, entry and SANTA commit.
 
 import { describe, it, expect } from 'vitest'
 import { ByteReader, ByteWriter } from '@ergots/scorex'
@@ -59,9 +59,10 @@ function runRows(rows: Row[], aboveVersion: (name: string) => number): void {
   }
 }
 
-// Rows P from the parse-check probe. P1 to P8: the box's own tree. P9 to P11: a v3 tree holding a
-// Box constant whose tree is v4.
-const P: Row[] = [
+// A box's own tree, at the activated version named. The box of the first eight is a bare box of
+// value 1000000; the last three nest a Box constant whose tree is v4 in a size-flagged v3 outer
+// tree.
+const boxTreeRows: Row[] = [
   ['a v4 tree', 3, 3, 'reject',
     'c0843d0c0208d30100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
   ['a v4 tree at 4', 4, 4, 'parsed',
@@ -86,10 +87,10 @@ const P: Row[] = [
     'c0843d1b310263c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000008d373010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
 ]
 
-// Rows N from an adversarial parse-cases probe. A tree above the activated version, nested deeper
-// or among soft failures on either side of it. The inner tree's version is 4 (unless the row names
-// a different one).
-const N: Row[] = [
+// A tree above the activated version, nested deeper than a Box constant's own tree, or among soft
+// failures on either side of it. The inner tree's version is 4 (unless the row names a different
+// one).
+const nestedRows: Row[] = [
   ['two levels deep, innermost tree v4', 3, 3, 'reject',
     'c0843d1b600263c0843d1b310263c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000008d3730101000000000000000000000000000000000000000000000000000000000000000000000008d373010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
   ['two levels deep, innermost tree v4, at 1', 1, 1, 'parsed',
@@ -114,15 +115,15 @@ const N: Row[] = [
     'c0843d0008d3010001860263c0843d0b0208d301000000000000000000000000000000000000000000000000000000000000000000000004021d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
   ['tree constant Box whose R4 is a Box with a v4 tree', 3, 3, 'reject',
     'c0843d1b5c0263c0843d0008d301000163c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000000008d373010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
-  ['sized v3 tree: constant 0 a Box with a v4 tree, constant 1 type 211 (version first)', 3, 3, 'reject',
+  ['sized v3 tree whose first constant is a Box with a v4 tree and whose second constant has type code 211 (the version error comes first)', 3, 3, 'reject',
     'c0843d1b300263c0843d0c0208d3010000000000000000000000000000000000000000000000000000000000000000000000d373010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
-  ['sized v3 tree: constant 0 type 211, then a Box with a v4 tree (degrade first)', 3, 3, 'unparsed',
+  ['sized v3 tree whose first constant has type code 211 and whose second constant is a Box with a v4 tree (the soft failure degrades first, the nested Box is never read)', 3, 3, 'unparsed',
     'c0843d1b3002d363c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000073010100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
 ]
 
-// Rows H2 from an adversarial parse-cases probe: a v4 tree under pairs whose halves differ. The
-// activated half alone decides.
-const H2: Row[] = [
+// A v4 tree under pairs whose activated and tree-version halves differ. The activated half alone
+// decides the check.
+const mixedPairRows: Row[] = [
   ['a v4 tree under (3, 0)', 3, 0, 'reject',
     'c0843d0c0208d30100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
   ['a v4 tree under (3, 2)', 3, 2, 'reject',
@@ -137,35 +138,35 @@ const H2: Row[] = [
     'c0843d0c0208d30100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'],
 ]
 
-describe('a tree above the activated version: a box read under a version pair (rows P)', () => {
-  // For each P row's reject, the tree version that is above activated is the one named by the row's
-  // tree version: outer v4 for P1, outer v3 for P5, nested v4 for P9.
-  runRows(P, (name) => (name.includes('v4 tree') ? 4 : 3))
+describe('a box read under a version pair, the box carrying one tree', () => {
+  // For each reject row, the tree version that is above activated is the one named by the row's
+  // tree version: outer v4 for the first group, outer v3 for the next, nested v4 for the last.
+  runRows(boxTreeRows, (name) => (name.includes('v4 tree') ? 4 : 3))
 })
 
-describe('a tree above the activated version: nested trees (rows N)', () => {
-  runRows(N, () => 4)
+describe('a tree above the activated version read through a nested structure', () => {
+  runRows(nestedRows, () => 4)
 
-  it('N10: the soft failure is read first, the outer tree degrades, and the nested tree is never read', () => {
-    const [, activated, ergoTree, jvm, boxHex] = N[N.length - 1]!
+  it('a size-flagged v3 tree whose first constant has type code 211 degrades on the soft failure before the nested v4 Box tree is read', () => {
+    const [, activated, ergoTree, jvm, boxHex] = nestedRows[nestedRows.length - 1]!
     expect(jvm).toBe('unparsed')
     expect(readBox(boxHex, activated, ergoTree).tree).toBe('unparsed')
   })
 })
 
-describe('a tree above the activated version: the activated half alone decides (rows H2)', () => {
-  runRows(H2, () => 4)
+describe('a v4 tree under pairs whose activated and tree-version halves differ', () => {
+  runRows(mixedPairRows, () => 4)
 })
 
 describe('a reader with no activated version parses outside any version context', () => {
-  for (const [name, , ergoTree, , boxHex] of [...P, ...N, ...H2]) {
+  for (const [name, , ergoTree, , boxHex] of [...boxTreeRows, ...nestedRows, ...mixedPairRows]) {
     it(`${name}, read at tree version ${ergoTree} with nothing set: no version reject`, () => {
       expect(readBox(boxHex, undefined, ergoTree).written).toBe(boxHex)
     })
   }
 
   it('a reader set to 1, to 0 and to a negative version compares nothing either', () => {
-    const boxHex = P[0]![4]
+    const boxHex = boxTreeRows[0]![4]
     for (const activated of [1, 0, -1, -128]) expect(readBox(boxHex, activated, 3).tree).toBe('parsed')
   })
 })
@@ -223,9 +224,9 @@ describe("parseTree's activatedVersion option", () => {
   })
 
   it("the option reaches a nested tree: a v3 tree holding a Box constant whose tree is v4", () => {
-    // From P's "a v3 tree holding a Box with a v4 tree": the box value's 3-byte VLQ prefix, then
-    // the tree envelope (header + size 49 + 49 body bytes).
-    const outer = hex(P[8]![4]).subarray(3, 3 + 51)
+    // The box from boxTreeRows that nests a v4 tree under a v3 outer: the box value's 3-byte VLQ
+    // prefix, then the tree envelope (header + size 49 + 49 body bytes).
+    const outer = hex(boxTreeRows[8]![4]).subarray(3, 3 + 51)
     expect(outer[0]).toBe(0x1b)
     expectVersionReject(() => parseTree(outer, { activatedVersion: 3 }), 4, 3)
     expect(parseTree(outer, { activatedVersion: 4 }).header.version).toBe(3)
@@ -298,10 +299,10 @@ describe('SANTA Box.tree_version_above_activated entries (v5, SANTA 8885632)', (
 
 // The JVM reads a TrueLeaf opcode and then the Box constant that follows. ergots reads the TrueLeaf
 // too, so the parse reaches the nested tree, where the version check fires.
-describe('a nested tree reached through a TrueLeaf opcode (row R1 of the adversarial probe)', () => {
-  const R1 = 'c0843d0b33d1937f91c163c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000005000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'
+describe('a nested tree reached through a TrueLeaf opcode', () => {
+  const bytes = 'c0843d0b33d1937f91c163c0843d0c0208d301000000000000000000000000000000000000000000000000000000000000000000000005000100001d823ee9ea823cc80232a19181efad41d66849c33ed5d0d6c5750b8d60f1d66400'
 
-  it('R1: TrueLeaf, then a Box constant whose tree is v4, under (3, 3): the parse reaches the nested tree and rejects', () => {
-    expectVersionReject(() => readBox(R1, 3, 3), 4, 3)
+  it('a sized v3 tree whose body reads a TrueLeaf opcode and then a Box constant whose tree is v4, under (3, 3): the parse reaches the nested tree and rejects', () => {
+    expectVersionReject(() => readBox(bytes, 3, 3), 4, 3)
   })
 })
