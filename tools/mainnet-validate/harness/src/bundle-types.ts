@@ -36,6 +36,16 @@ export interface TxBundle {
 
 export interface BlockParameters {
     maxBlockCost: number;
+    /** The voted block version, parameter 123 `BlockVersion` of the current
+     *  voting epoch (ergo `settings/Parameters.scala:80`, `:255`). Written
+     *  by the ergo node into the extension of an epoch's first block under
+     *  the system-parameters prefix with `Ints.toByteArray` (key `007b`,
+     *  four bytes big-endian). The JVM reads it as its `Byte`
+     *  (`parametersTable(BlockVersion).toByte`); the Int comes through here,
+     *  and `validateStateful` wraps it as a signed byte. Below the first
+     *  epoch start it is the network's launch value: 1 on mainnet, 4 on the
+     *  public testnet (`LaunchParameters.scala:8-17`). */
+    blockVersion: number;
 }
 
 export interface BlockBundle {
@@ -49,4 +59,11 @@ export interface BlockBundle {
     headerJson: string;
     transactions: TxBundle[];
     parameters: BlockParameters | null;
+    /** The section's own block version marker
+     *  (`/blocks/{id}.blockTransactions.blockVersion`): the context a node
+     *  reads a block's transactions under (ergo `BlockTransactions.scala:184-202`).
+     *  From ergo 6.0.8 a section whose marker differs from its header's
+     *  version is refused (`bsCorrespondsToHeader`, `Header.scala:104-108`),
+     *  and the assembler halts the walk there. */
+    sectionBlockVersion: number;
 }

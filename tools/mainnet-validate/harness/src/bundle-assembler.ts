@@ -46,6 +46,49 @@ const VOTING_EPOCH_LENGTH = 1024;
  */
 const GENESIS_MAX_BLOCK_COST = 1_000_000;
 
+/**
+ * Parameter 123 `BlockVersion`'s extension key: the system-parameters prefix
+ * (`0x00`, `extension/Extension.scala:59`) followed by the parameter id
+ * (`0x7b`, `settings/Parameters.scala:255`). Hex-encoded by the node.
+ */
+const EXT_KEY_BLOCK_VERSION = '007b';
+
+/**
+ * The launch value of parameter 123 `BlockVersion`, below the first voting
+ * epoch's boundary (ergo `settings/LaunchParameters.scala:8-17`): 1 on
+ * mainnet (`DefaultParameters`, `settings/Parameters.scala:329`), 4 on the
+ * public testnet (`Header.Interpreter60Version`, `Header.scala:152`).
+ */
+const LAUNCH_BLOCK_VERSION: Record<'mainnet' | 'testnet', number> = {
+    mainnet: 1,
+    testnet: 4,
+};
+
+/**
+ * Decode the four big-endian bytes the ergo node writes under key `007b`
+ * with `Ints.toByteArray` (ergo `settings/Parameters.scala:220-222`) into
+ * the JVM's Int. The caller takes `.toByte` of the result.
+ */
+function decodeBlockVersionInt(hexValue: string): number {
+    if (hexValue.length !== 8) {
+        throw new Error(
+            `extension key ${EXT_KEY_BLOCK_VERSION}: expected 4 bytes big-endian (8 hex chars), got "${hexValue}"`,
+        );
+    }
+    // Four big-endian bytes read as an unsigned Int32 — `>>> 0` keeps JS's
+    // |0 from sign-extending the top byte on values 0x80000000 and above.
+    // The JVM's `.toByte` wrap belongs to the caller (`signedBlockVersion`).
+    return parseInt(hexValue, 16) >>> 0;
+}
+
+/** The value of extension key `007b` (an Int), or undefined if absent. */
+function readBlockVersionFromExtension(fields: Array<[string, string]>): number | undefined {
+    for (const [k, v] of fields) {
+        if (k === EXT_KEY_BLOCK_VERSION) return decodeBlockVersionInt(v);
+    }
+    return undefined;
+}
+
 function hexDecode(s: string): Uint8Array {
     const out = new Uint8Array(s.length / 2);
     for (let i = 0; i < out.length; i++) out[i] = parseInt(s.slice(i * 2, i * 2 + 2), 16);
@@ -76,10 +119,17 @@ export class BundleAssembler {
         private readonly indexer: IndexerClient,
         private readonly oracle: WasmCostOracle,
         private readonly attachTxBytes = false,
+        /** The network's launch block version is taken from this
+         *  (`LAUNCH_BLOCK_VERSION`) when no epoch boundary ≤ height carries
+         *  the parameter in its extension (ergo `settings/LaunchParameters.scala:8-17`). */
+        private readonly network: 'mainnet' | 'testnet' = 'mainnet',
     ) {}
 
     /** epoch-boundary height → active maxBlockCost (resolved once per epoch). */
     private readonly maxBlockCostByEpoch = new Map<number, number>();
+
+    /** epoch-boundary height → voted block version (the parameter, read as Int). */
+    private readonly blockVersionByEpoch = new Map<number, number>();
 
     /**
      * Resolve the *active* `maxBlockCost` for `height` (iter-26).
@@ -119,6 +169,42 @@ export class BundleAssembler {
     }
 
     /**
+     * Resolve the *active* voted block version (parameter 123 `BlockVersion`)
+     * for `height`. As with `maxBlockCost`, votable parameters are recorded
+     * only at voting-epoch boundary blocks and inherited between them. The
+     * value lives in the extension of the boundary block under key `007b`
+     * (ergo `settings/Parameters.scala:255`, `:220-222`,
+     * `modifiers/history/extension/Extension.scala:59`), four bytes
+     * big-endian. Below the first boundary ≤ height that carries the key,
+     * the network's launch value stands in
+     * (`settings/LaunchParameters.scala:8-17`).
+     */
+    private async resolveActiveBlockVersion(height: number): Promise<number> {
+        const target = Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH;
+        const cached = this.blockVersionByEpoch.get(target);
+        if (cached !== undefined) return cached;
+        for (let b = target; b >= 0; b -= VOTING_EPOCH_LENGTH) {
+            try {
+                const ids = await this.node.getHeaderIdsAtHeight(b);
+                if (ids.length > 0) {
+                    const block = await this.node.getBlock(ids[0]!);
+                    const fromExt = readBlockVersionFromExtension(block.extension.fields);
+                    if (fromExt !== undefined) {
+                        this.blockVersionByEpoch.set(target, fromExt);
+                        return fromExt;
+                    }
+                }
+            } catch {
+                // Boundary block unavailable or malformed extension — walk back.
+            }
+            if (b === 0) break;
+        }
+        const launch = LAUNCH_BLOCK_VERSION[this.network];
+        this.blockVersionByEpoch.set(target, launch);
+        return launch;
+    }
+
+    /**
      * Assemble a BlockBundle for height `h`.
      *
      * `rollingHeaderBytes` is the up-to-10-newest-first preceding-header
@@ -140,6 +226,30 @@ export class BundleAssembler {
             );
         }
 
+        // ergo 6.0.8's `bsCorrespondsToHeader` (Header.scala:104-108,
+        // FullBlockSectionProcessor.scala:99): a transactions section whose
+        // marker differs from its header's version is refused. The halt stops
+        // the walk on such a block.
+        const sectionBlockVersion = block.blockTransactions.blockVersion;
+        if (sectionBlockVersion !== block.header.version) {
+            throw new Error(
+                `/blocks/${headerId}: section blockVersion ${sectionBlockVersion} ` +
+                `differs from the header's version ${block.header.version} ` +
+                `(ergo 6.0.8 bsCorrespondsToHeader refuses the section)`,
+            );
+        }
+
+        // If the block's extension carries the voted block version (any boundary
+        // block has it), seed the per-epoch cache from it. This is the extension
+        // key the voting mechanism writes (`007b`, parameter 123 BlockVersion).
+        const fromThisBlock = readBlockVersionFromExtension(block.extension.fields);
+        if (fromThisBlock !== undefined) {
+            this.blockVersionByEpoch.set(
+                Math.floor(height / VOTING_EPOCH_LENGTH) * VOTING_EPOCH_LENGTH,
+                fromThisBlock,
+            );
+        }
+
         // Resolve the *active* maxBlockCost for this height once — used for both
         // the oracle's per-tx cost limit and the evaluator's jitCostLimit
         // (iter-26). Recorded only at epoch boundaries and inherited between
@@ -155,6 +265,12 @@ export class BundleAssembler {
         } else {
             activeMaxBlockCost = await this.resolveActiveMaxBlockCost(height);
         }
+
+        // Resolve the active voted block version, the second voted parameter
+        // this bundle carries. `validateStateful` reads it off
+        // `stateContext.parameters.blockVersion` for the activated script
+        // version, the height rules and the output write's context.
+        const activeBlockVersion = await this.resolveActiveBlockVersion(height);
 
         // Dedupe all box ids referenced in the block.
         const boxIdSet = new Set<string>();
@@ -241,7 +357,10 @@ export class BundleAssembler {
                 txBytes,
             });
         }
-        const parameters: BlockParameters = { maxBlockCost: activeMaxBlockCost };
+        const parameters: BlockParameters = {
+            maxBlockCost: activeMaxBlockCost,
+            blockVersion: activeBlockVersion,
+        };
         return {
             height,
             blockId: hexDecode(headerId),
@@ -250,6 +369,7 @@ export class BundleAssembler {
             headerJson,
             transactions,
             parameters,
+            sectionBlockVersion,
         };
     }
 }

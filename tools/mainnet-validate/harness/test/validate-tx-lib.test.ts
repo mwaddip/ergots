@@ -21,6 +21,14 @@ const hexToBytes = (h: string) => {
   return a;
 };
 
+const blockWith = (overrides: Partial<BlockBundle> = {}): BlockBundle => ({
+  height: 100, blockId: new Uint8Array(32), parentId: new Uint8Array(32),
+  headerBytes: new Uint8Array(), headerJson: '', transactions: [],
+  sectionBlockVersion: 1,
+  parameters: { maxBlockCost: 2_000_000, blockVersion: 1 },
+  ...overrides,
+});
+
 describe('buildStatefulDeps', () => {
   it('maps a bundle to StatefulDeps: inputBoxes parsed, headers = preceding, preHeader = block H', () => {
     const boxBytes = hexToBytes(SAMPLE_BOX_HEX);
@@ -36,11 +44,7 @@ describe('buildStatefulDeps', () => {
       outputs: [], dataInputBoxes: [], txBytes: new Uint8Array(),
     } as TxBundle;
 
-    const block = {
-      height: 100, blockId: new Uint8Array(32), parentId: new Uint8Array(32),
-      headerBytes: new Uint8Array(), headerJson: '', transactions: [tx],
-      parameters: { maxBlockCost: 2_000_000 },
-    } as BlockBundle;
+    const block = blockWith();
 
     const state: WalkerState = {
       lastHeader: mkHeader(100),
@@ -56,5 +60,73 @@ describe('buildStatefulDeps', () => {
     expect(deps.stateContext.headers.map((h) => h.height)).toEqual([99, 98]);
     expect(deps.stateContext.preHeader.height).toBe(100);
     expect(deps.stateContext.parameters?.maxBlockCost).toBe(2_000_000);
+  });
+
+  it("carries the voted block version through to stateContext.parameters.blockVersion", () => {
+    const boxBytes = hexToBytes(SAMPLE_BOX_HEX);
+    const tx = {
+      txId: new Uint8Array(32), signingMessage: new Uint8Array(),
+      inputs: [{
+        boxId: new Uint8Array(32), spentBoxBytes: boxBytes,
+        signatureBytes: new Uint8Array(), contextExtension: [],
+        oracleCost: 0n, oracleSucceeded: true, oracleError: null,
+      }],
+      outputs: [], dataInputBoxes: [], txBytes: new Uint8Array(),
+    } as TxBundle;
+
+    const block = blockWith({
+      parameters: { maxBlockCost: 1_234_567, blockVersion: 5 },
+    });
+    const state: WalkerState = {
+      lastHeader: mkHeader(100),
+      rollingHeaders: [mkHeader(100), mkHeader(99)],
+      network: 'mainnet',
+      v2ActivationHeight: 0,
+    };
+
+    const deps = buildStatefulDeps(tx, block, state);
+    expect(deps.stateContext.parameters?.blockVersion).toBe(5);
+    expect(deps.stateContext.parameters?.maxBlockCost).toBe(1_234_567);
+  });
+
+  it("an input box is read at tree version 1 with nothing set on its reader", () => {
+    // The spent box tree is a v4 tree, which parses only when the reader's
+    // activatedVersion is unset (outside any context) or set to 4 or more.
+    // A box from the UTXO set is read outside any context, as the JVM does
+    // (UtxoStateReader.scala:122-130). With tree version 1 and nothing set
+    // on the reader, this v4 box parses cleanly.
+    //
+    // An ErgoBox with a one-byte v4 tree body (0208d3 is a size-flagged v0
+    // sigmaProp(true); at header 0c it is a v4 size-flagged sigmaProp(true)):
+    // value(VLQ)=1, ergoTree=0c0208d3, creationHeight(VLQ)=0, tokens(0), additionalRegisters(0),
+    // txId(32)=0, index(2)=0
+    const boxHex = '01' + '0c0208d3' + '00' + '00' + '00' + '00'.repeat(32) + '0000';
+    const boxBytes = hexToBytes(boxHex);
+    const tx = {
+      txId: new Uint8Array(32), signingMessage: new Uint8Array(),
+      inputs: [{
+        boxId: new Uint8Array(32), spentBoxBytes: boxBytes,
+        signatureBytes: new Uint8Array(), contextExtension: [],
+        oracleCost: 0n, oracleSucceeded: true, oracleError: null,
+      }],
+      outputs: [], dataInputBoxes: [], txBytes: new Uint8Array(),
+    } as TxBundle;
+
+    // A block at version 3 (activated 2 on its reader) would reject a v4
+    // tree if the harness set activatedVersion on the reader. The read
+    // succeeds because nothing is set — the JVM's UTXO read.
+    const block = blockWith({
+      sectionBlockVersion: 3,
+      parameters: { maxBlockCost: 1_000_000, blockVersion: 3 },
+    });
+    const state: WalkerState = {
+      lastHeader: mkHeader(100),
+      rollingHeaders: [mkHeader(100), mkHeader(99)],
+      network: 'mainnet',
+      v2ActivationHeight: 0,
+    };
+
+    const deps = buildStatefulDeps(tx, block, state);
+    expect(deps.inputBoxes.length).toBe(1);
   });
 });

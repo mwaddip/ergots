@@ -15,7 +15,7 @@
 import { describe, expect, it } from 'vitest';
 import { ByteWriter } from '@ergots/scorex';
 import { serializeSValue } from '@ergots/ergoscript';
-import { parseTransaction, transactionId } from '@ergots/transaction';
+import { parseTransaction, transactionId, blockVersionContext } from '@ergots/transaction';
 
 import { validateTxIds } from '../src/validate-tx-ids.js';
 import { HarnessError } from '../src/errors.js';
@@ -54,7 +54,10 @@ const OVER_HEX = `${TX_PREFIX}090308d3010000`;
 /** `transaction-sized-tree-declared-under#2`: the tree declares 1 for a 2-byte body. */
 const UNDER_HEX = `${TX_PREFIX}090108d3010000`;
 
-const CONTROL = parseTransaction(hexToBytes(CONTROL_HEX));
+/** The JVM's context for a block at version 1: (1, 1), the default. */
+const V1_CTX = blockVersionContext(1);
+
+const CONTROL = parseTransaction(hexToBytes(CONTROL_HEX), V1_CTX);
 /** The chain's transaction id: the control's, which the JVM gives all three entries. */
 const TX_ID = transactionId(CONTROL);
 
@@ -84,6 +87,7 @@ const BLOCK: BlockBundle = {
     headerBytes: new Uint8Array(0),
     headerJson: '',
     transactions: [],
+    sectionBlockVersion: 1,
     parameters: null,
 };
 
@@ -98,7 +102,7 @@ describe('validateTxIds', () => {
     it('keeps the declared size as received on the output tree it parses', () => {
         // What makes the next test meaningful: the "over" transaction's output carries
         // 09 03 08 d3, so passing requires writing the tree re-encoded, 09 02 08 d3.
-        const over = parseTransaction(hexToBytes(OVER_HEX));
+        const over = parseTransaction(hexToBytes(OVER_HEX), V1_CTX);
         expect(bytesToHex(over.outputCandidates[0]!.ergoTreeBytes)).toBe('090308d3');
         expect(bytesToHex(canonicalOutput())).toContain('8094ebdc03090208d3010000');
     });
@@ -148,5 +152,19 @@ describe('validateTxIds', () => {
         const he = harnessErrorOf(() => validateTxIds(bundleFor(OVER_HEX, { txBytes: truncated }), BLOCK, STATE, 0));
         expect(he.phase).toBe('ids');
         expect(he.code).toBe('ids-parse-failed');
+    });
+
+    it("parses the transaction under blockVersionContext of the section's block version", () => {
+        // A transaction whose output's tree is v4 parses only when the parse
+        // context's activated version is 4 or more. At section block version 5
+        // the context is (4, 4), which admits a v4 tree. At section block
+        // version 3 the context is (1, 1), which admits a v1 tree only.
+        //
+        // The three sized-tree txs use a v1 tree so they parse at either context.
+        // Pin that the section's version drives the parse by passing a block
+        // whose sectionBlockVersion is 3: the fixture's v1 tree still parses,
+        // and the test reaches validateTxIds without a parse throw.
+        const block: BlockBundle = { ...BLOCK, sectionBlockVersion: 3 };
+        expect(() => validateTxIds(bundleFor(CONTROL_HEX), block, STATE, 0)).not.toThrow();
     });
 });
