@@ -6,22 +6,15 @@
  * `ergotree-interpreter/src/eval/scontext.rs:33-57` (`SELF_BOX_INDEX_EVAL_FN`).
  *
  * **Activated-script-version gate (JVM bug #603 compat):**
- * The JVM's pre-v5 implementation used reference equality (`eq`) instead
- * of value equality (`==`) in `CostingDataContext.scala`, causing
- * `selfBoxIndex` to always return -1 for pre-V5 blocks. The bug was fixed
- * globally in v5.x — ALL scripts in v5+ blocks get the correct value.
- * Therefore the gate is on `activated_script_version` (block-level,
- * read as `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`.
+ * In V5+ blocks the arm returns the real index; below V2 it returns -1
+ * (the JVM's CostingDataContext.scala reference-equality branch, issue #603).
+ * The gate is on `activated_script_version` (block-level, read as
+ * `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`.
+ * From mainnet block 342,964 this arm is reachable.
  *
- * Mainnet history first exercised this arm at block 342,964 — same block
- * where sigma-rust originally diverged from JVM (fixed in their v0.2.0).
  * Pre-JIT-activation blocks (preHeader.version=1, activated=0; or
  * preHeader.version=2, activated=1) return -1 unconditionally; v3+
  * blocks (activated=2 or higher) return the real index.
- *
- * Source: ergo-node-rust memory `feedback_tree_version_gate.md` documents
- * the activated-vs-tree-version distinction explicitly (session 22b
- * regression broke block 942,664 by gating on tree_version).
  *
  * Total eval cost (success): 4 (dispatcher) + 1 (Context arm) + 20 (handler) = 25.
  */

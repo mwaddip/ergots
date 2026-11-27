@@ -5,8 +5,8 @@
  *
  * The JVM node sets it to one below its state context's block version, as a byte: `(stateContext.blockVersion -
  * 1).toByte` (ergo-core nodeView/ErgoContext.scala:28). So block version 0 wraps to -1, 128 to 127, and 129 to 255
- * to -128 to -2. The block version is the voted parameter (nodeView/state/ErgoStateContext.scala:109), which the
- * node compares with a header's version at an epoch's first block (rule 410, :222).
+ * to -128 to -2. The block version is the voted parameter (nodeView/state/ErgoStateContext.scala:114), which the
+ * node compares with a header's version at an epoch's first block (rule 410, :241).
  *
  * A context carries the activated version as `activatedScriptVersion`. One made without it derives it from its
  * pre-header's version wrapped as a signed byte, which equals the JVM's value wherever the pre-header carries the
