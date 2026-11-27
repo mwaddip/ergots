@@ -621,7 +621,7 @@ type TxValidationErrorCode =
 - **`bigint` for `value` and token `amount`.** Both are u64 on the wire; JS `Number` cannot hold the full u64 range.
 - **No async surface.** Every function is synchronous.
 - **No I/O, no globals.** Pure functions: same inputs always produce the same output.
-- **Round-trip invariant.** `serializeTransaction(parseTransaction(b, v)) === b` (byte-equal) for every accepted input that is canonically encoded, has no trailing bytes under the chosen version context `v`, and whose register and context-extension values can all be written (see `parseTransaction`).
+- **Round-trip invariant.** `serializeTransaction(parseTransaction(b, v))` is byte-equal to `b`'s transaction prefix for every accepted input that is canonically encoded and whose register and context-extension values can all be written (see `parseTransaction`).
 
 ---
 
