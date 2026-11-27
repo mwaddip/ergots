@@ -14,7 +14,7 @@ Authoritative wire-format reference: sigma-rust `ergo-lib/src/chain/transaction.
 4. `serializeTransaction(tx)` — serialize an `ErgoLikeTransaction` to wire bytes; rejects out-of-bound io-counts.
 5. `signingMessage(tx)` — the Fiat–Shamir pre-image: the transaction envelope with every input's proof replaced by an empty proof (VLQ-length-0; extension and all other fields unchanged).
 6. `transactionId(tx)` — `blake2b256(signingMessage(tx))`, the 32-byte transaction identifier.
-7. `TxParseError` — the only parse error class; 5-variant `code` union documenting each rejection cause. `'trailing-bytes'` is no longer emitted: the JVM ignores bytes after a transaction, and so does `parseTransaction`.
+7. `TxParseError` — the only parse error class; 5-variant `code` union documenting each rejection cause. `parseTransaction` ignores bytes after a structurally complete transaction, as the JVM's `parseBytes` does (ergo `avldb/.../ErgoSerializer.scala:27-30`), so there is no `'trailing-bytes'` code: a transaction followed by other bytes parses.
 8. Data model types: `ErgoLikeTransaction`, `Input`, `SpendingProof`, `DataInput`, `ErgoBoxCandidate`, `VersionContext`, `BlockTransactions`.
 9. Browser-runnable: no Node built-ins, no `Buffer`, no `node:crypto`. ESM only.
 
@@ -238,7 +238,7 @@ export type TxParseErrorCode =
   | 'output-tree-not-reencodable';
 ```
 
-All five codes are emitted by this package directly. `'trailing-bytes'` is retired: `parseTransaction` ignores bytes after the transaction, as the JVM's `parseBytes` does (`avldb/.../ErgoSerializer.scala:27-30`), so a transaction followed by other bytes parses. The mutation that this code once guarded — bytes left over after a structurally complete parse — is no longer a mutation.
+All five codes are emitted by this package directly. `parseTransaction` ignores bytes after a structurally complete transaction, as the JVM's `parseBytes` does (`avldb/.../ErgoSerializer.scala:27-30`), so a transaction followed by other bytes parses and the union carries no `'trailing-bytes'` code.
 
 | Code | When thrown | Layer |
 |---|---|---|
