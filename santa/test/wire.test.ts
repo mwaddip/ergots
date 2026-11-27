@@ -158,6 +158,35 @@ describe('runWireVector — wire round-trip (santa-wire/v1)', () => {
   })
 })
 
+describe('runWireEntry — BlockTransactions kind: a block section round-trips through parseBlockTransactions/serializeBlockTransactions', () => {
+  // A block's transactions section as the JVM frames it: 32-byte header id, VLQ(10,000,000 + blockVersion)
+  // (block version > 1), VLQ tx count, then the transactions. The section's version context comes from
+  // its own block version, not the entry's `version` pair (runner-contract-wire §5). The entry's pair is
+  // nominal here, matching ergots' parseBlockTransactions, which reads the marker and builds the context.
+  const v6 = { activated: 3, ergoTree: 3 }
+
+  it('an accept: a block section (version 4) holding one transaction whose output tree is v3 round-trips', () => {
+    // SANTA 8885632, wire/v6/authored/BlockTransactions.tree_version_above_activated.json #2.
+    const hex = '584c27d285d6adf99452ebc3c59555749ab01cce2137bc152bc81cb21e32847984ade204010100a19de1b5fa998df5a48630a611180690abad5270c33f23a79baba2f8840d710000000001c0843d0b0208d3010000'
+    expect(runWireEntry({ name: 'block-v4-v3-tree-accept', kind: 'BlockTransactions', bytes_hex: hex, version: v6 }))
+      .toEqual({ bytes_hex: hex, error: null })
+  })
+
+  it('a reject: a v4 block whose output tree is v4 refuses at parseTree under (3, 3), errored (faithful reject)', () => {
+    // SANTA 8885632, wire/v6/authored/BlockTransactions.tree_version_above_activated.json #0.
+    const hex = '584c27d285d6adf99452ebc3c59555749ab01cce2137bc152bc81cb21e32847984ade204010100a19de1b5fa998df5a48630a611180690abad5270c33f23a79baba2f8840d710000000001c0843d0c0208d3010000'
+    expect(runWireEntry({ name: 'block-v4-v4-tree-reject', kind: 'BlockTransactions', bytes_hex: hex, version: v6 }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+  })
+
+  it('a count of 0 (TxParseError) grades errored, never the panic net', () => {
+    // Header id + VLQ(10,000,004) + VLQ(0): a section the JVM rejects before any transaction is read.
+    const hex = '11'.repeat(32) + '84ade204' + '00'
+    expect(runWireEntry({ name: 'count-zero', kind: 'BlockTransactions', bytes_hex: hex, version: v6 }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+  })
+})
+
 describe('runWireVector — a type-variable name past 255 bytes of text (writer count range)', () => {
   // ergots refuses to write such a name with its typed STypeSerializeError (root-exported, like the SValue and
   // ErgoTree serialize errors already in isWireCodecError): a faithful reject, `errored`, never the panic net.

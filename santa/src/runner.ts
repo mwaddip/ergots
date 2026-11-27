@@ -14,6 +14,7 @@ import {
 import {
   parseTransaction, serializeTransaction, validateStateful, parseContextExtension,
   blockVersionContext,
+  parseBlockTransactions, serializeBlockTransactions,
   type ErgoLikeTransaction, type StatefulDeps,
 } from '@ergots/transaction'
 import { serializeProof } from '@ergots/nipopow'
@@ -687,6 +688,24 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
       try {
         const parsed = tx.parseTransaction(bytes, { activated: e.version.activated, ergoTree: e.version.ergoTree })
         return { bytes_hex: bytesToHex(tx.serializeTransaction(parsed)), error: null }
+      } catch (err) {
+        if (isWireCodecError(err)) {
+          return { bytes_hex: null, error: 'errored' }
+        }
+        throw err
+      }
+    }
+    case 'BlockTransactions': {
+      // A block's transactions section: parse via @ergots/transaction's parseBlockTransactions, which
+      // reads the header id and marker, then each transaction on a new reader over the rest of the
+      // section under `blockVersionContext(blockVersion, headerId)` (ergo BlockTransactions.scala:184-202,
+      // ErgoTransaction.scala:538-544). A section's version context comes from its own block version,
+      // never the entry's `version` pair (runner-contract-wire §5). Then serializeBlockTransactions
+      // writes the section back, the structural round-trip the kind requires.
+      const bytes = hexToBytes(e.bytes_hex)
+      try {
+        const section = parseBlockTransactions(bytes)
+        return { bytes_hex: bytesToHex(serializeBlockTransactions(section)), error: null }
       } catch (err) {
         if (isWireCodecError(err)) {
           return { bytes_hex: null, error: 'errored' }
