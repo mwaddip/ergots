@@ -133,9 +133,10 @@ export class ByteReader {
 
   /**
    * Fork a sub-reader over `bytes` that INHERITS this reader's current
-   * recursion depth and cap, for a parser that reads an inner region from its
-   * own buffer yet must keep counting depth: a naive `new ByteReader(slice)`
-   * would reset level to 0 and under-count depth. It is not how the JVM reads a
+   * recursion depth and cap, and its `activatedVersion`, for a parser that
+   * reads an inner region from its own buffer yet must keep counting depth and
+   * the version context: a naive `new ByteReader(slice)` would reset level to
+   * 0 and lose the activated version. It is not how the JVM reads a
    * size-flagged ErgoTree body, which it parses on the reader the tree arrives on
    * (`ErgoTreeSerializer.scala:141-215`). The level flows INTO the fork only: a
    * caller that goes on reading the parent must carry the fork's final level
