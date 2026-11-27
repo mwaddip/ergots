@@ -70,7 +70,13 @@ export function checkStructural(tx: ErgoLikeTransaction, deps: StatefulDeps, par
   if (blockVersion >= 3) for (const b of deps.inputBoxes) if (b.creationHeight > maxInputHeight) maxInputHeight = b.creationHeight;
   for (let i = 0; i < tx.outputCandidates.length; i++) {
     const o = tx.outputCandidates[i]!;
-    const boxSize = serializeBox({ ...o, txId: new Uint8Array(32), index: i }).length; // real index i is used; only txId is dummied — a real txId is also exactly 32 bytes, so boxSize is exact
+    // The write is the JVM's `out.bytes` (tree version 1); a box it cannot write fails the transaction before the dust rule.
+    let boxSize: number;
+    try {
+      boxSize = serializeBox({ ...o, txId: new Uint8Array(32), index: i }).length; // real index i is used; only txId is dummied — a real txId is also exactly 32 bytes, so boxSize is exact
+    } catch (cause) {
+      throw new TxValidationError(`output ${i} cannot be written at tree version 1`, 'output-not-serializable', { outputIndex: i, cause });
+    }
     const scriptSize = o.ergoTreeBytes.length;
     // dust
     const minValue = BigInt(boxSize) * BigInt(params.minValuePerByte);

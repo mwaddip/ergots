@@ -175,37 +175,21 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
   // ── creation-height-negative ──────────────────────────────────────────────
   // Bit 31 set in creationHeight (0x80000000 = 2147483648 as u32; i32 = -2147483648).
   //
-  // FINDING: the 'creation-height-negative' check in stateful.ts:70 is unreachable.
-  // checkStructural calls serializeBox(output) to compute boxSize BEFORE the
-  // negative-height check runs (line 62-64 vs 70). The ergoscript serializer
-  // validates `creationHeight ≤ 2147483647` inside writeBoxBodyWithoutRef and
-  // throws SValueSerializeError('sbox-creation-height-out-of-range') first.
-  //
-  // This means any on-chain tx carrying a sign-bit-set output height would be
-  // rejected by ergoscript's own serializer guard before the dedicated check fires.
-  // The test below documents the actual observable behavior (serializer throws, not
-  // TxValidationError 'creation-height-negative').
-  //
-  // This is a consensus-correctness concern only if the serializer's guard is
-  // weaker than the structural check. Both reject the same range (> 0x7FFFFFFF),
-  // so the effective consensus outcome is identical — just the error class differs.
-  it('creation-height-negative: serializer rejects bit-31 heights before structural check fires', () => {
+  // The output's bytes are written before the height rules run, and the box writer refuses a
+  // height above 2147483647 with SValueSerializeError('sbox-creation-height-out-of-range').
+  // The structural check wraps that failure as 'output-not-serializable', so the dedicated
+  // 'creation-height-negative' code is not reachable for a bit-31 height.
+  it('creation-height-negative: the box writer refuses bit-31 heights first, as output-not-serializable', () => {
     const NEG_HEIGHT = 0x80000000; // 2147483648; i32 sign bit set
     const ib = [box(1_000_000n, 1)]; // input box has VALID height
     const out = candidate(1_000_000n, NEG_HEIGHT);
     const tx = { inputs: [inputForBox(ib[0]!)], dataInputs: [], outputCandidates: [out] };
-    // The ergoscript serializer throws SValueSerializeError before the structural
-    // 'creation-height-negative' check can fire — it is an Error, but NOT a
-    // TxValidationError. The tx is still rejected (consensus outcome correct).
     let caught: unknown;
     try { checkStructural(tx as any, deps(ib, 2, 10) as any, PARAMS); }
     catch (e) { caught = e; }
-    // Must throw something (tx rejected) — the important consensus property holds.
-    expect(caught, 'expected a throw for bit-31 creationHeight').toBeDefined();
-    // It throws SValueSerializeError, NOT TxValidationError('creation-height-negative').
-    // This documents the unreachable-code finding in stateful.ts:70.
-    expect(caught).not.toBeInstanceOf(TxValidationError);
-    expect((caught as Error).message).toContain('creation_height');
+    expect(caught).toBeInstanceOf(TxValidationError);
+    expect((caught as TxValidationError).code).toBe('output-not-serializable');
+    expect(((caught as Error).cause as Error).message).toContain('creation_height');
   });
 
   // ── box-size-exceeded ─────────────────────────────────────────────────────
@@ -222,11 +206,12 @@ describe('checkStructural — synthetic rejection cases (rules not in Task 6)', 
   it('box-size-exceeded: serialized output > 4096 bytes -> box-size-exceeded', () => {
     // Register keys are numeric ('4'..'9') — the serializer does Number(key).filter(≥4,≤9).
     // 'R4' would NaN-filter to zero registers; use numeric key 4.
-    // Register R4 as opaqueBytes: serializeBox writes them verbatim (no length prefix).
-    // Calibrated: base box (TREE, no tokens, no extra registers) = 75 bytes.
-    // 4021 opaqueBytes → 4096 total; use 4200 for clear headroom → 4275 bytes > 4096. ✓
-    // Value ≥ 4275 * 360 = 1_539_000; 2_000_000 > that so dust passes on the output.
-    const bigReg = { opaqueBytes: new Uint8Array(4200).fill(0x01) };
+    // Register R4 is a typed Coll[Byte] constant of 4200 items; the base box is 75 bytes.
+    // Value >= 4275 * 360 = 1_539_000; 2_000_000 > that so dust passes on the output.
+    const bigReg = {
+      tpe: { tag: 'SColl', elem: { tag: 'SByte' } },
+      value: { kind: 'Coll', elem: { tag: 'SByte' }, items: Array.from({ length: 4200 }, () => ({ kind: 'Byte', value: 1 })) },
+    };
     const BIG_VALUE = 2_000_000n;
     const largeOut = candidate(BIG_VALUE, 1, [], TREE, { 4: bigReg });
     const ib = [box(BIG_VALUE)];
