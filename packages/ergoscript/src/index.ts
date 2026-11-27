@@ -93,9 +93,10 @@ export { sValueStructuralEq } from './eval/bin-op/relation'
 // context extension, as the ergo node reads them since 6.0); below 3 the JVM's
 // v6 types fail rule 1017 or 1018, which `STypeParseError` carries as a code.
 export { parseSType, STypeParseError } from './wire/parse-stype'
-export { serializeSType, STypeSerializeError } from './wire/serialize-stype'
+export { serializeSType, isTypeWrittenAt, STypeSerializeError } from './wire/serialize-stype'
+export { serializeBoxAtTreeVersion } from './wire/ergo-box-bytes'
 
-// v0.2.0 (phase 2b) — evaluator surface
+// Evaluator surface
 export { evaluate, evaluateWith, reduceWith } from './eval/evaluate'
 export { makeContext, EvalError } from './eval/eval-context'
 export type { EvalOpts, EvalContext } from './eval/eval-context'

@@ -17,8 +17,7 @@
  *                                (`writeBoxRef`, serialize-svalue.ts)
  *
  * `serializeBoxBytesWithoutRef` matches sigma-rust's `ErgoBoxCandidate`
- * serialization (body without tx_id + index). Used by `ExtractBytesWithNoRef`
- * (Task 7).
+ * serialization (body without tx_id + index). Used by `ExtractBytesWithNoRef`.
  *
  * Cross-reference: the `serialize-svalue.ts` SBox arm (`case 'SBox':`) shares
  * this implementation via `writeBoxBodyWithoutRef` to avoid byte-for-byte
@@ -30,9 +29,73 @@
  *   chain/ergo_box.rs:302-344   (serialize_box_with_indexed_digests)
  */
 
-import type { ErgoBox } from '../mir/types'
+import type { ErgoBox, SType, SValue } from '../mir/types'
 import { ByteWriter } from '@ergots/scorex'
 import { writeBoxBodyWithoutRef, writeBoxRef } from './serialize-svalue'
+import { isTypeWrittenAt, STypeSerializeError } from './serialize-stype'
+
+/** Element types whose collection items hold no Box: the walk for a nested Box skips their items. */
+const BOX_FREE_ELEMS: ReadonlySet<SType['tag']> = new Set([
+  'SBoolean', 'SByte', 'SShort', 'SInt', 'SLong', 'SBigInt', 'SUnsignedBigInt', 'SGroupElement', 'SSigmaProp',
+])
+
+/**
+ * Throws `STypeSerializeError('sfunc-tree-version-too-low')` when the JVM's type writer has no case, at
+ * `treeVersion`, for the type of one of `box`'s R4-R9, or of one in a Box nested in a register's value
+ * (through a collection's items, a tuple's items and an Option's value).
+ */
+function checkRegisterTypesWritten(box: ErgoBox, treeVersion: number): void {
+  for (let k = 4; k <= 9; k++) {
+    const entry = box.registers[k]
+    if (entry === undefined) continue
+    if (entry.tpe === undefined) {
+      throw new TypeError(`R${k}: the register entry carries no type`)
+    }
+    if (!isTypeWrittenAt(entry.tpe, treeVersion)) {
+      throw new STypeSerializeError(
+        `R${k} has a type the writer has no case for at tree version ${treeVersion}`,
+        'sfunc-tree-version-too-low'
+      )
+    }
+    checkValueBoxesWritten(entry.value, treeVersion)
+  }
+}
+
+function checkValueBoxesWritten(v: SValue, treeVersion: number): void {
+  switch (v.kind) {
+    case 'Box':
+      checkRegisterTypesWritten(v.value, treeVersion)
+      return
+    case 'Coll':
+      if (BOX_FREE_ELEMS.has(v.elem.tag)) return
+      for (const item of v.items) checkValueBoxesWritten(item, treeVersion)
+      return
+    case 'Tuple':
+      for (const item of v.items) checkValueBoxesWritten(item, treeVersion)
+      return
+    case 'Option':
+      if (v.value !== null) checkValueBoxesWritten(v.value, treeVersion)
+      return
+    default:
+      return
+  }
+}
+
+/**
+ * The JVM's write of a full box (`ErgoBox.sigmaSerializer`) inside a version context whose tree
+ * version is `treeVersion`: a function type is written from tree version 3 only, so a register
+ * whose type holds one (also in a Box nested in a register's value) throws
+ * `STypeSerializeError('sfunc-tree-version-too-low')`. A register entry without its type, which only
+ * a box built by hand can hold, is a `TypeError` naming the register. Outside any context the tree
+ * version is 1.
+ */
+export function serializeBoxAtTreeVersion(box: ErgoBox, treeVersion: number): Uint8Array {
+  checkRegisterTypesWritten(box, treeVersion)
+  const w = new ByteWriter()
+  writeBoxBodyWithoutRef(box, w, treeVersion)
+  writeBoxRef(box, w)
+  return w.toBytes()
+}
 
 /**
  * Serialize a full `ErgoBox` to bytes (with tx_id + index).
@@ -57,7 +120,7 @@ export function serializeBoxBytes(box: ErgoBox): Uint8Array {
  * index). Equivalent to sigma-rust's `ErgoBoxCandidate` serialization and
  * `ErgoBox::bytes_without_ref()`.
  *
- * Used by `ExtractBytesWithNoRef` (Task 7).
+ * Used by `ExtractBytesWithNoRef`.
  */
 export function serializeBoxBytesWithoutRef(box: ErgoBox): Uint8Array {
   const w = new ByteWriter()

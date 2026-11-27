@@ -66,9 +66,8 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // bound. The JVM SERIALIZER writes via `putUInt` (accepts full u32; only the
   // READER `getUIntExact` throws on > 0x7fffffff), but a box can never arrive
   // from a JVM-faithful parse with a height > 2^31-1, and we keep the
-  // parse/serialize bounds identical so round-trips stay stable. (Prior bound was
-  // u32, mirroring non-canonical sigma-rust `get_u32`; re-anchored to the JVM
-  // `getUIntExact`, ErgoBoxCandidate.scala:195.)
+  // parse/serialize bounds identical so round-trips stay stable
+  // (`getUIntExact`, ErgoBoxCandidate.scala:195).
   if (
     !Number.isInteger(box.creationHeight) ||
     box.creationHeight < 0 ||
@@ -85,7 +84,7 @@ export function writeBoxBodyWithoutRef(box: ErgoBox, w: ByteWriter, treeVersion:
   // the u8 wire ceiling: the JVM writes `putUByte(size)` which asserts
   // 0..255 (ErgoBoxCandidate.scala:144; scorex-util putUByte). The JVM
   // applies NO size window on egress — the 4096-byte candidate window is a
-  // parse-only rule (F5 batch 5; see the parse-svalue.ts SBox arm).
+  // parse-only rule (see the parse-svalue.ts SBox arm).
   if (box.tokens.length > 255) {
     throw new SValueSerializeError(
       `SBox tokens length ${box.tokens.length} exceeds the u8 wire ceiling (255)`,
