@@ -17,7 +17,7 @@ describe('ErgoBoxCandidate codec', () => {
     };
     const w = new ByteWriter();
     serializeBoxCandidate(candidate, idToIndex, w);
-    const parsed = parseBoxCandidate(new ByteReader(w.toBytes()), table);
+    const parsed = parseBoxCandidate(new ByteReader(w.toBytes()), table, 3);
     const w2 = new ByteWriter();
     serializeBoxCandidate(parsed, idToIndex, w2);
     expect(bytesToHex(w2.toBytes())).toBe(bytesToHex(w.toBytes()));

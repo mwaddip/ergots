@@ -127,6 +127,22 @@ describe('runWireVector — wire round-trip (santa-wire/v1)', () => {
       .toEqual({ bytes_hex: null, error: 'errored' })
     expect(runWireEntry({ name: 'tree-v4-at-4', kind: 'ErgoTree', bytes_hex: treeHex, version: { activated: 4, ergoTree: 4 } }))
       .toEqual({ bytes_hex: treeHex, error: null })
+
+    // A one-input, one-output Transaction whose output's size-flagged tree is v4, SigmaProp(true)
+    // (SANTA v6 Transaction.tree_version_above_activated entry #0 bytes, inlined). Under (3, 3) the
+    // output tree's version is above the activated version: parseTransaction rejects, the arm maps it
+    // to `errored`. Under (4, 4) the pair holds. A v3 tree under (2, 2) rejects as the v5 file's
+    // entry #0 does (`transaction-tree-v3-reject#0`, SANTA 8885632).
+    const v4TxHex = '0100a19de1b5fa998df5a48630a611180690abad5270c33f23a79baba2f8840d710000000001c0843d0c0208d3010000'
+    expect(runWireEntry({ name: 'tx-v4-tree-at-3', kind: 'Transaction', bytes_hex: v4TxHex, version: { activated: 3, ergoTree: 3 } }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+    expect(runWireEntry({ name: 'tx-v4-tree-at-4', kind: 'Transaction', bytes_hex: v4TxHex, version: { activated: 4, ergoTree: 4 } }))
+      .toEqual({ bytes_hex: v4TxHex, error: null })
+    const v3TxHex = '0100a19de1b5fa998df5a48630a611180690abad5270c33f23a79baba2f8840d710000000001c0843d0b0208d3010000'
+    expect(runWireEntry({ name: 'tx-v3-tree-at-2', kind: 'Transaction', bytes_hex: v3TxHex, version: { activated: 2, ergoTree: 2 } }))
+      .toEqual({ bytes_hex: null, error: 'errored' })
+    expect(runWireEntry({ name: 'tx-v3-tree-at-3', kind: 'Transaction', bytes_hex: v3TxHex, version: { activated: 3, ergoTree: 3 } }))
+      .toEqual({ bytes_hex: v3TxHex, error: null })
   })
 
   it('ErgoTree (SHeader-constant reject): a typed codec rejection grades errored, not panicked', () => {

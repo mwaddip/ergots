@@ -46,7 +46,7 @@ export function santaTxInputs(
 ): { tx: ErgoLikeTransaction; deps: StatefulDeps } {
   const ph = e.preHeader;
   return {
-    tx: parseTransaction(hexToBytes(e.tx_bytes_hex)),
+    tx: parseTransaction(hexToBytes(e.tx_bytes_hex), { activated: 3, ergoTree: 3 }),
     deps: {
       inputBoxes: e.input_boxes_hex.map(parseBox),
       dataInputBoxes: e.data_input_boxes_hex.map(parseBox),

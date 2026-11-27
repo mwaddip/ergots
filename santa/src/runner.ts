@@ -13,6 +13,7 @@ import {
 } from '@ergots/avltree'
 import {
   parseTransaction, serializeTransaction, validateStateful, parseContextExtension,
+  blockVersionContext,
   type ErgoLikeTransaction, type StatefulDeps,
 } from '@ergots/transaction'
 import { serializeProof } from '@ergots/nipopow'
@@ -678,10 +679,13 @@ function runWireEntryInner(e: WireEntry, tx: WireTxCodec): WireResult {
     case 'Transaction': {
       // Round-trip via @ergots/transaction's parseTransaction → serializeTransaction, the structural
       // analog of the ErgoTree case (serializeTransaction re-encodes from structure, not a cached-bytes
-      // echo). A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError.
+      // echo). A typed tx-codec rejection ⇒ errored (faithful reject) via isWireCodecError. The entry's
+      // version context reaches parseTransaction: the activated version gates each output tree (and
+      // each nested Box constant's tree); the tree version in force outside any tree gates the
+      // registers and the context-extension values.
       const bytes = hexToBytes(e.bytes_hex)
       try {
-        const parsed = tx.parseTransaction(bytes)
+        const parsed = tx.parseTransaction(bytes, { activated: e.version.activated, ergoTree: e.version.ergoTree })
         return { bytes_hex: bytesToHex(tx.serializeTransaction(parsed)), error: null }
       } catch (err) {
         if (isWireCodecError(err)) {
@@ -755,7 +759,12 @@ function runTxEntry(e: TxEntry): TxResult {
     const treeVersion = e.version.ergoTree
     const box = (hex: string): ErgoBox =>
       (parseSValue(SBOX, treeVersion, new ByteReader(hexToBytes(hex))) as { value: ErgoBox }).value
-    tx = parseTransaction(hexToBytes(e.tx_bytes_hex))
+    // The transaction's parse context follows the block (ergo BlockTransactions.scala:184-202):
+    // from block version 4 it is (blockVersion - 1, blockVersion - 1), below that (1, 1). The
+    // entry carries the voted block version in parameters (SANTA's contract) and falls back to
+    // the pre-header's version where it has none.
+    const blockVersion = (e.parameters as { blockVersion?: number }).blockVersion ?? e.preHeader.version
+    tx = parseTransaction(hexToBytes(e.tx_bytes_hex), blockVersionContext(blockVersion))
     deps = {
       inputBoxes: e.input_boxes_hex.map(box),
       dataInputBoxes: e.data_input_boxes_hex.map(box),

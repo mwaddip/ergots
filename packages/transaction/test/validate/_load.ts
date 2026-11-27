@@ -131,7 +131,7 @@ export function loadStatefulFixtureAsDeps(
     const j = loadStatefulFixture(name);
 
     // tx
-    const tx = parseTransaction(hexToBytes(j.txBytesHex));
+    const tx = parseTransaction(hexToBytes(j.txBytesHex), { activated: 3, ergoTree: 3 });
 
     // boxes
     const inputBoxes: ErgoBox[] = j.inputBoxesHex.map((h) => parseBoxBytes(hexToBytes(h)));

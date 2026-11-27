@@ -218,7 +218,7 @@ function isWireCodecError(err: unknown): boolean {
  * A typed refusal, or bytes left over after the value, is the reader
  * refusing the binding: the caller maps it to `errored`.
  */
-function readExtensionValueBinding(bytesHex: string): { tpe: SType; value: SValue } {
+function readExtensionValueBinding(bytesHex: string, treeVersion: number): { tpe: SType; value: SValue } {
   const inner = hexToBytes(bytesHex)
   const frame = new Uint8Array(inner.length + 2)
   frame[0] = 0x01
@@ -227,7 +227,7 @@ function readExtensionValueBinding(bytesHex: string): { tpe: SType; value: SValu
   const r = new ByteReader(frame)
   let ext: ContextExtension
   try {
-    ext = parseContextExtension(r)
+    ext = parseContextExtension(r, treeVersion)
   } catch (err) {
     if (isWireCodecError(err)) {
       throw new FullCtxRefused(
@@ -301,7 +301,7 @@ function hydrateExtensionValue(json: unknown, treeVersion: number): { tpe: SType
   const j = json as { [k: string]: unknown }
   const kind = j['kind'] as string
   if (kind === 'Value') {
-    return readExtensionValueBinding(j['bytes_hex'] as string)
+    return readExtensionValueBinding(j['bytes_hex'] as string, treeVersion)
   }
   const value = hydrateSValue(j, treeVersion)
   // A Tuple JSON input of any arity has an `STuple` type built from its

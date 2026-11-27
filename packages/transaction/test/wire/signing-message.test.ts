@@ -7,7 +7,7 @@ describe('signing message + txId', () => {
   for (const name of listFixtures()) {
     it(`computes the node-reported id for ${name}`, () => {
       const { bytes, meta } = loadFixture(name);
-      const tx = parseTransaction(bytes);
+      const tx = parseTransaction(bytes, { activated: 3, ergoTree: 3 });
       expect(signingMessage(tx).length).toBeGreaterThan(0);
       expect(bytesToHex(transactionId(tx))).toBe(meta.id);
     });

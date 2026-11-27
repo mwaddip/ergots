@@ -27,6 +27,6 @@ describe('transaction box codec rejects SHeader-constant propBytes', () => {
     // The parse throws inside parseErgoTreeBytes — before it ever reaches the
     // token section — so an empty table is correct here.
     const r = new ByteReader(hexToBytes(entry.bytes_hex))
-    expect(() => parseBoxCandidate(r, [])).toThrow()
+    expect(() => parseBoxCandidate(r, [], 3)).toThrow()
   })
 })

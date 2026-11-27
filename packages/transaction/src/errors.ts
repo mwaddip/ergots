@@ -1,5 +1,4 @@
 export type TxParseErrorCode =
-  | 'trailing-bytes'
   | 'token-table-index-out-of-range'
   | 'count-out-of-range'
   | 'extension-id-out-of-range'

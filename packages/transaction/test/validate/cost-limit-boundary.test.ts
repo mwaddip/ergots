@@ -47,7 +47,7 @@ const entry = (name: string): Entry => {
 };
 
 function depsFor(e: Entry) {
-  const tx = parseTransaction(hexToBytes(e.tx_bytes_hex));
+  const tx = parseTransaction(hexToBytes(e.tx_bytes_hex), { activated: 3, ergoTree: 3 });
   const inputBoxes = e.input_boxes_hex.map(parseBox);
   const dataInputBoxes = e.data_input_boxes_hex.map(parseBox);
   const headers: Header[] = e.headers_hex.map((h) => parseHeader(new ByteReader(hexToBytes(h))));
