@@ -13,10 +13,9 @@ import { makeContext } from '../../src/eval/eval-context'
 import { parseTree } from '../../src/wire/ergo-tree'
 import { parseSType } from '../../src/wire/parse-stype'
 import { parseSValue } from '../../src/wire/parse-svalue'
-import { ByteReader } from '@ergots/scorex'
+import { ByteReader, ByteWriter } from '@ergots/scorex'
 import { reduceWith } from '../../src/eval/evaluate'
 import { serializeSigmaBoolean } from '../../src/wire/sigma-boolean'
-import { ByteWriter } from '@ergots/scorex'
 import { spendContext } from './_substitution-spends'
 import { captureEvalError, hexToBytes, synthesizeStubBox } from '../_helpers'
 import type { ErgoBox, PreHeader, SValue } from '../../src/mir/types'
@@ -250,7 +249,6 @@ describe('the tree charge of a substituted tree is charged from activated 3', ()
     expect(at129).toBe(at2)
   })
 })
-
 
 /** The proposition a spend of `tree` reduces to at `activated`, serialized, and its block cost. */
 function spendOutcome(tree: string, activated: number): { sigma: string; cost: number } {

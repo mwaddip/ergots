@@ -179,7 +179,7 @@ describe('SubstConstants: the lift comes first (trees.scala:634-644)', () => {
  * version 0, the position naming nothing. Verdicts and costs are a local sigma-state 6.0.7 probe's (spend mode:
  * the tree put in SELF and reduced by `fullReduction`), TrueProp at block cost 29 at activated 2 and 3.
  */
-describe('SubstConstants: a Box among newValues, by the activated version', () => {
+describe('SubstConstants: a Box among newValues lifts at every activated version', () => {
   const SELF_AT_POS7 = `00d191b1740e29${TEMPLATE_BYTES}10010e830163a70400`
   const TRUE_PROP = 'd3'
   const sigmaHex = (value: SValue): string => {

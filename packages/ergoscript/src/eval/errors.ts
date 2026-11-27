@@ -136,16 +136,14 @@ export type EvalErrorCode =
    *     (`eval/method-call.ts`; NOT `headers` 101:2 — absent headers is the
    *     empty Coll, no throw);
    *   - the bare `0xa6` LastBlockUtxoRootHash op-form arm
-   *     (`eval/last-block-utxo-root-hash.ts`, F5 batch 4 — reads the same
+   *     (`eval/last-block-utxo-root-hash.ts`, reads the same
    *     `ctx.lastBlockUtxoRootHash` field as the 101:9 handler; only the cost
-   *     differs by wire shape, 15 op-form vs 20 PropertyCall);
-   *   - SubstConstants with a Box among its `newValues` on absent `ctx.preHeader`
-   *     (`eval/subst-constants.ts`: the Box's lift reads the activated version).
+   *     differs by wire shape, 15 op-form vs 20 PropertyCall).
    */
   | 'context-field-missing'
   /** Self context extension carries a key outside [0,127]: the JVM keys the extension
    *  by signed Byte, so `toSigmaContext` crashes on a negative key (wire >= 0x80,
-   *  ErgoLikeContext.scala:140-147). v6 batch-6 Ask 20; inputExtensions are byte-identity
+   *  ErgoLikeContext.scala:140-147). inputExtensions are byte-identity
    *  0..255 (getVarFromInput Map[Byte].get) and NOT guarded. */
   | 'context-extension-key-out-of-range'
   /** Evaluation of an UnparsedErgoTree (a size-flagged tree whose body failed to
@@ -502,9 +500,8 @@ export type EvalErrorCode =
    *     constant's type or data.
    *   - A constant that a position names has another type than the lifted type of its item (:356).
    *   - The write of a named item by its lifted type fails (:358).
-   * The last four carry the wire error as `cause`. Two refusals of the node carry another code:
-   * `'context-field-missing'` for a Box among `newValues` when `ctx.preHeader` is unset, and
-   * `'cost-limit-exceeded'` for the node's own cost. An out-of-range position (negative, or at or above the
+   * The last four carry the wire error as `cause`. The node's own cost carries another code,
+   * `'cost-limit-exceeded'`. An out-of-range position (negative, or at or above the
    * template's constant count) names nothing and refuses nothing (`getPositionsBackref`, :286-299).
    */
   | 'subst-constants-error'
