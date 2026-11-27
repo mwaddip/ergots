@@ -15,7 +15,7 @@ All exports are ESM. The package targets Node ≥ 20 and evergreen browsers; no 
 This package ships (as of v0.3.0, published to npm as `@ergots/ergoscript@0.2.0`):
 
 - **Wire format (phase 2a).** Full `parseTree` / `serializeTree` round-trip; byte-identical against sigma-rust on ~63 MIR variants.
-- **Evaluator.** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **89 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented, first-class functions included (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject).
+- **Evaluator.** `evaluate` / `evaluateWith` / `reduceWith` cover **71 of 71 implementable `Expr` arms** plus a **134-entry method-call handler registry** and **90 `EvalError` codes**. AVL+ membership-proof verification ships via `@ergots/avltree`. Cost validation is complete: the mainnet walk reached tip (h≈1,797,470) with zero unhandled halts. V3 (ErgoTree v6) methods are fully implemented, first-class functions included (lexical closures; `FunDef` as a `ValDef`; type-var-apply reject). Each entry rejects a parsed tree whose version is above the context's known activated script version with `EvalError('tree-version-above-activated')`.
 - **Sigma-protocol verifier (phases 2g-medium, 2g-combinators).** `verifySignature` covers the full `SigmaBoolean` 6-variant surface (`TrivialProp`, `ProveDlog`, `ProveDhTuple`, `Cand`, `Cor`, `Cthreshold`).
 - **Sigma-verification cost.** `estimateCryptoCost(sb: SigmaBoolean): number` returns the ahead-of-time sigma-protocol verification cost (JitCost units) of a reduced proposition — the cost-companion of `verifySignature`, consumed by `@ergots/transaction`'s block-cost model. Constants are JVM-faithful (`Interpreter.estimateCryptoVerifyCost`): ProveDlog 3980, ProveDhTuple 7140, Cand/Cor `15 + Σ`, Cthreshold `(10+10·nCoefs)+(3+3·nCoefs)·n + 15 + Σ` (the `+15` that the vendored sigma-rust `crypto_cost.rs` omits). See `facts/ergoscript-sigma.md`.
 
@@ -37,24 +37,29 @@ import {
   addressFromErgoTree, ergoTreeFromAddress,
   base58Encode, base58Decode,
   parseSValue, serializeSValue,
-  parseSType, serializeSType,
+  parseSType, serializeSType, isTypeWrittenAt, serializeBoxAtTreeVersion,
   parseErgoTreeBytes, parseAdditionalRegisters,
   boxTreeOf, reencodeTreeBytes, seedBoxTree, boxBytesOf, boxIdOf,
   violatesCheckV6Type, sValueStructuralEq,
   parseSigmaBoolean, serializeSigmaBoolean,
   tupleColl,
   isUnparsedTree,
+  evaluate, evaluateWith, reduceWith, makeContext,
+  activatedVersionOfBlock, checkSoftForkCondition,
+  verifySignature, estimateCryptoCost,
   MAX_TREE_SIZE, MAX_PROPOSITION_SIZE, VERSION,
   type ErgoTree, type ParsedErgoTree, type UnparsedErgoTree, type TreeHeader,
   type ParseTreeOptions, type SType, type SValue, type Expr, type ErgoBox,
-  type AdditionalRegisters,
+  type PreHeader, type ContextExtension, type AdditionalRegisters,
   type ArrayClass, type CollClass, type CollValue,
   type Network, type AddressType,
+  type EvalOpts, type EvalContext, type SigmaBoolean, type VerifyErrorCode,
   ErgoTreeParseError, ErgoTreeSerializeError, AddressDecodeError,
   ExprParseError, ExprSerializeError, ExprTpeError,
   STypeParseError, STypeSerializeError,
   SValueParseError, SValueSerializeError,
   SigmaBooleanParseError, SigmaBooleanSerializeError,
+  EvalError, VerifyError,
 } from '@ergots/ergoscript';
 ```
 
@@ -63,16 +68,20 @@ import {
 ```ts
 function parseTree(bytes: Uint8Array, opts?: ParseTreeOptions): ErgoTree;
 interface ParseTreeOptions {
-  checkType?: boolean;   // rule 1001: the root must type as SigmaProp; default false (lenient)
+  checkType?: boolean;         // rule 1001: the root must type as SigmaProp; default false (lenient)
+  activatedVersion?: number;   // the activated script version the tree is parsed under; a signed byte
+                               // (-128..127) or omitted (no version context). parseTree sets it on its
+                               // reader for the duration of the parse; a tree whose version is above it
+                               // from 2 onwards rejects with ErgoTreeParseError('tree-version-above-activated')
 }
 ```
 
 Parse the ErgoTree wire format — header byte, optional VLQ-u32 body size, optional segregated constants section, body Expr — into an `ErgoTree`. It mirrors the JVM's `deserializeErgoTree`: the tree is read under a 4096-byte window (`MAX_PROPOSITION_SIZE`), and a size-flagged tree's declared size is used only if the tree degrades.
 
 - **Precondition:** `1 ≤ bytes.length ≤ MAX_TREE_SIZE` (1 MB).
-- **Options:** `checkType` applies rule 1001 (the JVM's `CheckDeserializedScriptIsSigmaProp`). It is off by default, as in the JVM's lenient parse, which reads arbitrary-root trees; `{ checkType: true }` is the JVM's `ErgoTree.fromBytes`. Box ingest and address decoding set it.
-- **Returns:** A `ParsedErgoTree`, or, for a size-flagged tree whose constants, body or root check fails soft-forkably (the JVM's `ValidationException`, for example a reserved or unknown opcode, an Option in a pre-v3 tree, a read past the window, rule 1001 with `checkType`, and since 2026-09-30 a method or a type the JVM does not know at the tree's version, rules 1010, 1016, 1017 and 1018, or SFunc data, rule 1009), an `UnparsedErgoTree` holding the tree's declared span as received. Narrow with `isUnparsedTree`. For a canonically encoded tree, `serializeTree` gives the input back (see "Round-trip invariant" below). A tree whose declared size differs from its body parses its whole body and re-serializes with its true size. Bytes after the parse end are tolerated only within a size-flagged tree's declared span.
-- **Throws:** `ErgoTreeParseError` for the envelope (`'empty'`, `'oversized'`, `'trailing-bytes'`) and the tree parse (`'header-version-requires-size'`, `'body-size-overflow'`, `'too-many-constants'`, `'soft-fork-without-size-bit'`, `'nested-tree-truncated'`). Two of those wrap an earlier error, kept as `cause`: a soft-forkable failure in a tree without the size flag throws `'soft-fork-without-size-bit'` (it once surfaced as, for example, `ExprParseError('opcode-reserved')`), and a nested tree (a Box constant's tree) that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `'nested-tree-truncated'`. A nested tree reads its header and size before that, so a run-out there counts as a run-out of the enclosing tree, not of the nested one. Every other failure surfaces unwrapped from the layer that rejected the bytes: `ExprParseError`, `STypeParseError`, `SValueParseError`, `SigmaBooleanParseError`, `ExprTpeError`, or scorex's `ReaderError` (`'truncated'`, `'vlq-overflow'`, `'max-tree-depth-exceeded'`). **Node construction (2026-09-30):** every node is built as the JVM builds it, with its constructor's, its builder's and its serializer's checks, as soon as its own bytes are read. A failure is an `ExprParseError` construction code (see "`ExprParseError` codes" below) or the `ExprTpeError` of a type read the JVM makes there (a class cast, or `SelectField`'s index out of range), and it is a hard reject, in a size-flagged tree too, with or without `checkType`. Before, an `ExprTpeError` escaped only a root type read under `checkType`. A read past the 4096-byte window, or past a Box constant's candidate window (rule 1014, `'position-limit-exceeded'`), degrades a sized tree and is wrapped for an unsized one, so it never surfaces on its own. Full taxonomy: `facts/ergoscript-wire.md`.
+- **Options:** `checkType` applies rule 1001 (the JVM's `CheckDeserializedScriptIsSigmaProp`). It is off by default, as in the JVM's lenient parse, which reads arbitrary-root trees; `{ checkType: true }` is the JVM's `ErgoTree.fromBytes`. Box ingest and address decoding set it. `activatedVersion` is the JVM's `VersionContext.activatedVersion` (sigma-state 6.0.7 `VersionContext.scala:17`): `parseTree` sets it on its reader for the duration of the parse (restored in a `finally`), so the tree-version check runs between the size and the constants read (`ErgoTreeSerializer.scala:150-154`), and a nested tree (a Box constant's tree) inherits it. A tree alone has no block, so the option is optional. `@ergots/transaction`'s `parseTransaction` sets this value on its reader before every output tree is parsed.
+- **Returns:** A `ParsedErgoTree`, or, for a size-flagged tree whose constants, body or root check fails soft-forkably (the JVM's `ValidationException`, for example a reserved or unknown opcode, an Option in a pre-v3 tree, a read past the window, rule 1001 with `checkType`, or a method or a type the JVM does not know at the tree's version, rules 1010, 1016, 1017 and 1018, or SFunc data, rule 1009), an `UnparsedErgoTree` holding the tree's declared span as received. Narrow with `isUnparsedTree`. For a canonically encoded tree, `serializeTree` gives the input back (see "Round-trip invariant" below). A tree whose declared size differs from its body parses its whole body and re-serializes with its true size. Bytes after the parse end are tolerated only within a size-flagged tree's declared span. The tree-version check is NOT in the degrade set: a size-flagged tree above the activated version throws `'tree-version-above-activated'` and nothing in an enclosing tree degrades on it.
+- **Throws:** `ErgoTreeParseError` for the envelope (`'empty'`, `'oversized'`, `'trailing-bytes'`) and the tree parse (`'tree-version-above-activated'`, `'header-version-requires-size'`, `'body-size-overflow'`, `'too-many-constants'`, `'soft-fork-without-size-bit'`, `'nested-tree-truncated'`). Two of those wrap an earlier error, kept as `cause`: a soft-forkable failure in a tree without the size flag throws `'soft-fork-without-size-bit'` (it once surfaced as, for example, `ExprParseError('opcode-reserved')`), and a nested tree (a Box constant's tree) that runs out of input while reading its constants or body, or whose degrade span runs past the end, throws `'nested-tree-truncated'`. A nested tree reads its header and size before that, so a run-out there counts as a run-out of the enclosing tree, not of the nested one. Every other failure surfaces unwrapped from the layer that rejected the bytes: `ExprParseError`, `STypeParseError`, `SValueParseError`, `SigmaBooleanParseError`, `ExprTpeError`, or scorex's `ReaderError` (`'truncated'`, `'vlq-overflow'`, `'max-tree-depth-exceeded'`). **Node construction (2026-09-30):** every node is built as the JVM builds it, with its constructor's, its builder's and its serializer's checks, as soon as its own bytes are read. A failure is an `ExprParseError` construction code (see "`ExprParseError` codes" below) or the `ExprTpeError` of a type read the JVM makes there (a class cast, or `SelectField`'s index out of range), and it is a hard reject, in a size-flagged tree too, with or without `checkType`. Before, an `ExprTpeError` escaped only a root type read under `checkType`. A read past the 4096-byte window, or past a Box constant's candidate window (rule 1014, `'position-limit-exceeded'`), degrades a sized tree and is wrapped for an unsized one, so it never surfaces on its own. Full taxonomy: `facts/ergoscript-wire.md`.
 
 ```ts
 const tree = parseTree(treeBytes);
@@ -148,6 +157,18 @@ function serializeSType(tpe: SType, w: ByteWriter): void;
 **Breaking (2026-09-30): `parseSType` takes a required `treeVersion`,** the tree version in force at the read, as the JVM's `TypeSerializer` reads a type under it (`docs/specs/2026-09-30-jvm-node-construction-design.md` §4a): a tree's header version for its own constants and body, the enclosing tree's for a nested box's registers, and 3 at the top level (the ergo node reads a transaction's registers and context extension at (3, 3) since 6.0). Below 3, type code 9 (UnsignedBigInt, as a primitive id anywhere in a type) fails the JVM's rule 1017 and code 112 (SFunc) rule 1018; primitive ids 10 and 11, and codes 107–111 and 113–255, fail at every version. These are `STypeParseError` `'type-code-primitive-unknown'` (1017) and `'type-code-unknown'` (1018), soft: a size-flagged tree degrades on them. Code 0 is `'type-prefix-invalid'` (the JVM's `InvalidTypePrefix`), hard. `'invalid-type-code'`, which covered all of these, is retired. `parseSValue`'s `treeVersion` is, in the same way, the version the data and a Box value's registers are read at, types included. Two data rules came with it: SFunc data throws the soft `SValueParseError('data-type-not-serializable')` (rule 1009), and a `Coll` whose element type the JVM's `stypeToRType` refuses (an `STypeVar`, or an SFunc of other than one argument or with type parameters, anywhere in it; a tuple element of other than two items is not checked) throws the hard `'coll-elem-type-no-rtype'` before any item, an empty `Coll` included.
 
 Wire-layer SValue and SType codecs. Exposed for downstream consumers that need to parse canonical box / register bytes outside the `ErgoTree` envelope (e.g. the mainnet-validate harness reading per-output `ErgoBox::sigma_serialize` bytes and per-input `ContextExtension` constant blobs). `ByteReader` / `ByteWriter` are from `@ergots/scorex`. Throws `SValueParseError` / `SValueSerializeError` / `STypeParseError` / `STypeSerializeError` on failure. Notably, `SValueParseError 'group-element-invalid-point'` (F5 batch 4): a `GroupElement` payload whose lead byte is non-`0x00` must curve-decode (SEC1 compressed secp256k1) or the parse throws — applies wherever GE data parses (body/segregated constants, box registers, `deserializeTo[GroupElement]`, and the `deserializeTo[Header]` hydration leg's minerPk/powOnetimePk); `0x00`-lead payloads normalize to the canonical 33-zero identity instead. Notably also (F5 batch 5): `SBox` payloads parse under a **4096-byte lazy candidate window** — the candidate span (value → registers; `txId`/`index` outside) arms `positionLimit = position + 4096` (JVM `ErgoBox.MaxBoxSize`; `ErgoBoxCandidate.scala:191-192`/`:235`; rule 1014 `CheckPositionLimit`), and a read beginning past the window surfaces as scorex `ReaderError('position-limit-exceeded')` from `parseSValue`; inside a tree (a Box constant) that is rule 1014, which degrades a sized tree and is wrapped as `'soft-fork-without-size-bit'` by an unsized one. An `SBox`'s tree is parsed under the box rules and its registers in the JVM's order (see `parseErgoTreeBytes` / `parseAdditionalRegisters` below), so their errors surface too, unwrapped: `ErgoTreeParseError`, `ExprParseError`, `ExprTpeError` and scorex `ReaderError` among them. A register whose data is malformed rejects with its data's error (for example `ReaderError('truncated')`), before rule 1019 (`'register-v6-type'`) runs on the complete value. There is NO token-count parse rule — the raw-u8 count's natural ceiling (255) is the only count bound (the former >122 gate, mirroring sigma-rust's `BoundedVec` cap, is removed); serialize-side, `SValueSerializeError 'sbox-tokens-out-of-range'` is re-scoped to >255 (the u8 wire ceiling; JVM `putUByte`). Full taxonomy in `facts/ergoscript-wire.md`.
+
+### `isTypeWrittenAt` / `serializeBoxAtTreeVersion`
+
+```ts
+function isTypeWrittenAt(t: SType, treeVersion: number): boolean;
+function serializeBoxAtTreeVersion(box: ErgoBox, treeVersion: number): Uint8Array;
+```
+
+The JVM's version-aware write of a type and of a full box inside a version context.
+
+- **`isTypeWrittenAt`:** `false` for a function type below tree version 3 (the JVM's `TypeSerializer.scala:112` has no case for `SFunc` below v3), in a collection's or an Option's element and in a tuple's items too. The predicate `serializeBoxAtTreeVersion` consults for each of a box's R4–R9 registers, and for every Box nested in a register's value.
+- **`serializeBoxAtTreeVersion`:** the JVM's write of a full box at the given tree version. It checks the type of each of R4 to R9 with `isTypeWrittenAt`, in every Box nested in a register's value too, throws `STypeSerializeError('sfunc-tree-version-too-low')` where the predicate refuses, and then writes the box. `@ergots/transaction`'s `validateStateful` calls `serializeBoxAtTreeVersion(box, 1)` on every output (the JVM's default write of an output, outside any version context), and wraps a failure as `TxValidationError('output-not-serializable')` with the serializer's error as `cause`. `serializeSType` keeps its no-version signature: a boxed callsite checks the type with `isTypeWrittenAt` first.
 
 ### `parseErgoTreeBytes` / `parseAdditionalRegisters`
 
@@ -398,6 +419,7 @@ These surface from `parseTree` / `serializeTree` (and the `parseSType` / `serial
 |---|---|
 | `'empty'` | Input bytes have length 0 |
 | `'oversized'` | Input bytes exceed `MAX_TREE_SIZE` |
+| `'tree-version-above-activated'` | The reader's `activatedVersion` is set and is 2 or more, and the tree's header version is above it. The JVM's `IllegalArgumentException` from `VersionContext`'s constructor (`VersionContext.scala:20`), which the serializer's inner catch turns into `SerializerException` (`ErgoTreeSerializer.scala:191-193`). Not in the degrade set: a size-flagged tree rejects, nothing in an enclosing tree degrades on it. A reader without `activatedVersion` set makes no check |
 | `'trailing-bytes'` | Bytes after the parse end: after an unsized tree, or beyond a size-flagged tree's declared span (bytes within the span are tolerated). `boxTreeOf` rejects any |
 | `'body-size-overflow'` | A size-flagged tree degrades, and its declared span (`bodyPos − start + declared`, as an Int) is negative or runs past the end of the input (for a nested tree, past the end is `'nested-tree-truncated'`). A declared size is otherwise ignored |
 | `'too-many-constants'` | Segregated-constant count above 100000 (the JVM's `safeNewArray` bound); a count that wraps negative as an Int reads no constants |
@@ -538,7 +560,7 @@ For a tree without a `DeserializeContext` or `DeserializeRegister` node, `reduce
 It also evaluates the substituted body as it is: a body that is a SigmaProp constant costs 5 JitCost, where `evaluateWith` charges the flat 50 of a tree that is a SigmaProp constant.
 
 - **The tree's bytes** are the bytes the tree was parsed from, as received. A tree built through the API counts the length of its serialization.
-- **The activated version** is one below the block version, floored at 0: `max(0, ctx.preHeader.version − 1)`. The block version is read from the pre-header; the JVM node reads the voted block version, which it checks against a header's at an epoch's first block. A tree with a Deserialize node needs `ctx.preHeader`; without it `reduceWith` throws `EvalError('context-field-missing')`.
+- **The activated version** is read through `activatedScriptVersion(ctx, caller)` (`eval/_activated-version.ts`): `ctx.activatedScriptVersion` when the field is set (the JVM's `ErgoLikeContext.activatedScriptVersion`, an integer from −128 to 127), otherwise `activatedVersionOfBlock(ctx.preHeader.version)` (the JVM's `(blockVersion − 1).toByte`). The JVM node reads the voted block version alone; the pre-header fallback equals the JVM's wherever the pre-header carries the voted version. A tree with a Deserialize node needs one of the two set; without either the three readers (`reduceWith`'s tree charge, `SContext.selfBoxIndex`, `BoolToSigmaProp` over a SigmaProp operand) throw `EvalError('context-field-missing')`.
 - **Limits.** Pass `jitCostLimit` as the block-cost limit × 10, on a fresh context: `ctx.jitCost` at entry stands for the JVM's `initCost × 10`. Below activated version 3, a tree whose byte charge, added to `ctx.jitCost`, exceeds the limit rejects with `'cost-limit-exceeded'`, although the charge is never added.
 
 ```ts
@@ -563,6 +585,16 @@ function makeContext(opts?: EvalOpts): EvalContext;
 
 Construct a fresh `EvalContext` from `EvalOpts`. Pure constructor — same opts in, structurally equivalent context out.
 
+### `activatedVersionOfBlock(blockVersion)` / `checkSoftForkCondition(tree, activatedVersion)`
+
+```ts
+function activatedVersionOfBlock(blockVersion: number): number;
+function checkSoftForkCondition(tree: ErgoTree, activatedVersion: number): 'proceed' | 'accept-unverified';
+```
+
+- **`activatedVersionOfBlock`:** `(blockVersion − 1).toByte` as the JVM wraps it (ergo `settings/Parameters.scala:80`): block version 0 gives −1, 128 gives 127, and 129 to 255 give −128 to −2. Takes any integer and wraps a signed byte.
+- **`checkSoftForkCondition`:** a port of the JVM's `Interpreter.checkSoftForkCondition` (`Interpreter.scala:298-331`). Above activated version 3 (the JVM's `MaxSupportedScriptVersion`) a tree whose version is above 3 gives `'accept-unverified'` and every other tree `'proceed'`. Otherwise a tree whose version is above the activated version throws `EvalError('tree-version-above-activated')` with the JVM's sentence as its message, and every other tree `'proceed'`. The tree's version is its header's for a parsed tree and 0 for an unparsed one. An `activatedVersion` that is no integer from −128 to 127 throws a `TypeError`. `@ergots/transaction`'s `validateStateful` runs it after the storage-rent branch.
+
 ### `EvalOpts` / `EvalContext`
 
 ```ts
@@ -570,6 +602,11 @@ interface EvalOpts {
   jitCostLimit?: number          // undefined = unlimited
   constants?: SValue[]           // overrides tree.constants for ConstPlaceholder
   treeVersion?: number           // 0..7; when unset, evaluate(), evaluateWith() and reduceWith() set it to tree.header.version
+  activatedScriptVersion?: number // the JVM's ErgoLikeContext.activatedScriptVersion (ergo
+                                 // nodeView/ErgoContext.scala:28): an integer from -128 to 127. When set, the
+                                 // three readers (reduceWith's tree charge, SContext.selfBoxIndex,
+                                 // BoolToSigmaProp over a SigmaProp operand) take it; otherwise they fall back
+                                 // to activatedVersionOfBlock(preHeader.version)
   // Chain-state fields:
   height?: number                // current block height
   selfBox?: ErgoBox              // spending box
@@ -590,7 +627,8 @@ interface EvalContext extends EvalOpts {
 }
 ```
 
-- **`preHeader`** — read by `CONTEXT.preHeader`, `CONTEXT.minerPubKey` and the `MinerPubKey` global, and, for the block's activated script version (`max(0, preHeader.version − 1)`), by `CONTEXT.selfBoxIndex`, by `reduceWith` for a tree with a Deserialize node, and by `sigmaProp(<SigmaProp>)`. Each throws `EvalError 'context-field-missing'` without one. `sigmaProp(<SigmaProp>)` returns its operand as it is below activated version 2; from 2 it is `'bin-op-not-boolean'`.
+- **`preHeader`** — read by `CONTEXT.preHeader`, `CONTEXT.minerPubKey` and the `MinerPubKey` global. The three readers of the activated script version — `reduceWith`'s tree charge, `CONTEXT.selfBoxIndex` and `sigmaProp(<SigmaProp>)` (`BoolToSigmaProp` over a SigmaProp operand) — take `ctx.activatedScriptVersion` first (the JVM's signed byte, `activatedVersionOfBlock(blockVersion)`), and fall back to `activatedVersionOfBlock(ctx.preHeader.version)` when the field is unset. Each throws `EvalError 'context-field-missing'` when both are unset. `sigmaProp(<SigmaProp>)` returns its operand as it is below activated version 2; from 2 it is `'bin-op-not-boolean'`.
+- **`activatedScriptVersion`** — the JVM's `ErgoLikeContext.activatedScriptVersion` (ergo `nodeView/ErgoContext.scala:28`): an integer from −128 to 127 (`activatedVersionOfBlock(blockVersion)`, `(blockVersion − 1).toByte`), set directly by SANTA's eval tier and by `@ergots/transaction`'s `validateStateful`; a context without it falls back to the pre-header, as above. The entries (`evaluate`, `evaluateWith`, `reduceWith`) reject a parsed tree whose version is above this field, from activated 2 onwards, with `EvalError('tree-version-above-activated')` before anything else, and so do the reduction-time parses `substituteDeserialize`, `Global.deserializeTo` and `substituteConstantsBytes` (each sets the reader's `activatedVersion` for their nested parse, so a decoded script or template above the activated version from 2 onwards rejects at parse).
 - `addCost` — saturating add; throws `EvalError 'cost-limit-exceeded'` if `jitCostLimit` is set and exceeded.
 - `addPerItemCost` — composite charge: `addCost(base + chunks * perChunk)`, `chunks = trunc((nItems − 1) / chunkSize) + 1` (for no item: one chunk when `chunkSize` is 2 or more, none when it is 1).
 - **`extension` / `inputExtensions` input shape** — both accept either a `ContextExtension` (`values` a `Map`) or the plain-object/`Record` form `{ values: { <varId>: { tpe, value } } }` that node-API JSON ingestion produces (the `ContextExtensionInput` type); `makeContext` normalizes a `Record` to a `Map`. Eval reads vars by key, so a `Record`'s lost key-order is irrelevant here; on-chain wire order matters only for the `@ergots/transaction` signing-message codec, which passes a `Map`.

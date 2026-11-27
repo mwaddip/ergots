@@ -78,11 +78,14 @@ The runner picks its arm by the vector's `schema`, by exact name and version:
 
 | Schema | Arm | Calls |
 |---|---|---|
-| `santa-eval/v1` to `santa-eval/v5`, `santa-eval/v6-fullctx` | `runVector` | `parseTree`, `makeContext`, `evaluateWith` (`@ergots/ergoscript`) |
-| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of the kinds `Constant`, `Box`, `SigmaBoolean`, `ErgoTree` (`@ergots/ergoscript`) and `Transaction` (`@ergots/transaction`) |
-| `santa-transaction/v1` | `runTransactionVector` | `parseTransaction`, `validateStateful` (`@ergots/transaction`) |
+| `santa-eval/v1` to `santa-eval/v5`, `santa-eval/v6-fullctx` | `runVector` | `parseTree` under the entry's activated version, `makeContext` with `activatedScriptVersion` taken from the entry's `version.activated`, `evaluateWith` (`@ergots/ergoscript`) |
+| `santa-wire/v1` | `runWireVector` | the parse and serialize pair of the kinds `Constant`, `Box`, `SigmaBoolean`, `ErgoTree` (`@ergots/ergoscript`) and `Transaction` (`@ergots/transaction`); each kind runs under the entry's `VersionContext` — the reader's `activatedVersion` for the `Box`, `Constant`, `SigmaBoolean` and `ErgoTree` kinds, the tree-version argument to `parseSType` in the `Constant` arm, `parseTree`'s option for the `ErgoTree` kind, and the pair for the `Transaction` kind |
+| `santa-wire/v1` (`BlockTransactions` kind) | `runWireVector` | `parseBlockTransactions` / `serializeBlockTransactions` (`@ergots/transaction`), which parses each transaction under `blockVersionContext(blockVersion, headerId)` |
+| `santa-transaction/v1` | `runTransactionVector` | `parseTransaction` under `blockVersionContext(parameters.blockVersion, headerId?)` (`parameters.blockVersion` taken as SANTA's engine takes it — the entry's, and the pre-header's version where the entry has none), input and data-input boxes read at tree version 1 with no activated version set, `validateStateful` with `parameters.blockVersion` passed through (`@ergots/transaction`) |
 | `santa-authds/v1` | `runAuthdsVector` | `BatchAVLProver`, `verifyAvlBatchPartial` (`@ergots/avltree`) |
 | `santa-nipopow/v1` | `runNipopowVector` | `updateInterlinks`, `prove`, `serializeProof` (`@ergots/nipopow`) |
+
+The eval arm's **bindings** (`santa/src/binding.ts`) read under the entry's `(activated, activated)`, as SANTA's contract says ("Bind what your implementation's own reader for that position builds … under the entry's activated version", `docs/contract/runner-contract.md` §4): a `Value` binding's extension values through `parseContextExtension(r, activated)` on a reader whose `activatedVersion` is the entry's (the type `ExtensionReader` takes the tree version as its second argument), the register binding the same way, and a JSON `Box` or `Header` value on such a reader. SANTA's oracle reads a `Value` binding under `(3, 3)` and a JSON binding under `(activated, activated)`; at activated 2 the two differ, and the prompt names it. The full-context schema's boxes stay as they are: read at the entry's tree version with no activated version set, as the oracle reads them outside any context.
 
 Under any other schema every entry answers `{"error": "not-implemented"}`.
 
@@ -106,8 +109,11 @@ reason).
 | | `nipopow` | `@ergots/nipopow` derives a header's interlinks and builds NiPoPoW proofs. |
 | `cost` | `true` | An evaluation reports its JIT cost and `validateStateful` returns the transaction's block cost. |
 
-`kinds` and `activation` are left at SANTA's defaults: every wire kind is selected, and so are the vectors that turn
-on a rule of the activated script version, since ergots' parsers and evaluator apply those rules.
+`kinds` and `activation` are left at SANTA's defaults: every wire kind is selected (`BlockTransactions` among them,
+mounted through `parseBlockTransactions` / `serializeBlockTransactions`), and so are the vectors that turn
+on a rule of the activated script version, since ergots' parsers and evaluator apply those rules — the parse-time
+tree-version check in `@ergots/scorex`'s reader, the entries' reject, and `@ergots/transaction`'s spend check
+through `checkSoftForkCondition`.
 
 ## Layout and tests
 

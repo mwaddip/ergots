@@ -41,6 +41,8 @@ r.positionLimit = r.position + maxSize;
 r.positionLimit = saved;
 ```
 
+`ByteReader.activatedVersion` (getter/setter) carries the JVM's `VersionContext.activatedVersion` (sigma-state 6.0.7 `VersionContext.scala:17`): the JVM's signed byte, an integer from −128 to 127, or `undefined` for a reader outside any version context (the JVM's default `(1, 1)`, `VersionContext.scala:58-61`). `@ergots/ergoscript`'s tree parser reads this field between the size read and the constants (`ErgoTreeSerializer.scala:150-154`) and rejects a tree whose version is above it from 2 onwards with `ErgoTreeParseError('tree-version-above-activated')`, not in the soft-fork degrade set. `@ergots/transaction`'s `parseTransaction` sets this field on the transaction's reader before every output tree is parsed. The setter accepts any signed byte or `undefined`; any other value (NaN, a fraction, 128, a string) throws `TypeError` and leaves the previous value in place. `forkSubReader` copies the field onto the sub-reader, alongside the depth level.
+
 Three members mirror the JVM reader for `@ergots/ergoscript`'s tree parse, which reads a tree on the reader it arrives on:
 
 ```ts
