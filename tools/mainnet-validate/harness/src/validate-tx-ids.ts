@@ -3,10 +3,10 @@
  * gate). No script evaluation: it checks that ergots parses the transaction the chain accepted
  * and derives the chain's identifiers from it.
  *
- *   - The transaction id: `transactionId(parseTransaction(txBytes))`, whose signing message writes
- *     each output tree re-encoded, as the JVM's `bytesToSign` does (`ErgoLikeTransaction.scala:49`,
- *     `:192-198`, through the candidate serializer, `ErgoBoxCandidate.scala:142`), against the id
- *     the node reports.
+ *   - The transaction id: `transactionId(parseTransaction(txBytes, blockVersionContext(sectionBlockVersion, blockId)))`,
+ *     whose signing message writes each output tree re-encoded, as the JVM's `bytesToSign` does
+ *     (`ErgoLikeTransaction.scala:49`, `:192-198`, through the candidate serializer,
+ *     `ErgoBoxCandidate.scala:142`), against the id the node reports.
  *   - Each output box: the JVM constructs a transaction's outputs from its candidates
  *     (`ErgoLikeTransaction.scala:46-47`), so an output's `bytes`, and the box id hashed from them,
  *     write the tree re-encoded. ergots builds the same box and serializes it; the bytes must equal
