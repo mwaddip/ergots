@@ -5,12 +5,12 @@
 // which makes the same comparison (ErgoTreeSerializer.scala:150-154, :191-193): the script a Deserialize node
 // decodes, the argument of Global.deserializeTo[Box], and every constant of a SubstConstants template.
 //
-// Each row with a label (F, B, DE, DT, Q, SC2) is a local sigma-state 6.0.6 probe's verdict and cost, the tree
-// read as a box's tree outside any version context, then Interpreter.fullReduction (rows F, and the rows that
-// say so) or Interpreter.verify with an empty proof, under the activated version given. Costs are block-cost
-// units. The tests without a row label pin ergots' own surface: a `treeVersion` the caller set, and a context
-// that knows no activated version. The SANTA block below pins the JVM's verdicts on the ten entries of
-// `transaction/v6/authored/tree-version-above-activated-eval.json` at SANTA `8885632`.
+// Each test with a verdict and a cost pins a local sigma-state 6.0.6 probe output (the cited code is the same at
+// 6.0.7): the tree read as a box's tree outside any version context, then either Interpreter.fullReduction
+// (where the test name says so) or Interpreter.verify with an empty proof, under the activated version given.
+// Costs are block-cost units. Tests without a probe verdict pin ergots' own surface: a `treeVersion` the caller
+// set, and a context that knows no activated version. The SANTA block below pins the JVM's verdicts on the ten
+// entries of `transaction/v6/authored/tree-version-above-activated-eval.json` at SANTA `8885632`.
 import { describe, it, expect } from 'vitest'
 import { evaluate, evaluateWith, reduceWith } from '../../src/eval/evaluate'
 import { EvalError, makeContext } from '../../src/eval/eval-context'
