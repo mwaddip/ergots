@@ -239,6 +239,14 @@ export function treeByteLength(tree: ParsedErgoTree): number {
 export interface ParseTreeOptions {
   /** Rule 1001: the root must type as SigmaProp. The JVM's box, address and fromBytes paths set it. */
   checkType?: boolean
+  /**
+   * The activated script version the tree is parsed under: the first half of the JVM's
+   * `VersionContext` (`VersionContext.scala:17`). A signed byte (-128..127) or `undefined` for a
+   * reader outside any version context (the JVM's default (1, 1), where nothing is compared).
+   * `parseTree` sets it on the reader it makes for the parse. A tree alone has no block, so the
+   * option is optional. See "The tree-version check" in `facts/ergoscript-wire.md`.
+   */
+  activatedVersion?: number
 }
 
 /**
@@ -264,6 +272,21 @@ export function parseTreeFromReader(r: ByteReader, opts: ParseTreeOptions = {}):
   const depth = (openTrees.get(r) ?? 0) + 1
   openTrees.set(r, depth)
   try {
+    // The JVM's tree-version check, between the size and the constants (ErgoTreeSerializer.scala:150-154).
+    // `VersionContext`'s constructor (`VersionContext.scala:20`) throws when `treeVersion > activated &&
+    // activated >= 2`, and its `IllegalArgumentException` is turned into the serializer's own
+    // `SerializerException("Tree version (<t>) is above activated script version (<a>)")` at `:191-193`:
+    // a hard reject the outer catch does not degrade a size-flagged tree on, and nothing in an enclosing
+    // tree degrades on either. A reader without `activatedVersion` set, or one set to 1 or below, makes
+    // no check, as in the JVM's default context. The nested tree of a Box constant is parsed on the same
+    // reader, so it meets the same activated version.
+    const activated = r.activatedVersion
+    if (activated !== undefined && activated >= 2 && header.version > activated) {
+      throw new ErgoTreeParseError(
+        `tree version ${header.version} is above the activated script version ${activated}`,
+        'tree-version-above-activated',
+      )
+    }
     const constantTypes: SType[] = []
     const constants: SValue[] = []
     if (header.constantSegregation) {
@@ -374,16 +397,18 @@ export function parseTree(bytes: Uint8Array, opts: ParseTreeOptions = {}): ErgoT
     )
   }
   const outer = new ByteReader(bytes)
+  outer.activatedVersion = opts.activatedVersion
   const tree = parseTreeFromReader(outer, opts)
-  if (!outer.isExhausted && !(tree.header.hasSize && bytes.length <= declaredSpanEnd(bytes))) {
+  if (!outer.isExhausted && !(tree.header.hasSize && bytes.length <= declaredSpanEnd(bytes, opts.activatedVersion))) {
     throw new ErgoTreeParseError(`${outer.remaining} trailing bytes after ErgoTree envelope`, 'trailing-bytes')
   }
   return tree
 }
 
 /** header + size slot + declared size: where the (old) fork ended. Only used to keep tolerating those bytes. */
-function declaredSpanEnd(bytes: Uint8Array): number {
+function declaredSpanEnd(bytes: Uint8Array, activatedVersion: number | undefined): number {
   const r = new ByteReader(bytes)
+  r.activatedVersion = activatedVersion
   r.readU8()
   const declared = readVlqU32(r, 'ErgoTree size') | 0
   return r.position + declared
