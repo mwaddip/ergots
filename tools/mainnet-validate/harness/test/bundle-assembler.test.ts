@@ -306,9 +306,9 @@ describe('BundleAssembler', () => {
     it('propagates a REST error from the boundary fetch rather than swallowing it (no silent fallback)', async () => {
         // A transient failure on the boundary read must halt the walk; a
         // silent fallback would cache a wrong voted value for the whole
-        // epoch. The maxBlockCost resolver (which carries a bare catch
-        // around its boundary fetch) succeeds on retry here, so the throw
-        // comes from the block-version resolver only.
+        // epoch. Both the maxBlockCost and the block-version resolvers walk
+        // back only when the boundary block or its key is absent — a REST or
+        // decode error propagates.
         const H = 1_144_466;
         const BOUNDARY = 1_143_808;
         const blockId = 'aa'.repeat(32);
@@ -365,6 +365,36 @@ describe('BundleAssembler', () => {
         };
         const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'mainnet');
         await expect(a.assemble(H, [])).rejects.toThrow(/007b/);
+    });
+
+    it('propagates a REST error from the maxBlockCost resolver rather than falling back to the genesis default', async () => {
+        // A `getValidationFragments` failure at the boundary must halt the walk: the resolver
+        // walks back only when the boundary block is absent or carries null parameters. A
+        // transient REST error that is silently swallowed would cache the genesis maxBlockCost
+        // (or an earlier epoch's) for the whole epoch and admit transactions above the real
+        // ceiling, mirroring the block-version resolver's rule.
+        const H = 1_144_466;
+        const BOUNDARY = 1_143_808;
+        const blockId = 'aa'.repeat(32);
+        const boundaryId = 'ee'.repeat(32);
+        const node = {
+            getHeaderIdsAtHeight: vi.fn().mockImplementation(async (h: number) =>
+                h === H ? [blockId] : h === BOUNDARY ? [boundaryId] : []),
+            getBlock: vi.fn().mockResolvedValue(mkBlock({ blockId, height: H })),
+            // The non-boundary block returns null params; the boundary throws.
+            getValidationFragments: vi.fn().mockImplementation(async (id: string) => {
+                if (id === blockId) return { headerBytes: 'ab'.repeat(100), parameters: null, transactions: [{ signingMessage: 'cd'.repeat(50) }] };
+                throw new Error('503 service unavailable');
+            }),
+        };
+        const indexer = {
+            getBoxBytes: vi.fn().mockImplementation(async (id: string) => new Uint8Array(64).fill(parseInt(id.slice(0, 2), 16))),
+        };
+        const oracle = {
+            computeTxOracleCosts: vi.fn().mockReturnValue([{ oracleCost: 50n, oracleSucceeded: true, oracleError: null }]),
+        };
+        const a = new BundleAssembler(node as any, indexer as any, oracle as any, false, 'mainnet');
+        await expect(a.assemble(H, [])).rejects.toThrow(/503/);
     });
 
     it('does not seed the per-epoch cache from a non-boundary block that happens to carry 007b', async () => {

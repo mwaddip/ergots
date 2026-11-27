@@ -148,7 +148,7 @@ export class BundleAssembler {
     private readonly blockVersionByEpoch = new Map<number, number>();
 
     /**
-     * Resolve the *active* `maxBlockCost` for `height` (iter-26).
+     * Resolve the *active* `maxBlockCost` for `height`.
      *
      * `maxBlockCost` is a votable consensus parameter recorded only at
      * voting-epoch boundary blocks and inherited between them, so non-boundary
@@ -157,26 +157,25 @@ export class BundleAssembler {
      * the node's state rather than re-deriving consensus — the only consensus
      * constant assumed is the well-known epoch length. Walking back epoch-by-
      * epoch is defensive; the computed boundary normally carries parameters.
+     *
+     * The parameter gates every transaction's cost ceiling, so this resolver
+     * treats only two signals as "walk back": the boundary block is absent
+     * (`ids.length === 0`), or it exists and carries no parameters. A REST
+     * failure or a decode error is a halt the walk must see, not a silent
+     * fallback to the previous epoch or the genesis default.
      */
     private async resolveActiveMaxBlockCost(height: number): Promise<number> {
         const target = Math.floor(height / this.votingLength) * this.votingLength;
         const cached = this.maxBlockCostByEpoch.get(target);
         if (cached !== undefined) return cached;
         for (let b = target; b >= 0; b -= this.votingLength) {
-            try {
-                const ids = await this.node.getHeaderIdsAtHeight(b);
-                if (ids.length > 0) {
-                    const frags = await this.node.getValidationFragments(ids[0]!);
-                    if (frags.parameters !== null) {
-                        this.maxBlockCostByEpoch.set(target, frags.parameters.maxBlockCost);
-                        return frags.parameters.maxBlockCost;
-                    }
+            const ids = await this.node.getHeaderIdsAtHeight(b);
+            if (ids.length > 0) {
+                const frags = await this.node.getValidationFragments(ids[0]!);
+                if (frags.parameters !== null) {
+                    this.maxBlockCostByEpoch.set(target, frags.parameters.maxBlockCost);
+                    return frags.parameters.maxBlockCost;
                 }
-            } catch {
-                // Boundary block unavailable (e.g. genesis-epoch height 0
-                // doesn't exist, or a transient REST error) — treat as "no
-                // params here" and keep walking back; falls through to the
-                // genesis default if nothing ≤ height carries parameters.
             }
             if (b === 0) break;
         }
