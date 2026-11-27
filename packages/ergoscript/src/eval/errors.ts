@@ -3,162 +3,26 @@
  *
  * `EvalErrorCode` is a string-literal union covering all legal second-argument
  * values for `new EvalError(message, code)`. Collecting them here:
- *   - serves as a single-place reference for reviewers
+ *   - serves as a single-place reference for reviewers;
  *   - enables TypeScript to flag typos in `new EvalError(…, 'bad-code')` calls
- *     if you annotate the code parameter (opt-in; `EvalError` itself keeps `code: string`
- *     for ergonomic construction in each arm without needing to import this type)
- *   - documents the 81 codes through v6 P6 (HOF lambdas) + F1 (which removed
- *     'atleast-bound-out-of-range' AND 'deserialize-context-key-not-found':
- *     81 → 79; see history) + F3 (79 → 80)
- *     + F4 epilogue Task 2 (+'unsupported-eval-node', −'create-avl-tree-shape-mismatch'
- *     which the unconditional CreateAvlTree reject orphaned: net 80 → 80)
- *     + F4 epilogue Task 3 (−'avl-tree-bad-digest-length': JVM accepts any digest
- *     length, CAvlTree.scala:31-34 no-require; net 80 → 79)
- *     + F5 batch 1 (+'tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
- *     values.scala:795-798; net 79 → 80)
- *     + F5 batch 3 (+'unsupported-value-type': checkType non-pair-STuple /
- *     non-unary-SFunc declared type, SType.scala:200-205; net 80 → 81. T3 adds
- *     'select-field-non-pair' → 82)
- *     + F5 batch 4 (+'atleast-too-many-children': Atleast >255-children cap,
- *     CSigmaDslBuilder.scala:102-108; net 82 → 83)
- *     + F5 batch-4 close-out tally fix (+'coll-map-elem-type-infer-failed':
- *     pre-existing defensive code originated phase 2f, tsc-provably unreachable
- *     default arm of the exhaustive SValue-kind switch in svalue-type.ts; net
- *     83 → 84) — current total: 84
- *     + v6 batch-6 Ask 20 (+'context-extension-key-out-of-range': self context-extension
- *       key outside [0,127] — the JVM keys the extension by signed Byte, so
- *       toSigmaContext crashes on a negative key (wire >= 0x80); net 84 → 85)
- *     + B-core soft-fork preservation (+'unparsed-ergotree', 2026-06-17: an
- *       UnparsedErgoTree handed to evaluate; net 85 → 86)
- *     + the JVM's node construction (2026-09-30: −'method-call-empty-args', moved to
- *       the wire layer; −'v6-type-in-pre-v3-tree', its pass retired; net 86 → 84;
- *       then +'deserialize-rebuild-failed', the substitution's rebuild check; 84 → 85)
- *     + 2 codes added for the collection class rulings ('coll-class-cast',
- *       'coll-array-store'; see the history chain below) → 87
- *     + 1 code added for the pair-class check at every `checkType` site
- *       ('checked-value-class': `assertCheckedValue` in `eval/_check-type.ts`;
- *       `SType.scala:200-201`) → 88
- *     + 1 code for a `SigmaAnd` / `SigmaOr` node with no items
- *       ('sigma-node-no-items'; `SigmaBoolean.scala:165`, `:201`) → 89.
+ *     if you annotate the code parameter (opt-in; `EvalError` itself keeps
+ *     `code: string` for ergonomic construction in each arm without needing to
+ *     import this type).
  *
- *   The union below holds 90 codes. `'tree-version-above-activated'` (the
- *   90th) is raised by `dispatchTreeBody` (the entry hook of `evaluate`,
- *   `evaluateWith` and `reduceWith` in `eval/evaluate.ts`) for a parsed tree
- *   whose header version is above `knownActivatedVersion(ctx)` when that is 2
- *   or more, and for a `treeVersion` the caller set above it. The JVM's
- *   reference is `VersionContext.withVersions` through its constructor
- *   (`core/shared/src/main/scala/sigma/VersionContext.scala:20`,
- *   `Interpreter.scala:207`).
+ * The union below holds 90 codes, grouped by area and documented one by one;
+ * `facts/ergoscript-eval.md` carries the same taxonomy as a contract.
  *
- * **Do not add codes here without also adding them to the relevant arm's source
- * file and test.** This file is the taxonomy, not the source of truth for
- * behaviour.
+ * `'tree-version-above-activated'` is raised by `dispatchTreeBody` (the entry
+ * hook of `evaluate`, `evaluateWith` and `reduceWith` in `eval/evaluate.ts`)
+ * for a parsed tree whose header version is above `knownActivatedVersion(ctx)`
+ * when that is 2 or more, and for a `treeVersion` the caller set above it.
+ * The JVM's reference is `VersionContext.withVersions` through its
+ * constructor (`core/shared/src/main/scala/sigma/VersionContext.scala:20`,
+ * `Interpreter.scala:207`).
  *
- * History:
- *   28 codes through phase 2f medium (GlobalVars/GetVar/Option/SelectField)
- *    + 7 codes added in phase 2f Coll HOFs (Task 1, 2026-05-16)
- *    + 1 code added in phase 2g-medium (sigma-protocol primitives)
- *    + 4 codes added in phase 2g-combinators (Atleast + sigma helpers)
- *    + 3 codes added in phase 2g.5 (method-call dispatch + SigmaPropBytes + SContext.dataInputs)
- *    + 1 code added in phase 2h-b Tier 1 (SAvlTree pure accessors)
- *    + 1 code added in phase 2h-b Tier 2 (SAvlTree verification ops)
- *    + 1 code added in phase 2h-c.1 (SHeader property accessors)
- *    + 1 code added in phase 2h-c.2 (SHeader.checkPow — Autolykos V1 guard)
- *    + 1 code added in phase 2h-d (SAvlTree.updateDigest length check)
- *    + 1 code added in v6 P1 C1 final-review fix (numeric-method-bad-operand)
- *    + 7 codes added in phase 2i-a (pure-bytes predefs):
- *        - 'predef-input-not-byte-array' (T2; shared by T2/T3/T4/T6/T7/T8)
- *        - 'byte-array-to-long-too-short' (T4)
- *        - 'predef-input-not-long' (T5)
- *        - 'byte-array-to-bigint-empty' (T6)
- *        - 'byte-array-to-bigint-out-of-range' (T6)
- *        - 'decode-point-invalid' (T8)
- *        - 'subst-constants-error' (T9 — compact umbrella for 7 paths)
- *    + 4 codes added in phase 2i-b (curve + AVL + sigma-trivial predefs):
- *        - 'sigma-prop-is-proven-no-eval' (T2 — frontend-only structural throw)
- *        - 'group-op-input-not-group-element' (T3+T4 — MultiplyGroup + Exponentiate base)
- *        - 'predef-input-not-bigint' (T4 — Exponentiate's BigInt exponent)
- *        - 'create-avl-tree-shape-mismatch' (T5 — compact: flags/keyLength/
- *          valueLength; REMOVED in the F4 epilogue — the unconditional
- *          CreateAvlTree eval-reject orphaned every throw path)
- *    + 4 codes added in phase 2i-c (deserialize family; was 5 — F1 later
- *      removed 'deserialize-context-key-not-found', see note below):
- *        - 'deserialize-input-not-byte-array' (both: entry/register not Coll[Byte])
- *        - 'deserialize-parse-failed' (both: inner Expr bytes malformed)
- *        - 'deserialize-tpe-mismatch' (both: exprTpe(parsed, treeVersion) !== e.tpe)
- *        - 'deserialize-not-substituted' (defensive eval-time throw; reachable
- *          for DR with register absent + default null OR recursive-Deserialize
- *          OR — post-F1 — a LIVE DC over an absent/wrong-typed var)
- *   = 63 codes total after phase 2i-c (F1-adjusted from 64).
- *    + 2 codes from v5 Coll methods (coll-update-index-out-of-range,
- *        coll-update-many-length-mismatch) → 65
- *    + 2 codes from v6 P1 numeric methods (numeric-shift-out-of-range,
- *        bigint-result-out-of-range) → 67
- *    + 1 code from v6 P1 C1 final-review (numeric-method-bad-operand) → 68
- *    + 4 codes from v6 P2 SUnsignedBigInt (v6-type-in-pre-v3-tree,
- *        unsigned-bigint-op-unsupported, unsigned-bigint-out-of-range,
- *        unsigned-bigint-not-invertible) → 72 (housekeeping 2026-06-03: used in
- *        the P2 arms but omitted from this union until now)
- *    + 8 codes across v6 P4–P6 ('method-call-empty-args' P4 → 73;
- *        'global-serialize-failed' + 'global-deserialize-failed' P5a → 75;
- *        'global-from-bigendian-bytes-failed' P5b-1 → 76;
- *        'global-encode-nbits-failed' + 'global-decode-nbits-failed' P5b-2 → 78;
- *        'pow-hit-invalid-params' P5c → 79; 'apply-unresolved-type-var' P6 → 80)
- *    − 1 code removed in F1 ('atleast-bound-out-of-range'; F1's other removal,
- *        'deserialize-context-key-not-found', is already netted in the
- *        "F1-adjusted" 63 above) → 79
- *    + 1 code added in F3 (conformance run — EQ-of-SigmaProp costed walk):
- *        'sigma-boolean-compare-unsupported' (JVM DataValueComparer sys.error
- *        mirror) → 80
- *    + 1 − 2 in the F4 epilogue (+'unsupported-eval-node' T2;
- *        −'create-avl-tree-shape-mismatch' T2, −'avl-tree-bad-digest-length' T3) → 79
- *    + 1 code added in F5 batch 1 ('tuple-invalid-arity': Tuple EXPR arity≠2 eval reject,
- *        values.scala:795-798; net 79 → 80)
- *    + 2 codes added in F5 batch 3 ('unsupported-value-type' — checkType
- *        non-pair-STuple / non-unary-SFunc declared type; 'select-field-non-pair'
- *        T3 — SelectField on a runtime non-pair Tuple) → 82
- *    + 1 code added in F5 batch 4 ('atleast-too-many-children' — Atleast
- *        >255-children cap, CSigmaDslBuilder.scala:102-108) → 83
- *    + 1 pre-existing code counted at F5 batch-4 close-out
- *        ('coll-map-elem-type-infer-failed' — defensive default arm of the
- *        exhaustive SValue-kind switch in svalue-type.ts, originated phase 2f,
- *        tsc-provably unreachable) → 84
- *    − 1 code moved to the wire layer on 2026-09-30 ('method-call-empty-args', now an
- *        ExprParseError raised at parse; docs/specs/2026-09-30-jvm-node-construction-design.md).
- *        The union held 86 before this step, two more than this chain records, and holds 85 after.
- *    − 1 code removed on 2026-09-30 ('v6-type-in-pre-v3-tree': its pre-eval pass is gone, since
- *        every type is read at the JVM's version at parse; the same spec, §4a) → 84.
- *    + 1 code added on 2026-09-30 ('deserialize-rebuild-failed': an ancestor the Deserialize
- *        rewrite rebuilds fails the constructor's checks, as Kiama's dup runs them; the same
- *        spec, §5) → 85.
- *    + 2 codes added for the collection class rulings ('coll-class-cast': a cast of a value
- *        or an array to another class a collection operation refuses — the JVM's
- *        ClassCastException and the IllegalArgumentException Scala's array code raises in the
- *        same places; 'coll-array-store': a store an array refuses — the JVM's
- *        ArrayStoreException. CollsOverArrays.scala at 6.0.7: `getOrElse` :26 and :309-315,
- *        the updated / updateMany / patch readers :48-57) → 87.
- *    + 1 code added for the pair-class check at every `checkType` site
- *        ('checked-value-class': a value that is not a `Tuple` of two items at a
- *        declared `STuple` of two items, `SType.scala:200-201`, raised by
- *        `assertCheckedValue` in `eval/_check-type.ts`) → 88.
- *    + 1 code for a `SigmaAnd` / `SigmaOr` node with no items ('sigma-node-no-items', raised
- *        by `eval/sigma-and.ts` and `eval/sigma-or.ts`; `SigmaBoolean.scala:165`, `:201`) → 89.
- *
- *   The union holds 90 codes. `'tree-version-above-activated'` is raised by `dispatchTreeBody` (the entry hook of
- *   `evaluate`, `evaluateWith` and `reduceWith` in `eval/evaluate.ts`) for a parsed tree whose header version is
- *   above `knownActivatedVersion(ctx)` when that is 2 or more, and for a `treeVersion` the caller set above it.
- *   The JVM's reference is `VersionContext.withVersions` through its constructor (`core/shared/src/main/scala/
- *   sigma/VersionContext.scala:20`, `Interpreter.scala:207`).
- *
- *   (Staleness reconciled in the F5 batch 4 close-out, 2026-06-10. Stale
- *   entries fixed: this History chain had stopped at F5 batch 1 — the v6
- *   P4–P6 / F1 / F3-total / F4-epilogue intermediate steps and the F5 batch 3
- *   (+2 → 82) and batch 4 (+1 → 83) tail were missing; the header chain above
- *   lacked the batch 4 step; and the union below was missing batch 4's
- *   'atleast-too-many-children' even though the throw site (eval/atleast.ts)
- *   and facts/ergoscript-eval.md already carried it. A further gap —
- *   'coll-map-elem-type-infer-failed' (pre-existing defensive code, phase 2f)
- *   — was also never counted; found and added in the same close-out pass.)
+ * **Do not add codes here without also adding them to the relevant arm's
+ * source file and test.** This file is the taxonomy, not the source of truth
+ * for behaviour.
  */
 
 /**
