@@ -9,8 +9,9 @@
  * In V5+ blocks the arm returns the real index; below V2 it returns -1
  * (the JVM's CostingDataContext.scala reference-equality branch, issue #603).
  * The gate is on `activated_script_version` (block-level, read as
- * `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`.
- * From mainnet block 342,964 this arm is reachable.
+ * `preHeader.version - 1` wrapped as a signed byte), NOT `tree_version`:
+ * gating on the tree version instead of the activated version mis-evaluates
+ * mainnet block 942,664. From mainnet block 342,964 this arm is reachable.
  *
  * Pre-JIT-activation blocks (preHeader.version=1, activated=0; or
  * preHeader.version=2, activated=1) return -1 unconditionally; v3+
